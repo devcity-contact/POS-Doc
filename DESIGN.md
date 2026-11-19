@@ -88,6 +88,64 @@ Do not design anything yet; confirm you understand the RetailOS design system. I
 RetailOS by DevCity: modern POS + back office for Sri Lankan retail, pharmacy and grocery. Clean SaaS style (Shopify POS / Linear). Light theme: bg #FDFFFC, cards #FFFFFF, border #E4E7EC, text #272932, muted #6B7080. Primary #3772FF (buttons, brand, selection). Success #22C55E for totals/synced (charcoal text on green; green text #15803D). Warning #FF7F11 (offline, expiry). Error #D91415. Inter font, 12px radius cards, Lucide icons, Rs currency, EN/සිං/தமி switch, one primary button per screen, badges with icon + label.
 ```
 
+## Master prompt v2: world-class POS look (reference style)
+
+This prompt is based on the reference designs DevCity collected. It keeps their airy layout: a grouped sidebar, category chips, image product cards, a right-hand order panel with steppers and one big charge button, and a keypad payment modal. It adapts that look for retail, pharmacy and grocery, where scanning comes first, and makes every interaction work with **keyboard, mouse and touch**. Use it *instead of* the first master prompt when you want this visual direction. All other screen prompts on this page still work after it.
+
+> **What the references have in common**  
+> Light, calm surfaces with lots of whitespace · a left sidebar grouped into sections · category chips + search + "In stock only" filter · product cards with large cut-out images, a category label, name, price and a round "+" button · a right order panel with an order-type switch, customer field, item thumbnails, ± steppers, payment method, voucher field, subtotal/tax/discount/total, and a full-width charge button showing the amount · KPI tiles with trend chips on the overview · a payment modal with quick-cash chips and a big keypad.
+
+```text
+Design "RetailOS by DevCity", a world-class, modern and reliable point-of-sale for retail shops, pharmacies and supermarkets in Sri Lanka. It must feel as polished as the best POS products: light, airy, calm, premium, with generous whitespace, soft depth and large product imagery. It is used all day at a busy counter, so speed and clarity beat decoration.
+
+DEVICES & INPUT (design every component for all four):
+- Touch screens (15" all-in-one POS, 10" Android tablet): targets at least 48px, keypad keys 64px, swipeable category chips, ± steppers instead of tiny inputs, long-press a cart line for options.
+- Mouse: clear hover states, tooltips that show the keyboard shortcut, right-click menu on cart lines.
+- Keyboard: visible focus rings (2px #3772FF), arrow-key navigation in the product grid and cart, Enter adds/confirms, Esc closes, F-key hints as small key caps on buttons (F2 Search, F3 Customer, F4 Qty, F5 Discount, F6 Hold, F8 Return, F10 Pay), "3*" then scan sets quantity 3.
+- Barcode scanner: the search/scan field is always ready; scanning works from any screen.
+
+LAYOUT (desktop 1366x768 and 1920x1080, tablet 1280x800):
+1) LEFT SIDEBAR: 240px expanded or a 72px icon rail (toggle), white, logo "RetailOS" with a blue mark. Groups with small uppercase labels: MAIN (Overview, Sell, Orders, Returns, Customers), INVENTORY (Products, Stock, Receiving, Expiry), FINANCE (Cash & shifts, Reports, Tax), MANAGEMENT (Suppliers, Promotions, Staff, Activity log). Bottom: Help, Settings, Logout (red), and a user card with avatar, name, role and branch.
+2) TOP BAR: page title, branch/register chip "CMB01 · Register 2", sync status pill (green "Synced" / orange "Offline · 12 waiting"), notification bell, language switch EN | සිං | தமி, user menu.
+3) CENTER: a large search-and-scan field ("Scan or search products… Ctrl K"), an "In stock only" dropdown filter, a grid/list view toggle, then a horizontal row of category chips (All, Pharmacy, Grocery, Dairy, Beverages, Household, Personal care) with the active chip filled #3772FF. Below it a responsive product card grid (3-5 columns): each card white, 16px radius, very soft shadow, category label top-left in muted text, quick-view expand icon top-right, a large product photo on a soft light background, product name (semibold), price "Rs 1,150.00", a small stock badge (green "In stock", orange "Low", red "Out"), optional badges ("Batch", "Rx", "kg", "Offer"), and a round "+" button bottom-right. Selected/hover card gets a #3772FF outline.
+4) RIGHT ORDER PANEL (380-420px, full height, white, left border): header "Current sale #CMB01-R02-000155" with a menu; a segmented control "Sale | Return"; customer field with avatar and "Add customer (F3)"; line items each with a thumbnail, name, small variant/batch text, edit icon, price, and a − qty + stepper plus a delete icon; "Add note"; payment summary (Subtotal, Discount in green text #15803D, VAT, then a bold Total); payment method select and voucher/coupon field with "Apply"; a full-width primary button "Charge Rs 2,349.00 →" in #3772FF (56px tall, white semibold label) and a secondary outline button "Hold bill (F6)".
+On tablet/narrow widths the order panel becomes a bottom sheet with a sticky "Charge" bar.
+
+COLOURS: background #FDFFFC (optionally a very soft blurred light gradient behind the app window), cards #FFFFFF, subtle fills #F3F5F9, borders #E4E7EC, text #272932, muted #6B7080. PRIMARY #3772FF for brand, active nav, active chips, focus, primary buttons; light tint #EBF1FF. SUCCESS #22C55E for synced, completed, positive trends, totals badges (charcoal text on green; green text must be #15803D; never white text on green). WARNING #FF7F11 (offline, low stock, near expiry; tint #FFF1E5). ERROR #FF1B1C family (#D91415 for red text/destructive, tint #FFE8E8).
+
+TYPE & DETAIL: Inter (plus Noto Sans Sinhala/Tamil), tabular numbers for all prices, currency "Rs 1,250.00". Radii: cards 16px, buttons/inputs 10-12px, chips fully rounded. Lucide outline icons. Shadows extremely soft. One primary button per view. Status always shown as icon + text badge. Generous 24px panel padding, 8px grid.
+
+RELIABILITY CUES: always-visible sync/offline status, printer status, clear empty/loading/error states, undo toasts instead of confirmation dialogs, nothing ever looks frozen.
+
+Confirm you understand. Then design the first screen: the "Sell" screen described above with 12 retail/pharmacy/grocery products (milk powder 400g, basmati rice 5kg, paracetamol 500mg strip, toothpaste, shampoo, biscuits, eggs 10-pack, bottled water 1.5L, soap, tea 200g, coconut oil 1L, bread) and 4 items already in the order panel.
+```
+
+### Follow-up prompts in the same style
+
+```text
+Payment modal for the Sell screen: a centered modal over the dimmed Sell screen. Left column "Order summary": customer avatar and name, receipt number and time, the line items with quantities and prices on a light grey card with a torn-receipt bottom edge, then Items, VAT and a bold Total. Right column "Payment": method selector as large tiles (Cash, Card, LankaQR, Credit, Split), a very large amount display "Rs 2,500", quick-cash chips (Exact, 500, 1,000, 2,000, 5,000), a big 3x4 keypad (64px keys, works with the physical number keys too), the change due "Change Rs 151.00" in green text #15803D, and a full-width primary button "Complete payment · Enter". Close (Esc) at top right.
+```
+
+```text
+Overview dashboard in the same shell: a row of 4 KPI cards with a soft coloured icon tile, label, big value and a trend chip (Today's sales Rs 486,200 ▲ 8% vs yesterday in green; Transactions 612 ▲ 24; Customers 188 ▲ 12 new; Credit due Rs 320,500 ▼ 4% in orange). Below: a large "Sales by hour" area chart (#3772FF) with today vs last week, a "Needs attention" card (sale exceptions, expiring batches, low stock, offline registers, each with a count badge and chevron), "Top products" with thumbnails and small bars, and "Branches today" with online status dots.
+```
+
+```text
+Orders list in the same shell: tabs All, Completed, Held, Returned, Waiting to sync; a grid of order cards (customer, receipt number, time, register, 3 item rows with qty and price, "+2 more", total, a status chip such as "Completed" green, "Held" grey, "Waiting to sync" orange) with "Details" and "Reprint" buttons. Right side: date picker and search by receipt or customer.
+```
+
+```text
+Product quick view: clicking the expand icon on a product card opens a side drawer with a large image, names in English/Sinhala/Tamil, price, stock per branch, batches with expiry badges, barcode, and buttons "Add to sale" (primary) and "Price check". Keyboard: Space opens quick view for the focused card, Esc closes.
+```
+
+```text
+Show the same Sell screen as a 1280x800 Android tablet: sidebar collapsed to a 72px icon rail, 3-column product grid with bigger cards, and the order panel as a bottom sheet with a sticky bar "4 items · Rs 2,349.00 · Charge". Keep all touch targets at least 48px.
+```
+
+```text
+Show the keyboard-focus state of the Sell screen: the second product card focused with a 2px #3772FF focus ring, a small floating shortcut hint bar at the bottom ("↑↓←→ move · Enter add · Space quick view · F10 pay · ? all shortcuts"), and a cart line selected with ± and Del hints.
+```
+
 ## Dark variant prompt (after each screen)
 
 ```text
