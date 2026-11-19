@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Monitoring & runbooks · RetailOS</title>
+<meta name="description" content="Observability, key metrics, alerts, the support console, debugging a sale end to end, maintenance routines and runbooks for RetailOS.">
+<link rel="stylesheet" href="assets/site.css">
+<script>try{var t=localStorage.getItem("retailos-theme");if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
+</head>
+<body>
+<header id="topbar"></header>
+<div class="layout">
+<nav id="sidebar"></nav>
+<main class="content"><article>
+
+<h1>Monitoring & runbooks</h1>
+<p class="lead">You can't drive to every shop. RetailOS is built so that most problems can be seen, diagnosed and often fixed remotely: every register reports its health, every sale can be traced end to end, and every common failure has a runbook.</p>
+
+<h2 id="observability">Observability stack</h2>
+<figure class="diagram">
+<pre class="mermaid">
+flowchart LR
+  REG["Registers&lt;br/&gt;heartbeat, errors, local logs on demand"] --> API["Backend"]
+  REG -- "crash and error reports" --> ERR["Error tracking&lt;br/&gt;Sentry-compatible (GlitchTip self-host or SaaS free tier)"]
+  API -- "OTLP traces + metrics" --> COL["OpenTelemetry collector&lt;br/&gt;(or agent built into host)"]
+  API -- "JSON logs (stdout)" --> COL
+  COL --> STORE["Metrics + logs + traces backend&lt;br/&gt;Grafana Cloud free tier or self-hosted&lt;br/&gt;Prometheus/Loki/Tempo"]
+  STORE --> DASH["Dashboards + alerts"]
+  DASH --> ONCALL["Phone / e-mail / Telegram alert"]
+</pre>
+<figcaption>Vendor-neutral: OpenTelemetry in the app means the backend can be swapped without code changes.</figcaption>
+</figure>
+
+<h3 id="logging">Logging rules</h3>
+<ul>
+<li>Structured JSON to stdout with these fields: <code>ts, level, msg, traceId, spanId, tenantId, branchId, registerId, userId, saleId, code</code>.</li>
+<li>Log <code>WARN</code> or higher for every <code>SaleException</code>, <code>BLOCKED</code> outbox item, RLS error and auth failure burst.</li>
+<li>Never log PINs, passwords, tokens, full phone numbers, prescription details or request bodies of auth endpoints.</li>
+<li>Retention: 14 days hot, 90 days archived (compressed) for audit-related logs. The audit log itself lives in the database.</li>
+</ul>
+
+<h2 id="metrics">Key metrics and alerts</h2>
+<table>
+<thead><tr><th>Metric</th><th>Why</th><th>Alert when</th><th>Severity</th></tr></thead>
+<tbody>
+<tr><td><code>sync_push_lag_seconds</code> (per register: now − oldest pending sale)</td><td>Unsynced sales are at risk</td><td>&gt; 6 h while the register's heartbeat is online</td><td>High</td></tr>
+<tr><td><code>outbox_blocked_items</code></td><td>A bug is stranding facts</td><td>&gt; 0</td><td>High</td></tr>
+<tr><td><code>event_publication_incomplete</code> (server outbox)</td><td>Listeners failing</td><td>Older than 10 min</td><td>High</td></tr>
+<tr><td><code>ledger_drift_rows</code> (nightly check)</td><td>Stock projection is wrong</td><td>&gt; 0</td><td>High</td></tr>
+<tr><td><code>audit_chain_breaks</code></td><td>Possible tampering</td><td>&gt; 0</td><td>Critical</td></tr>
+<tr><td><code>rls_violation_errors</code></td><td>Code tried to cross tenants or forgot to set the context</td><td>&gt; 0</td><td>Critical</td></tr>
+<tr><td><code>http_5xx_rate</code></td><td>Backend errors</td><td>&gt; 1% for 5 min</td><td>High</td></tr>
+<tr><td><code>http_p95_latency</code> (REST)</td><td>Admin speed</td><td>&gt; 800 ms for 15 min</td><td>Medium</td></tr>
+<tr><td><code>auth_failures</code></td><td>Brute force</td><td>&gt; 50/min from one IP or account</td><td>Medium</td></tr>
+<tr><td><code>db_connections_used_pct</code>, <code>db_cpu</code>, <code>db_storage_free</code></td><td>Capacity</td><td>&gt; 80% / &gt; 80% / &lt; 20%</td><td>Medium</td></tr>
+<tr><td><code>backup_last_success_age</code></td><td>Backups silently failing</td><td>&gt; 26 h</td><td>High</td></tr>
+<tr><td><code>fiscal_submission_failed</code> (R3)</td><td>Tax compliance</td><td>Any document failing for &gt; 24 h</td><td>High</td></tr>
+<tr><td><code>registers_offline_over_24h</code></td><td>Shop has an internet problem or the app is broken</td><td>Daily digest to support</td><td>Low</td></tr>
+<tr><td><code>register_crash_rate</code> (per version)</td><td>Bad release</td><td>&gt; 2× previous version, which halts the rollout ring</td><td>High</td></tr>
+</tbody>
+</table>
+<p>Alert only on things a person must act on. Everything else goes on a dashboard. Each alert links to a runbook below.</p>
+
+<h2 id="support-console">Support console</h2>
+<p>An internal page in the admin app, visible only to <code>PLATFORM_SUPPORT</code> with tenant consent. It shows:</p>
+<ul>
+<li>Per register: app version, last heartbeat, last successful pull and push, pending and blocked outbox counts, printer status, free disk space, clock skew.</li>
+<li>Actions: request log upload, force full resync, requeue blocked items, lock device, reset receipt sequence (two-person approval).</li>
+<li>Per tenant: open sale exceptions, import job errors, fiscal submission status, enabled modules, plan.</li>
+</ul>
+
+<h2 id="debug-sale">Debugging: trace a sale end to end</h2>
+<p>Every sale carries its UUID and a <code>traceparent</code> from the moment it's created on the register. Use either one to follow it.</p>
+<ol class="steps">
+<li><strong>Start from the receipt.</strong> Receipt <code>CMB01-R02-000154</code> → admin: <em>Sales → search receipt</em>. If it's found, you have the sale ID, received time and exceptions.</li>
+<li><strong>Not on the server?</strong> Support console → register R02 → outbox. Is the sale <code>PENDING</code> (network), <code>BLOCKED</code> (see <code>last_error</code>), or missing (it was never completed: check local logs)?</li>
+<li><strong>Server logs:</strong> search <code>saleId=&lt;uuid&gt;</code> or <code>traceId</code>. You'll see the push request, idempotency result, allocation and published events.</li>
+<li><strong>Stock looks wrong?</strong> Query <code>stock_movement where ref_type='SALE' and ref_id=&lt;saleId&gt;</code>, then compare with <code>sale_line_allocation</code>.</li>
+<li><strong>Totals look wrong?</strong> Re-run the line through <code>shared/test-vectors</code> tooling: <code>./gradlew taxCheck --sale=&lt;id&gt;</code> recomputes tax and compares it with the stored snapshot.</li>
+<li><strong>Who did it?</strong> <code>audit_log where entity_id=&lt;saleId&gt;</code> shows the cashier, any approver, the device and overrides.</li>
+</ol>
+<pre><code>-- Handy queries (run as retailos_app with the tenant set)
+select set_config('app.tenant_id', '&lt;tenant-uuid&gt;', false);
+
+select s.receipt_no, s.status, s.grand_total, s.completed_at, s.received_at
+from sale s where s.id = '&lt;sale-uuid&gt;';
+
+select m.type, m.qty, b.batch_no, b.expiry_date
+from stock_movement m join batch b on b.id = m.batch_id
+where m.ref_type = 'SALE' and m.ref_id = '&lt;sale-uuid&gt;';
+
+select * from sale_exception where sale_id = '&lt;sale-uuid&gt;';</code></pre>
+
+<h2 id="maintenance">Routine maintenance</h2>
+<table>
+<thead><tr><th>Frequency</th><th>Task</th><th>Automated?</th></tr></thead>
+<tbody>
+<tr><td>Nightly</td><td>Ledger check (rebuild balances, compare), audit chain check, expiry scan, catalog snapshot build, materialized view refresh, partition creation (3 months ahead)</td><td>Yes (worker jobs)</td></tr>
+<tr><td>Daily</td><td>Review the alert digest: offline registers, open sale exceptions older than 3 days</td><td>Digest automated, review manual</td></tr>
+<tr><td>Weekly</td><td>Merge dependency update PRs (Renovate), check error-tracking top issues, check disk and DB growth</td><td>Partly</td></tr>
+<tr><td>Monthly</td><td>Cost review per tenant (see <a href="cost.html#monitoring-cost">Cost</a>), compact <code>sync_change_log</code>, archive old logs, verify the off-site backup exists</td><td>Partly</td></tr>
+<tr><td>Quarterly</td><td>Restore drill, rotate secrets and JWT keys, review user access and support access logs, update the supported hardware list</td><td>Manual</td></tr>
+<tr><td>Yearly</td><td>External pen test, DR exercise in another region, review data retention and archive old partitions</td><td>Manual</td></tr>
+</tbody>
+</table>
+
+<h2 id="runbooks">Runbooks</h2>
+
+<details id="rb-sync"><summary>RB-01 · A register isn't syncing</summary>
+<ol>
+<li>Support console: last heartbeat. No heartbeat means a network or app problem in the shop. Ask the shop to open the register's status screen (it shows the connection test result).</li>
+<li>Heartbeat present but push failing: check <code>last_error</code>. A <code>401/403</code> means the device or user was locked, or the token was revoked (check the audit log). A <code>426</code> means the app is too old, so trigger an update. A <code>5xx</code> means a server problem (check the 5xx alert).</li>
+<li>Items <code>BLOCKED</code>: find the error code, fix the cause (often a bug, so ship a fix), then <em>Requeue</em>.</li>
+<li>Never delete outbox items. If a payload is truly corrupt, export it, attach it to a ticket and escalate.</li>
+</ol>
+</details>
+
+<details id="rb-printer"><summary>RB-02 · Receipt printer not printing</summary>
+<ol>
+<li>The register's status screen has a <em>Test print</em> button. It shows the device bridge error (not found, offline, paper out).</li>
+<li>USB: check that the Windows driver isn't holding the port exclusively (the raw USB/serial mode is documented per model). LAN: ping the printer IP from the status screen, and check the port is 9100.</li>
+<li>Sinhala/Tamil text garbled: the printer must be in raster-image mode for those receipts (setting per printer profile).</li>
+<li>Selling continues without a printer. Receipts can be reprinted later from sales history.</li>
+</ol>
+</details>
+
+<details id="rb-negative"><summary>RB-03 · Many NEGATIVE_STOCK exceptions</summary>
+<ol>
+<li>Usually goods were sold before the goods receipt was posted. Check for unposted GRNs at that branch.</li>
+<li>Otherwise, barcodes may be mapped to the wrong SKU or unit (box vs piece). Check the most frequent SKUs.</li>
+<li>Resolve by posting the GRN or doing a stock count. Close the exceptions with a note.</li>
+</ol>
+</details>
+
+<details id="rb-collision"><summary>RB-04 · RECEIPT_COLLISION on a register</summary>
+<ol>
+<li>The register is locked automatically. Find out why the sequence repeated (restored backup, cloned PC image).</li>
+<li>Both sales are kept as facts. Mark one as the duplicate-number case in the exception note, for the tax auditor.</li>
+<li>Reset the register's sequence to the server's last sequence + 1 (two-person approval), then unlock.</li>
+</ol>
+</details>
+
+<details id="rb-restore"><summary>RB-05 · Restore the database</summary>
+<ol>
+<li>Declare an incident. Put the API in maintenance mode: registers keep selling, and pushes get <code>503</code> and retry.</li>
+<li>Restore to a <em>new</em> instance at the chosen point in time (managed PITR, or <code>wal-g backup-fetch</code> + recovery target).</li>
+<li>Run checks: ledger check, audit chain check, row counts vs. metrics from before the incident.</li>
+<li>Point the app at the new instance and leave maintenance mode. Registers re-push everything after the restore point, and idempotency makes this safe.</li>
+<li>Keep the old instance for 7 days for forensics. Write the post-mortem.</li>
+</ol>
+</details>
+
+<details id="rb-deploy"><summary>RB-06 · Roll back a bad release</summary>
+<ol>
+<li>Backend: redeploy the previous image tag. Migrations are expand-only, so the old code works on the new schema.</li>
+<li>Register: stop the rollout ring (CDN channel file or Play staged rollout). Push the previous version to the affected ring as a "new" build if needed.</li>
+<li>Turn off the feature flag if the problem is behind one. That's the fastest fix.</li>
+</ol>
+</details>
+
+<details id="rb-security"><summary>RB-07 · Suspected account or device compromise</summary>
+<ol>
+<li>Lock the user (bumps <code>ver</code>, tokens die within 10 minutes, refresh tokens are revoked at once) and lock the device.</li>
+<li>Review the audit log for that actor for the last 30 days: refunds, discounts, voids, exports, permission changes.</li>
+<li>Rotate any shared secret they could have seen. Tell the shop owner.</li>
+<li>Follow <a href="security.html#incident">Incident response</a> if more than one tenant may be affected.</li>
+</ol>
+</details>
+
+<details id="rb-onboard"><summary>RB-08 · Onboard a new shop</summary>
+<ol>
+<li>Create the tenant (plan, modules), owner user, MFA setup link.</li>
+<li>The owner runs the onboarding wizard: business details, VAT number, branches, registers, tax settings, receipt layout.</li>
+<li>Import products from the Excel template. Fix errors from the preview report.</li>
+<li>Install the register app, enroll each device with a code, test print, test drawer, test scanner (including a GS1 2D code).</li>
+<li>Training sale on a training-mode register (sales are flagged and excluded from reports), then go live.</li>
+</ol>
+</details>
+
+<details id="rb-offboard"><summary>RB-09 · A shop leaves (offboarding)</summary>
+<ol>
+<li>Export all their data (CSV/XLSX + tax documents PDF) and deliver it through a signed link.</li>
+<li>Suspend the tenant. Registers stop at the next pull.</li>
+<li>After the contract retention period, anonymise personal data. Tax facts are kept for the legal period, then deleted with their partitions.</li>
+</ol>
+</details>
+
+</article></main>
+<aside id="toc"></aside>
+</div>
+<script src="assets/search-index.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js"></script>
+<script src="assets/site.js"></script>
+</body>
+</html>

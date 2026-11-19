@@ -1,0 +1,239 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Industry extensions · RetailOS</title>
+<meta name="description" content="How pharmacy, grocery, restaurant and salon features plug into the RetailOS core through server SPIs, register UI slots and per-tenant module switches.">
+<link rel="stylesheet" href="assets/site.css">
+<script>try{var t=localStorage.getItem("retailos-theme");if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
+</head>
+<body>
+<header id="topbar"></header>
+<div class="layout">
+<nav id="sidebar"></nav>
+<main class="content"><article>
+
+<h1>Industry extensions</h1>
+<p class="lead">The core POS understands a generic sale. Industry modules add workflows and data through a small set of named extension points. A tenant switches modules on, and the core never imports an extension.</p>
+
+<h2 id="core-vs-ext">What is core and what is an extension</h2>
+<p>Several features that look industry-specific are needed by more than one industry, so they belong in the core.</p>
+<table>
+<thead><tr><th>Capability</th><th>Lives in</th><th>Why</th></tr></thead>
+<tbody>
+<tr><td>Batches, expiry, FEFO</td><td><strong>Core</strong> (inventory)</td><td>Pharmacies, supermarkets and FMCG all need it.</td></tr>
+<tr><td>Variants, units, multiple barcodes</td><td><strong>Core</strong> (catalog)</td><td>Every retailer has them.</td></tr>
+<tr><td>Barcodes with weight or price inside</td><td><strong>Core</strong> (catalog barcode parser)</td><td>Cheap to build, and general stores sell loose items too.</td></tr>
+<tr><td>Service items (no stock)</td><td><strong>Core</strong> (item type <code>SERVICE</code>)</td><td>Salons, pharmacies (consultation), repairs.</td></tr>
+<tr><td>"Performed by" staff on a line</td><td><strong>Core</strong> (sale_line.staff_id)</td><td>Commission in salons and pharmacies.</td></tr>
+<tr><td>Line options / modifiers with price</td><td><strong>Core</strong> (sale_line_option)</td><td>Restaurants, custom orders, gift wrap.</td></tr>
+<tr><td>Open order state (order before payment)</td><td><strong>Core</strong> (sale.status)</td><td>Restaurants and salons bill later, and held bills already need it.</td></tr>
+<tr><td>Prescriptions, controlled-drug register, generic substitution</td><td>ext-pharmacy</td><td>Pharmacy only.</td></tr>
+<tr><td>PLU management, scale profiles, shelf label printing</td><td>ext-grocery</td><td>Grocery only.</td></tr>
+<tr><td>Tables, KOT, kitchen display</td><td>ext-restaurant <span class="badge b-later">Later</span></td><td>Restaurant only.</td></tr>
+<tr><td>Appointments, staff calendar</td><td>ext-salon <span class="badge b-later">Later</span></td><td>Salon only.</td></tr>
+</tbody>
+</table>
+
+<div class="callout warn">
+<span class="ct">Design the core for later extensions now, even though they ship later</span>
+The core sale must support the states <code>OPEN → COMPLETED</code> (plus <code>VOIDED</code> before completion), service items, line options and a per-line staff member from the first migration. Adding these after launch would be a disruptive migration on the busiest tables.
+</div>
+
+<h2 id="mechanism">How extensions plug in</h2>
+<figure class="diagram">
+<pre class="mermaid">
+flowchart LR
+  subgraph Tenant["Tenant settings"]
+    TM["tenant_module&lt;br/&gt;pharmacy: on&lt;br/&gt;grocery: off"]
+  end
+  subgraph Server["Backend"]
+    REGY["ExtensionRegistry&lt;br/&gt;filters SPI beans by tenant"]
+    SPI1["SaleLineValidator"]
+    SPI2["ProductAttributeProvider"]
+    SPI3["ReceiptSectionProvider"]
+    PH["ext-pharmacy&lt;br/&gt;implements SPIs&lt;br/&gt;owns ph_* tables"]
+    SALES["sales (core)"]
+    SALES --> REGY
+    REGY --> SPI1
+    REGY --> SPI2
+    REGY --> SPI3
+    PH -. implements .-> SPI1
+    PH -. implements .-> SPI2
+    PH -. implements .-> SPI3
+  end
+  subgraph Register["Register app"]
+    PLUG["Plugin registry&lt;br/&gt;loads enabled plugins"]
+    SLOT1["Slot: checkout.lineBadge"]
+    SLOT2["Slot: checkout.beforeComplete"]
+    SLOT3["Slot: product.details"]
+    PHUI["pharmacy plugin&lt;br/&gt;prescription capture UI"]
+    PLUG --> SLOT1
+    PLUG --> SLOT2
+    PLUG --> SLOT3
+    PHUI -. fills .-> SLOT2
+  end
+  TM --> REGY
+  TM -->|"synced to register"| PLUG
+</pre>
+<figcaption>The same switch (tenant_module) controls server SPIs, register plugins and which extension data is synced.</figcaption>
+</figure>
+
+<h3 id="spi">Server extension points (SPI)</h3>
+<p>Each SPI is a Java interface in the core module's <code>spi</code> package. Extensions implement it as a Spring bean annotated with the module key. The core asks <code>ExtensionRegistry</code> for implementations enabled for the current tenant.</p>
+<pre><code>// sales/spi/SaleLineValidator.java
+public interface SaleLineValidator {
+    /** Industry module key, e.g. "pharmacy". Used to enable per tenant. */
+    String moduleKey();
+
+    /** Return warnings only. Never throw: a completed sale is a fact (INV-02). */
+    List&lt;SaleWarning&gt; validate(SaleDraft sale, SaleLineDraft line, ValidationContext ctx);
+}
+
+// ext/pharmacy/internal/PrescriptionRequiredValidator.java
+@Component
+@ExtensionFor("pharmacy")
+class PrescriptionRequiredValidator implements SaleLineValidator {
+    public String moduleKey() { return "pharmacy"; }
+    public List&lt;SaleWarning&gt; validate(SaleDraft s, SaleLineDraft l, ValidationContext c) {
+        var info = drugInfo.find(l.skuId());
+        if (info.isPresent() &amp;&amp; info.get().prescriptionRequired() &amp;&amp; !s.hasPrescriptionFor(l))
+            return List.of(SaleWarning.of("PH-001", "Prescription missing for " + info.get().name()));
+        return List.of();
+    }
+}</code></pre>
+
+<table>
+<thead><tr><th>SPI</th><th>Owner module</th><th>Called when</th><th>Example use</th></tr></thead>
+<tbody>
+<tr><td><code>ProductAttributeProvider</code></td><td>catalog</td><td>Product saved, read, exported, synced</td><td>Generic name, schedule class (pharmacy), PLU (grocery)</td></tr>
+<tr><td><code>SaleLineValidator</code></td><td>sales</td><td>Sale recorded (server) and line added (register mirror)</td><td>Prescription required, age-restricted item</td></tr>
+<tr><td><code>SaleEnricher</code></td><td>sales</td><td>Before persisting a sale</td><td>Attach prescription ID, table number</td></tr>
+<tr><td><code>PricingRule</code></td><td>pricing</td><td>Cart priced (register) and verified (server)</td><td>Mix &amp; match, happy hour, weight-based price</td></tr>
+<tr><td><code>ReceiptSectionProvider</code></td><td>sales</td><td>Receipt rendered</td><td>Dosage label, pharmacist name, table number</td></tr>
+<tr><td><code>BarcodeParser</code></td><td>catalog</td><td>Scan resolved</td><td>Store-specific scale formats</td></tr>
+<tr><td><code>ReportProvider</code></td><td>reporting</td><td>Report list built</td><td>Controlled-drug register report</td></tr>
+<tr><td>Event listeners</td><td>any</td><td>After commit</td><td>Write controlled-drug register entry on <code>SaleCompleted</code></td></tr>
+</tbody>
+</table>
+
+<h3 id="register-plugins">Register plugins</h3>
+<p>Register plugins are bundled into the app at build time, not downloaded at runtime: that is safer and works offline. They are activated by the tenant's enabled modules.</p>
+<pre><code>// packages/register-core/src/extensions/types.ts
+export interface RegisterPlugin {
+  key: 'pharmacy' | 'grocery' | string;
+  lineValidators?: LineValidator[];          // mirror of server SaleLineValidator
+  pricingRules?: PricingRule[];              // same rule logic as server, shared test vectors
+  barcodeParsers?: BarcodeParser[];
+  slots?: Partial&lt;Record&lt;SlotName, React.ComponentType&lt;SlotProps&gt;&gt;&gt;;
+  migrations?: LocalMigration[];             // extension-owned local tables (ph_*, gr_*)
+}
+
+export type SlotName =
+  | 'checkout.lineBadge' | 'checkout.beforeComplete' | 'checkout.sidePanel'
+  | 'product.details'    | 'receipt.footer'          | 'settings.section';</code></pre>
+
+<h3 id="data-rules">Data ownership rules</h3>
+<ul>
+<li>Extensions own tables with a prefix (<code>ph_</code>, <code>gr_</code>, <code>rs_</code>, <code>sl_</code>) and reference core rows by ID. <strong>Never add industry columns to core tables.</strong></li>
+<li>Core tables have one <code>attributes jsonb</code> column for display-only extras. Anything you filter, join or validate on gets a real column in an extension table.</li>
+<li>Extension migrations live in the extension's own Flyway location (<code>db/migration/ext/pharmacy</code>) and always run, so the schema is the same for every tenant. Only the data is per tenant.</li>
+<li>Sync sends extension data only to tenants that have the module enabled.</li>
+<li>Extensions never compute tax or change stock directly (<span class="inv">INV-04</span>, <span class="inv">INV-07</span>). They call core APIs.</li>
+</ul>
+
+<h3 id="enablement">Enablement and licensing</h3>
+<pre><code>tenant_module (tenant_id, module_key, enabled, plan, enabled_at, settings jsonb)
+-- e.g. ('t1', 'pharmacy', true, 'PRO', ..., '{"requireRxForScheduleB": true}')</code></pre>
+<p>This table doubles as the billing entitlement: industry modules can be sold as paid add-ons on top of the core subscription.</p>
+
+<h2 id="pharmacy">Pharmacy module <span class="badge b-r2">R2</span></h2>
+<table>
+<thead><tr><th>Feature</th><th>Design</th></tr></thead>
+<tbody>
+<tr><td>Drug information</td><td><code>ph_drug_info(sku_id, generic_name, strength, form, schedule_class, prescription_required, manufacturer)</code>. Generic-name search is in the MVP core search index.</td></tr>
+<tr><td>Generic substitution</td><td>Search by generic name returns every SKU with the same generic, strength and form, with stock and price, so the cashier can offer a cheaper brand.</td></tr>
+<tr><td>Prescriptions</td><td><code>ph_prescription(id, customer_id, prescriber_name, prescriber_reg_no, issued_on, image_ref)</code> + lines. Captured at checkout through the <code>checkout.beforeComplete</code> slot. A photo is optional (stored encrypted in object storage).</td></tr>
+<tr><td>Controlled-drug register</td><td>Append-only <code>ph_controlled_register</code> written by an event listener on <code>SaleCompleted</code> and <code>GoodsReceived</code> for scheduled drugs. Exact NMRA requirements to confirm (Q-03).</td></tr>
+<tr><td>Batch recall</td><td>Block a batch across all branches. The block is synced to registers with high priority, and a report shows who bought from that batch (when the customer is known).</td></tr>
+<tr><td>Pharmacist sign-off</td><td>An optional PIN of a user with the <code>PHARMACIST</code> role for prescription-only items. Recorded on the sale.</td></tr>
+<tr><td>GS1 DataMatrix</td><td>Core parser fills GTIN, batch, expiry and serial. Pharmacy adds serial number capture for traceability.</td></tr>
+</tbody>
+</table>
+
+<figure class="diagram">
+<pre class="mermaid">
+sequenceDiagram
+  autonumber
+  actor C as Cashier
+  participant UI as Register UI
+  participant PH as Pharmacy plugin
+  participant CORE as register-core
+  C->>UI: Scan Amoxicillin 500mg
+  UI->>CORE: addLine(sku)
+  CORE->>PH: lineValidators.validate(line)
+  PH-->>CORE: warning PH-001 prescription required
+  CORE-->>UI: line added with Rx badge
+  C->>UI: Press Complete
+  UI->>PH: slot checkout.beforeComplete
+  PH-->>C: Capture prescriber and Rx number
+  C->>PH: Enter details + pharmacist PIN
+  PH->>CORE: enrich sale with prescriptionId
+  CORE->>CORE: complete sale, number receipt, queue sync
+</pre>
+<figcaption>Prescription capture at checkout. Missing data is a warning plus a manager/pharmacist override, never a lost sale.</figcaption>
+</figure>
+
+<h2 id="grocery">Grocery module <span class="badge b-r2">R2</span></h2>
+<table>
+<thead><tr><th>Feature</th><th>Design</th></tr></thead>
+<tbody>
+<tr><td>PLU codes</td><td><code>gr_plu(plu_code, sku_id, tare_g, price_mode)</code>, used by the scale and the barcode parser.</td></tr>
+<tr><td>Scale barcode profiles</td><td><code>gr_scale_profile(prefix, plu_digits, value_digits, value_type WEIGHT|PRICE, decimals)</code>. Implements the <code>BarcodeParser</code> SPI. The MVP core ships one default profile.</td></tr>
+<tr><td>Direct scale</td><td>DeviceBridge <code>readWeight()</code> on Windows (serial/USB). Android later.</td></tr>
+<tr><td>Shelf and price labels</td><td><code>gr_label_template</code> (ZPL/TSPL). Prints labels after a price change for affected SKUs.</td></tr>
+<tr><td>Mix &amp; match</td><td><code>PricingRule</code>, e.g. any 3 biscuits for Rs 500.</td></tr>
+</tbody>
+</table>
+
+<h2 id="restaurant">Restaurant module <span class="badge b-later">Later</span></h2>
+<ul>
+<li>Uses the core <code>OPEN</code> sale state as a running ticket: lines are added over time and the ticket is completed at payment.</li>
+<li><code>rs_table</code>, <code>rs_floor</code>, <code>rs_ticket(sale_id, table_id, covers, server_id)</code>, <code>rs_kot(id, ticket_id, station, status)</code>.</li>
+<li>Kitchen tickets print over the shop's local network, from register to kitchen printer, with <strong>no cloud round trip</strong>, so it works offline.</li>
+<li>Modifiers use core <code>sale_line_option</code>. Service charge is a core charge line taxed by the Tax module.</li>
+<li>Split bill = several sales created from one ticket. Delivery-app orders arrive as <code>OPEN</code> sales through an integration adapter.</li>
+</ul>
+
+<h2 id="salon">Salon module <span class="badge b-later">Later</span></h2>
+<ul>
+<li><code>sl_appointment(id, customer_id, staff_id, service_sku_id, starts_at, ends_at, status)</code> and <code>sl_staff_schedule</code>.</li>
+<li>Checking in an appointment creates an <code>OPEN</code> sale with <code>SERVICE</code> lines and <code>staff_id</code> set. Commission reports read those lines.</li>
+<li>Online booking (later) is a separate public endpoint with rate limiting.</li>
+</ul>
+
+<h2 id="add-extension">Checklist: adding a new industry module</h2>
+<ol class="steps">
+<li>Write an ADR: what the module does and which existing SPIs it uses. If it needs a <em>new</em> SPI, justify it with at least one concrete use case.</li>
+<li>Create the <code>ext.&lt;key&gt;</code> package with <code>internal/</code>, its own Flyway location and a table prefix.</li>
+<li>Implement the SPIs and annotate them with <code>@ExtensionFor("&lt;key&gt;")</code>.</li>
+<li>Add the register plugin in <code>packages/ext-&lt;key&gt;</code> with validators, rules, slots and local migrations.</li>
+<li>Register the module key in <code>ModuleCatalog</code> and add its sync scopes.</li>
+<li>Add i18n keys for en/si/ta.</li>
+<li>Tests: SPI unit tests, a Modulith boundary test, and an end-to-end checkout with the module on <em>and</em> off.</li>
+<li>Document it on this page and add its tables to <a href="data-model.html">Data model</a>.</li>
+</ol>
+<div class="callout tip">
+<span class="ct">Don't build a plugin framework in advance</span>
+Build the SPIs that the pharmacy and grocery modules actually need. Generalise only when a second module needs the same hook. A runtime plugin marketplace is not a goal.
+</div>
+
+</article></main>
+<aside id="toc"></aside>
+</div>
+<script src="assets/search-index.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js"></script>
+<script src="assets/site.js"></script>
+</body>
+</html>

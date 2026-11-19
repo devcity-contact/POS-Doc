@@ -1,0 +1,369 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Requirements & scope · RetailOS</title>
+<meta name="description" content="Business goals, personas, feature catalogue with release tags, user stories, business rules and non-functional requirements for RetailOS.">
+<link rel="stylesheet" href="assets/site.css">
+<script>try{var t=localStorage.getItem("retailos-theme");if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
+</head>
+<body>
+<header id="topbar"></header>
+<div class="layout">
+<nav id="sidebar"></nav>
+<main class="content"><article>
+
+<h1>Requirements & scope</h1>
+<p class="lead">What RetailOS must do, for whom, and in which release. Features have IDs (<code>F-xxx</code>), business rules (<code>BR-xx</code>) and non-functional requirements (<code>NFR-xx</code>), so tickets, tests and code can cite them.</p>
+
+<h2 id="goals">Business goals</h2>
+<table>
+<thead><tr><th>ID</th><th>Goal</th><th>Measure of success</th></tr></thead>
+<tbody>
+<tr><td>BG-1</td><td>Billing never stops in a shop</td><td>Zero lost sales during internet or cloud outages. Checkout works offline for at least 72 hours.</td></tr>
+<tr><td>BG-2</td><td>Shops comply with Sri Lankan VAT invoicing</td><td>Tax invoices and credit notes accepted by the shop's accountant. Ready for RAMIS e-invoicing within 3 months of the specification being published.</td></tr>
+<tr><td>BG-3</td><td>Accurate stock per batch and expiry date</td><td>Stock rebuilt from the ledger matches stored balances. Expired-item sales drop to near zero in pilot shops.</td></tr>
+<tr><td>BG-4</td><td>One product for retail, pharmacy and grocery</td><td>A new industry is enabled per tenant without code changes to the core Sales module.</td></tr>
+<tr><td>BG-5</td><td>Cheap to run and support with a small team</td><td>Cloud cost per active branch stays under about US$1.50 a month at 100 branches and under US$1 from 300 branches. Most support issues can be diagnosed remotely.</td></tr>
+</tbody>
+</table>
+
+<h2 id="personas">Personas and roles</h2>
+<table>
+<thead><tr><th>Persona</th><th>Uses</th><th>Cares about</th><th>System role</th></tr></thead>
+<tbody>
+<tr><td><strong>Shop owner</strong></td><td>Admin web, mobile dashboard</td><td>Profit, theft, cash shortages, tax compliance</td><td><code>OWNER</code></td></tr>
+<tr><td><strong>Branch manager</strong></td><td>Admin web, register (overrides)</td><td>Stock levels, staff, day-end cash-up, approving discounts and refunds</td><td><code>MANAGER</code></td></tr>
+<tr><td><strong>Cashier</strong></td><td>Register</td><td>Fast scanning, no freezes, easy returns, a clear shift total</td><td><code>CASHIER</code></td></tr>
+<tr><td><strong>Stock keeper</strong></td><td>Admin web, register (receiving)</td><td>Goods receiving, batches, expiry, stock counts</td><td><code>STOCK_KEEPER</code></td></tr>
+<tr><td><strong>Pharmacist</strong></td><td>Register (pharmacy extension)</td><td>Prescriptions, generic substitutes, controlled-drug records, expiry</td><td><code>PHARMACIST</code></td></tr>
+<tr><td><strong>Accountant</strong></td><td>Admin web (read-only)</td><td>Tax invoices, credit notes, VAT reports, exports</td><td><code>ACCOUNTANT</code></td></tr>
+<tr><td><strong>DevCity support</strong></td><td>Platform console</td><td>Register health, sync errors, onboarding. Access only with time-limited tenant consent.</td><td><code>PLATFORM_SUPPORT</code></td></tr>
+<tr><td><strong>Customer</strong></td><td>Receipt, SMS/e-mail, customer display</td><td>Correct price, quick service, loyalty points</td><td>None (no login)</td></tr>
+</tbody>
+</table>
+
+<h2 id="scope">Scope by release</h2>
+<div class="callout">
+<span class="ct">The MVP rule</span>
+The MVP covers what a cashier needs every day and what a tax auditor will check. Back-office breadth comes later. With one engineer, every MVP item has to earn its place.
+</div>
+<div class="two-col">
+<div class="card"><h4><span class="badge b-mvp">MVP</span> In scope</h4>
+<ul>
+<li>Local-first Windows register: offline billing, printing, cash drawer</li>
+<li>Core catalog with variants, units, multiple barcodes, Excel import</li>
+<li>Batches, expiry dates, FEFO allocation, GS1 2D barcode parsing</li>
+<li>Barcodes with weight or price inside them (grocery basics)</li>
+<li>Discounts, hold/resume, returns and refunds linked to the original receipt</li>
+<li>Payment types: cash, card (recorded only), LankaQR (recorded only), customer credit</li>
+<li>Shifts and cash-up, day-end report</li>
+<li>Tax invoices, credit notes, receipt numbering per register</li>
+<li>Roles, permissions, staff PINs, audit log</li>
+<li>English, Sinhala and Tamil</li>
+<li>Core reports; multi-branch data model</li>
+</ul></div>
+<div class="card"><h4><span class="badge b-later">Not in MVP</span></h4>
+<ul>
+<li>Android register <span class="badge b-r2">R2</span></li>
+<li>Pharmacy and grocery extension modules <span class="badge b-r2">R2</span></li>
+<li>Purchase orders, stock transfers <span class="badge b-r2">R2</span></li>
+<li>Loyalty, SMS/WhatsApp receipts, marketing <span class="badge b-r2">R2</span>/<span class="badge b-r3">R3</span></li>
+<li>RAMIS e-invoicing API, secured POS adapter <span class="badge b-r3">R3</span> (when the IRD publishes it)</li>
+<li>Integrated card terminals and LankaQR, accounting exports <span class="badge b-r3">R3</span></li>
+<li>AI insights, e-commerce, delivery apps, self-checkout <span class="badge b-later">Later</span></li>
+<li>Restaurant and salon modules <span class="badge b-later">Later</span></li>
+</ul></div>
+</div>
+
+<h2 id="features">Feature catalogue</h2>
+<p>This catalogue follows the original DevCity feature list. Items marked red ("later") in the proposal keep that status unless the review moved them, which is noted in the last column.</p>
+
+<h3 id="f-sales">1. Sales and billing</h3>
+<table>
+<thead><tr><th>ID</th><th>Feature</th><th>Release</th><th>Notes</th></tr></thead>
+<tbody>
+<tr><td>F-101</td><td>Scan barcode (1D and GS1 2D DataMatrix/QR) and search by name, SKU or generic name</td><td><span class="badge b-mvp">MVP</span></td><td>Searches the local catalog, so it works offline. Requires 2D imager scanners.</td></tr>
+<tr><td>F-102</td><td>Cart: quantity, unit, line discount, notes</td><td><span class="badge b-mvp">MVP</span></td><td></td></tr>
+<tr><td>F-103</td><td>Pick the batch when batch prices differ (pop-up)</td><td><span class="badge b-mvp">MVP</span></td><td>FEFO by default. The pop-up only appears when open batches have different selling prices (BR-04).</td></tr>
+<tr><td>F-104</td><td>Discounts: percentage, fixed amount, bill-level, with manager approval above a limit</td><td><span class="badge b-mvp">MVP</span></td><td>BR-01</td></tr>
+<tr><td>F-105</td><td>Promotions engine: buy X get Y, happy hour, mix &amp; match, coupon codes</td><td><span class="badge b-r2">R2</span></td><td>Rule-based. Calculated locally so it works offline.</td></tr>
+<tr><td>F-106</td><td>Hold/park and resume bills</td><td><span class="badge b-mvp">MVP</span></td><td>Held bills stay on the register they were parked on.</td></tr>
+<tr><td>F-107</td><td>Returns and refunds linked to the original receipt</td><td><span class="badge b-mvp">MVP</span></td><td>BR-06. Returned stock goes back to its original batch.</td></tr>
+<tr><td>F-108</td><td>Exchanges as one linked flow</td><td><span class="badge b-r2">R2</span></td><td>In the MVP an exchange is a return plus a new sale.</td></tr>
+<tr><td>F-109</td><td>Payment types: cash, card, LankaQR, customer credit, split payment</td><td><span class="badge b-mvp">MVP</span></td><td>Card and QR are recorded with a reference only. Card data is never entered (<span class="inv">INV-11</span>).</td></tr>
+<tr><td>F-110</td><td>Gift cards and store credit</td><td><span class="badge b-r3">R3</span></td><td>Moved out of the MVP: a stored balance is a financial liability and a fraud target.</td></tr>
+<tr><td>F-111</td><td>Printed receipts (English, Sinhala, Tamil)</td><td><span class="badge b-mvp">MVP</span></td><td>Sinhala and Tamil text are printed as an image.</td></tr>
+<tr><td>F-112</td><td>Digital receipts by e-mail</td><td><span class="badge b-r2">R2</span></td><td></td></tr>
+<tr><td>F-113</td><td>Digital receipts by SMS and WhatsApp</td><td><span class="badge b-r3">R3</span></td><td>Each message costs money. WhatsApp needs approved message templates. The tenant pays per message.</td></tr>
+<tr><td>F-114</td><td>Void a line or a whole bill before completion, with a reason</td><td><span class="badge b-mvp">MVP</span></td><td>Audited. After completion only a return is possible (<span class="inv">INV-02</span>).</td></tr>
+</tbody>
+</table>
+
+<h3 id="f-inventory">2. Inventory</h3>
+<table>
+<thead><tr><th>ID</th><th>Feature</th><th>Release</th><th>Notes</th></tr></thead>
+<tbody>
+<tr><td>F-201</td><td>Real-time stock deduction through the movement ledger</td><td><span class="badge b-mvp">MVP</span></td><td>Deducted when the sale syncs. The register keeps its own local estimate.</td></tr>
+<tr><td>F-202</td><td>Low-stock alerts (per product per branch reorder level)</td><td><span class="badge b-mvp">MVP</span></td><td></td></tr>
+<tr><td>F-203</td><td>Batch and expiry tracking, FEFO allocation</td><td><span class="badge b-mvp">MVP</span></td><td>This is core, not pharmacy-only. Supermarkets need it too.</td></tr>
+<tr><td>F-204</td><td>Goods receiving (GRN) with GS1 2D scan or manual entry of batch and expiry</td><td><span class="badge b-mvp">MVP</span></td><td>GS1 Application Identifiers: (01) GTIN, (10) batch, (17) expiry, (21) serial.</td></tr>
+<tr><td>F-205</td><td>Units of measure and conversions (box = 12 pieces), chosen at receiving</td><td><span class="badge b-mvp">MVP</span></td><td>Units are defined on the product. Receiving only picks a unit.</td></tr>
+<tr><td>F-206</td><td>Product variants (size, colour, weight)</td><td><span class="badge b-mvp">MVP</span></td><td>Each variant is its own SKU.</td></tr>
+<tr><td>F-207</td><td>Stock adjustments with reason codes; stock count (full and cycle count)</td><td><span class="badge b-mvp">MVP</span></td><td></td></tr>
+<tr><td>F-208</td><td>List of sales that took stock below zero, for review</td><td><span class="badge b-mvp">MVP</span></td><td>BR-05</td></tr>
+<tr><td>F-209</td><td>Expiry alerts (30/60/90 days, configurable) and near-expiry discount suggestions</td><td><span class="badge b-mvp">MVP</span></td><td></td></tr>
+<tr><td>F-210</td><td>Purchase orders to suppliers, partial receiving</td><td><span class="badge b-r2">R2</span></td><td>Moved from the MVP. Receiving without a PO still creates batches.</td></tr>
+<tr><td>F-211</td><td>Stock transfers between branches and warehouses</td><td><span class="badge b-r2">R2</span></td><td>Red in the proposal. R2 because multi-branch customers will need it soon after launch.</td></tr>
+<tr><td>F-212</td><td>Supplier returns</td><td><span class="badge b-r2">R2</span></td><td></td></tr>
+<tr><td>F-213</td><td>Bulk product import and export (Excel/CSV)</td><td><span class="badge b-mvp">MVP</span></td><td>Shops won't type 5,000 products in by hand.</td></tr>
+</tbody>
+</table>
+
+<h3 id="f-crm">3. Customers (CRM)</h3>
+<table>
+<thead><tr><th>ID</th><th>Feature</th><th>Release</th><th>Notes</th></tr></thead>
+<tbody>
+<tr><td>F-301</td><td>Customer profiles with purchase history</td><td><span class="badge b-mvp">MVP</span></td><td>Personal data is minimised (PDPA, see <a href="security.html#privacy">Security</a>).</td></tr>
+<tr><td>F-302</td><td>Credit sales, credit limit, settlement, statement</td><td><span class="badge b-mvp">MVP</span></td><td>BR-07. Common in Sri Lankan shops.</td></tr>
+<tr><td>F-303</td><td>Loyalty points (earn and redeem)</td><td><span class="badge b-r2">R2</span></td><td>Redeeming points needs online validation, or an offline limit per register.</td></tr>
+<tr><td>F-304</td><td>Membership tiers</td><td><span class="badge b-r3">R3</span></td><td></td></tr>
+<tr><td>F-305</td><td>SMS and e-mail marketing with opt-in</td><td><span class="badge b-r3">R3</span></td><td>Needs consent records.</td></tr>
+</tbody>
+</table>
+
+<h3 id="f-reports">4. Reports and analytics</h3>
+<table>
+<thead><tr><th>ID</th><th>Feature</th><th>Release</th><th>Notes</th></tr></thead>
+<tbody>
+<tr><td>F-401</td><td>Sales by day, week, month, product, category, cashier, branch</td><td><span class="badge b-mvp">MVP</span></td><td>SQL and materialized views.</td></tr>
+<tr><td>F-402</td><td>Gross profit from snapshotted cost and price (<span class="inv">INV-10</span>)</td><td><span class="badge b-mvp">MVP</span></td><td></td></tr>
+<tr><td>F-403</td><td>Stock on hand, valuation, expiry report</td><td><span class="badge b-mvp">MVP</span></td><td></td></tr>
+<tr><td>F-404</td><td>Day-end report per register and shift (Z-report)</td><td><span class="badge b-mvp">MVP</span></td><td></td></tr>
+<tr><td>F-405</td><td>Customer credit outstanding and ageing</td><td><span class="badge b-mvp">MVP</span></td><td></td></tr>
+<tr><td>F-406</td><td>Best-selling and slow-moving items</td><td><span class="badge b-r2">R2</span></td><td></td></tr>
+<tr><td>F-407</td><td>Peak-hours analysis</td><td><span class="badge b-r2">R2</span></td><td></td></tr>
+<tr><td>F-408</td><td>Mobile owner dashboard (responsive admin web)</td><td><span class="badge b-r2">R2</span></td><td>A responsive web page, not a separate app.</td></tr>
+<tr><td>F-409</td><td>VAT report (output tax by rate, credit notes)</td><td><span class="badge b-mvp">MVP</span></td><td></td></tr>
+<tr><td>F-410</td><td>AI insights: sales forecasting and reorder suggestions</td><td><span class="badge b-later">Later</span></td><td>Clean data collected from the MVP onwards makes this possible later.</td></tr>
+</tbody>
+</table>
+
+<h3 id="f-staff">5. Employees</h3>
+<table>
+<thead><tr><th>ID</th><th>Feature</th><th>Release</th><th>Notes</th></tr></thead>
+<tbody>
+<tr><td>F-501</td><td>Users, roles, fine-grained permissions, manager override by PIN</td><td><span class="badge b-mvp">MVP</span></td><td>See the <a href="security.html#rbac">permission matrix</a>.</td></tr>
+<tr><td>F-502</td><td>Shift open and close: opening float, cash in/out, counted cash, shortage or overage</td><td><span class="badge b-mvp">MVP</span></td><td>BR-08</td></tr>
+<tr><td>F-503</td><td>Sales performance per employee</td><td><span class="badge b-r2">R2</span></td><td></td></tr>
+<tr><td>F-504</td><td>Clock in/out and attendance</td><td><span class="badge b-r3">R3</span></td><td></td></tr>
+<tr><td>F-505</td><td>Commission tracking</td><td><span class="badge b-r3">R3</span></td><td>Uses the "performed by" staff field on sale lines (salons, pharmacies).</td></tr>
+</tbody>
+</table>
+
+<h3 id="f-cloud">6. Cloud and multi-branch</h3>
+<table>
+<thead><tr><th>ID</th><th>Feature</th><th>Release</th><th>Notes</th></tr></thead>
+<tbody>
+<tr><td>F-601</td><td>Cloud backend, available anywhere</td><td><span class="badge b-mvp">MVP</span></td><td>Was red in the proposal, but it is the architecture itself, so it is MVP.</td></tr>
+<tr><td>F-602</td><td>Offline billing with automatic sync</td><td><span class="badge b-mvp">MVP</span></td><td>Moved from "later". See <a href="offline-sync.html">Offline & sync</a>.</td></tr>
+<tr><td>F-603</td><td>Automatic backups (point-in-time recovery, daily off-site copy)</td><td><span class="badge b-mvp">MVP</span></td><td>Moved from "later". Non-negotiable.</td></tr>
+<tr><td>F-604</td><td>Multi-branch data model (tenant → branch → register)</td><td><span class="badge b-mvp">MVP</span></td><td>Must be in the schema from day one.</td></tr>
+<tr><td>F-605</td><td>Multi-branch dashboard and central price management</td><td><span class="badge b-r2">R2</span></td><td></td></tr>
+</tbody>
+</table>
+
+<h3 id="f-hardware">7. Hardware</h3>
+<table>
+<thead><tr><th>ID</th><th>Device</th><th>Release</th><th>How it connects</th></tr></thead>
+<tbody>
+<tr><td>F-701</td><td>1D/2D barcode scanner</td><td><span class="badge b-mvp">MVP</span></td><td>Acts as a USB/Bluetooth keyboard (HID). Must read GS1 DataMatrix.</td></tr>
+<tr><td>F-702</td><td>Thermal receipt printer, 80 mm and 58 mm</td><td><span class="badge b-mvp">MVP</span></td><td>ESC/POS over USB, LAN (TCP 9100) or Bluetooth.</td></tr>
+<tr><td>F-703</td><td>Cash drawer</td><td><span class="badge b-mvp">MVP</span></td><td>Opened by the printer's drawer-kick command.</td></tr>
+<tr><td>F-704</td><td>Label-printing scale (barcode with weight or price inside)</td><td><span class="badge b-mvp">MVP</span></td><td>No driver needed. The barcode prefix carries the weight or price.</td></tr>
+<tr><td>F-705</td><td>Scale connected directly to the PC</td><td><span class="badge b-r2">R2</span></td><td>Serial/USB, Windows only at first.</td></tr>
+<tr><td>F-706</td><td>Barcode label printer</td><td><span class="badge b-r2">R2</span></td><td>ZPL/TSPL templates.</td></tr>
+<tr><td>F-707</td><td>Customer-facing display</td><td><span class="badge b-r3">R3</span></td><td>A second screen running a web view.</td></tr>
+<tr><td>F-708</td><td>Android tablet / mobile POS</td><td><span class="badge b-r2">R2</span></td><td>Same React UI in a Capacitor shell.</td></tr>
+<tr><td>F-709</td><td>Integrated card terminal</td><td><span class="badge b-r3">R3</span></td><td>Semi-integrated: the terminal handles card data, and we receive only the approval result.</td></tr>
+<tr><td>F-710</td><td>Fingerprint login</td><td><span class="badge b-later">Later</span></td><td>Needs extra hardware. PINs are enough to start.</td></tr>
+</tbody>
+</table>
+
+<h3 id="f-integrations">8. Integrations</h3>
+<table>
+<thead><tr><th>ID</th><th>Integration</th><th>Release</th><th>Notes</th></tr></thead>
+<tbody>
+<tr><td>F-801</td><td>IRD RAMIS e-invoicing</td><td><span class="badge b-r3">R3</span></td><td>Behind the Tax adapter. Built once the specification is published (Q-02).</td></tr>
+<tr><td>F-802</td><td>Secured POS (VAT Amendment Act No. 14 of 2026)</td><td><span class="badge b-r3">R3</span></td><td>Fiscal adapter port designed in the MVP (Q-01).</td></tr>
+<tr><td>F-803</td><td>Accounting export (QuickBooks, Xero, Zoho Books)</td><td><span class="badge b-r3">R3</span></td><td>CSV export in R2, API connectors in R3.</td></tr>
+<tr><td>F-804</td><td>LankaQR and card payment gateways</td><td><span class="badge b-r3">R3</span></td><td>Q-07</td></tr>
+<tr><td>F-805</td><td>E-commerce (shared stock with an online store)</td><td><span class="badge b-later">Later</span></td><td>Needs stock reservations.</td></tr>
+<tr><td>F-806</td><td>Food delivery platforms</td><td><span class="badge b-later">Later</span></td><td>Needs the restaurant module.</td></tr>
+</tbody>
+</table>
+
+<h3 id="f-industry">9. Industry-specific features</h3>
+<p>These are delivered as extension modules. See <a href="extensions.html">Industry extensions</a> for how they plug in.</p>
+<table>
+<thead><tr><th>Industry</th><th>Features</th><th>Release</th></tr></thead>
+<tbody>
+<tr><td>General retail</td><td>Core only: variants, barcodes, batches, promotions</td><td><span class="badge b-mvp">MVP</span></td></tr>
+<tr><td>Pharmacy</td><td>Prescription capture, generic/brand search and substitution, controlled-drug register, batch recall, pharmacist sign-off</td><td><span class="badge b-r2">R2</span> (generic-name search is in the MVP core)</td></tr>
+<tr><td>Grocery / supermarket</td><td>Price lookup codes (PLU) for loose items, direct scale integration, price-label printing, mix &amp; match promotions</td><td><span class="badge b-r2">R2</span> (weight/price barcodes are in the MVP core)</td></tr>
+<tr><td>Self-checkout</td><td>Kiosk mode of the register</td><td><span class="badge b-later">Later</span></td></tr>
+<tr><td>Restaurant</td><td>Tables, kitchen tickets (KOT), kitchen display, QR menu, modifiers, service charge, tips</td><td><span class="badge b-later">Later</span></td></tr>
+<tr><td>Salon / services</td><td>Appointments, staff scheduling, service items, commission</td><td><span class="badge b-later">Later</span></td></tr>
+</tbody>
+</table>
+
+<h3 id="f-security">10. Security and compliance</h3>
+<table>
+<thead><tr><th>ID</th><th>Feature</th><th>Release</th><th>Notes</th></tr></thead>
+<tbody>
+<tr><td>F-1001</td><td>Password + TOTP MFA (owners and admins), PIN for register staff</td><td><span class="badge b-mvp">MVP</span></td><td></td></tr>
+<tr><td>F-1002</td><td>Tamper-evident audit log (voids, refunds, overrides, price changes, drawer opens)</td><td><span class="badge b-mvp">MVP</span></td><td><span class="inv">INV-09</span></td></tr>
+<tr><td>F-1003</td><td>Card payments outside our system (no card data stored)</td><td><span class="badge b-mvp">MVP</span></td><td>Replaces "encrypted card payments that meet PCI-DSS" in the proposal.</td></tr>
+<tr><td>F-1004</td><td>Tax calculation, tax invoice format, credit and debit notes</td><td><span class="badge b-mvp">MVP</span></td><td>Its own Tax module, not a bullet under Security.</td></tr>
+<tr><td>F-1005</td><td>Device enrollment and remote lock of registers</td><td><span class="badge b-mvp">MVP</span></td><td></td></tr>
+<tr><td>F-1006</td><td>Personal data export and erasure (PDPA)</td><td><span class="badge b-r2">R2</span></td><td></td></tr>
+</tbody>
+</table>
+
+<h3 id="f-localisation">11. Localisation and onboarding (new)</h3>
+<table>
+<thead><tr><th>ID</th><th>Feature</th><th>Release</th><th>Notes</th></tr></thead>
+<tbody>
+<tr><td>F-1101</td><td>UI in English, Sinhala, Tamil; switchable per user</td><td><span class="badge b-mvp">MVP</span></td><td>All text goes through i18n keys from the first screen.</td></tr>
+<tr><td>F-1102</td><td>Product names in three languages (optional fields)</td><td><span class="badge b-mvp">MVP</span></td><td></td></tr>
+<tr><td>F-1103</td><td>Tenant onboarding wizard (business, VAT number, branches, printers)</td><td><span class="badge b-mvp">MVP</span></td><td></td></tr>
+</tbody>
+</table>
+
+<h2 id="stories">Key user stories</h2>
+<p>Acceptance criteria use Given/When/Then so they can become automated tests directly.</p>
+
+<details open><summary>US-01 · Sell while the internet is down (F-602, F-101)</summary>
+<p><em>As a cashier, I want to keep billing when the internet is down, so customers are never turned away.</em></p>
+<pre><code>Given the register has synced its catalog at least once
+  And the network cable is unplugged
+When I scan 3 items, take cash and press Complete
+Then the receipt prints within 2 seconds
+  And the receipt number follows this register's sequence with no gap
+  And the sale is queued with status PENDING_SYNC
+When the network returns
+Then the sale reaches the server within 2 minutes
+  And it is recorded once, even if it was sent twice</code></pre>
+</details>
+
+<details><summary>US-02 · Choose the batch when prices differ (F-103)</summary>
+<p><em>As a cashier, I want to see which batch I'm selling when batch prices differ, so the customer pays the price printed on the pack.</em></p>
+<pre><code>Given product "Panadol 500mg" has open batches B1 (Rs 30, exp 2027-03) and B2 (Rs 32, exp 2027-09)
+When I scan the product without a GS1 2D code
+Then a batch picker shows B1 and B2 with price and expiry, B1 preselected (FEFO)
+When I scan a GS1 DataMatrix containing batch B2
+Then B2 is selected automatically and no picker is shown
+Given all open batches have the same price
+Then no picker is shown and the server allocates by FEFO</code></pre>
+</details>
+
+<details><summary>US-03 · Refund against the original receipt (F-107)</summary>
+<pre><code>Given receipt CMB01-R02-000154 sold 2 x item A from batch B1
+When I scan the receipt barcode and return 1 x item A
+Then a return is created linked to the original sale line
+  And 1 unit goes back to batch B1
+  And a credit note is issued if the original was a tax invoice
+  And the refund amount equals the original net line price, never the current price
+When the return amount is above the cashier's limit
+Then a manager PIN is required and recorded in the audit log</code></pre>
+</details>
+
+<details><summary>US-04 · Close a shift (F-502)</summary>
+<pre><code>Given my shift opened with a float of Rs 5,000
+When I close the shift and enter counted cash per denomination
+Then the system shows expected cash = float + cash sales - cash refunds + cash in - cash out
+  And it records the difference as overage or shortage
+  And it prints a shift (Z) report
+  And the cashier cannot see the expected cash before counting (blind count, configurable)</code></pre>
+</details>
+
+<details><summary>US-05 · Receive goods with a GS1 2D code (F-204)</summary>
+<pre><code>Given I am receiving a delivery from supplier "Hemas"
+When I scan a GS1 DataMatrix with (01)GTIN (17)270930 (10)A123
+Then the product is found by GTIN, expiry 2027-09-30 and batch A123 are filled in
+  And I only enter the quantity, unit and cost
+When the GTIN is unknown
+Then I can link it to an existing product or create a new one</code></pre>
+</details>
+
+<details><summary>US-06 · Credit sale with a limit (F-302)</summary>
+<pre><code>Given customer "Perera Stores" has a credit limit of Rs 100,000 and Rs 90,000 outstanding
+When I complete a Rs 15,000 sale on credit
+Then the register warns that the limit will be exceeded by Rs 5,000
+  And it requires manager approval to continue
+  And when offline it checks against the last synced balance plus this register's unsynced credit sales</code></pre>
+</details>
+
+<details><summary>US-07 · Sell a weighed item (F-704)</summary>
+<pre><code>Given the scale prints barcode 2 01234 01250 7 (prefix 2, PLU 01234, weight 1.250 kg)
+When the cashier scans it
+Then the line shows product PLU 01234, quantity 1.250 kg, price = unit price x 1.250
+  And the barcode format (weight or price, digit layout) is configurable per tenant</code></pre>
+</details>
+
+<details><summary>US-08 · Issue a VAT tax invoice (F-1004)</summary>
+<pre><code>Given the tenant is VAT-registered
+When the customer asks for a tax invoice and gives their VAT number
+Then the invoice uses the tax invoice number series, shows the supplier and buyer VAT numbers,
+     the date, a description, value excluding VAT, the VAT rate and amount, and the total
+  And the invoice can never be edited, only corrected by a credit or debit note</code></pre>
+</details>
+
+<h2 id="rules">Business rules</h2>
+<table>
+<thead><tr><th>ID</th><th>Rule</th></tr></thead>
+<tbody>
+<tr><td>BR-01</td><td>Each role has a maximum discount (percentage and amount). A larger discount needs a manager override, which is recorded with who, when and why.</td></tr>
+<tr><td>BR-02</td><td>Price snapshot: a line stores the unit price, discounts, tax and batch cost at the moment of sale. Later price changes never alter past sales (<span class="inv">INV-10</span>).</td></tr>
+<tr><td>BR-03</td><td>Rounding: line amounts are calculated to 4 decimal places and rounded to 2 for display and totals using HALF_UP. Optional cash rounding to the nearest Rs 1 is recorded as a separate rounding line.</td></tr>
+<tr><td>BR-04</td><td>Batch selection: if the cashier picked a batch or a GS1 code carried one, that batch is used. Otherwise allocation is FEFO (earliest expiry first), skipping expired and blocked batches (<span class="inv">INV-14</span>).</td></tr>
+<tr><td>BR-05</td><td>Short stock never blocks a sale that already happened offline. The server records the sale, lets the balance go negative and raises a <code>NEGATIVE_STOCK</code> exception. Tenants can switch on strict blocking for online registers.</td></tr>
+<tr><td>BR-06</td><td>A return can't exceed the original quantity minus earlier returns. The default return window is 14 days (configurable). Refunds use the original price and payment method unless a manager overrides.</td></tr>
+<tr><td>BR-07</td><td>A credit sale needs a named customer with a credit account. Going over the credit limit needs a manager override.</td></tr>
+<tr><td>BR-08</td><td>A register can't sell without an open shift. One cashier session per register at a time. Opening the drawer without a sale needs permission and is audited.</td></tr>
+<tr><td>BR-09</td><td>Expired batches can't be sold. When the register is offline and its expiry data is stale, it warns instead of blocking, and the server raises <code>EXPIRED_BATCH_SOLD</code>.</td></tr>
+<tr><td>BR-10</td><td>Receipt numbers are <code>{branchCode}-{registerCode}-{sequence}</code>, gap-free per register. Tax invoice numbers use their own gap-free series per register (<span class="inv">INV-06</span>).</td></tr>
+<tr><td>BR-11</td><td>Tax rates come from configurable tax rules with valid-from dates and are never hard-coded. Sale lines snapshot the rate applied.</td></tr>
+</tbody>
+</table>
+
+<h2 id="nfr">Non-functional requirements</h2>
+<table>
+<thead><tr><th>ID</th><th>Quality</th><th>Requirement</th></tr></thead>
+<tbody>
+<tr><td>NFR-01</td><td>Register speed</td><td>Scan to line on screen in under 100 ms (p95) with 50,000 products in the local catalog.</td></tr>
+<tr><td>NFR-02</td><td>Checkout</td><td>Complete to receipt printing starts in under 1.5 s (p95), online or offline.</td></tr>
+<tr><td>NFR-03</td><td>Offline</td><td>At least 72 h of offline selling and at least 10,000 queued sales per register with no data loss.</td></tr>
+<tr><td>NFR-04</td><td>Sync</td><td>A queued day of sales (about 1,000) uploads within 2 minutes on a 1 Mbps link.</td></tr>
+<tr><td>NFR-05</td><td>Availability</td><td>Backend 99.5% monthly. Registers don't depend on it for selling.</td></tr>
+<tr><td>NFR-06</td><td>Durability</td><td>RPO ≤ 5 min (point-in-time recovery) and RTO ≤ 4 h. Restore rehearsed every quarter.</td></tr>
+<tr><td>NFR-07</td><td>Scalability</td><td>At least 1,000 branches and 3,000 registers on one primary database with read replicas. Peak at least 50 sales/s.</td></tr>
+<tr><td>NFR-08</td><td>Security</td><td>OWASP ASVS level 2. No critical or high vulnerabilities open for more than 14 days.</td></tr>
+<tr><td>NFR-09</td><td>Isolation</td><td>An automated test in CI proves one tenant can't read another tenant's data.</td></tr>
+<tr><td>NFR-10</td><td>Maintainability</td><td>Module boundaries verified in CI. Core domain test coverage at least 80%.</td></tr>
+<tr><td>NFR-11</td><td>Localisation</td><td>Every UI string in en/si/ta, with no hard-coded text.</td></tr>
+<tr><td>NFR-12</td><td>Compatibility</td><td>Windows 10/11 (x64) with 4 GB RAM. Android 10+ tablets with 3 GB RAM.</td></tr>
+<tr><td>NFR-13</td><td>Upgrades</td><td>The server supports the current and previous register version (N-1). Upgrades don't stop billing.</td></tr>
+<tr><td>NFR-14</td><td>Data retention</td><td>Sales and tax records kept for the statutory period (to be confirmed with an accountant, at least 6 years by default), then archived.</td></tr>
+</tbody>
+</table>
+
+</article></main>
+<aside id="toc"></aside>
+</div>
+<script src="assets/search-index.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js"></script>
+<script src="assets/site.js"></script>
+</body>
+</html>

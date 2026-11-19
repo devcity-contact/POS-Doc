@@ -1,0 +1,415 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Screens & navigation · RetailOS</title>
+<meta name="description" content="Every front-end screen RetailOS needs: register app, admin web, platform console and printed documents, with navigation maps, screen IDs, roles, release, offline behaviour and detailed specs for key screens.">
+<link rel="stylesheet" href="assets/site.css">
+<script>try{var t=localStorage.getItem("retailos-theme");if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
+</head>
+<body>
+<header id="topbar"></header>
+<div class="layout">
+<nav id="sidebar"></nav>
+<main class="content"><article>
+
+<h1>Screens & navigation</h1>
+<p class="lead">RetailOS has three front-ends plus printed documents. This page lists every screen with an ID, who uses it, which release it ships in and how it behaves offline. It also specifies the screens that matter most in detail. Visual layouts are on <a href="ui-design.html">UI design & wireframes</a>.</p>
+
+<h2 id="apps">The front-ends</h2>
+<div class="cards">
+  <div class="card"><h4>Register app <code>R-xx</code></h4><p>The counter. Cashiers, pharmacists and managers. Windows (MVP) and Android (R2). Fully offline. Optimised for speed, scanning and touch plus keyboard.</p><div class="k">~21 screens</div></div>
+  <div class="card"><h4>Admin web <code>A-xx</code></h4><p>The back office. Owners, managers, stock keepers, accountants. Any browser, needs a connection. Responsive, with a mobile-friendly dashboard.</p><div class="k">~45 screens</div></div>
+  <div class="card"><h4>Platform console <code>P-xx</code></h4><p>DevCity internal. Support and operations. Fleet health, tenants, releases. Part of the admin web, behind the platform role.</p><div class="k">~7 screens</div></div>
+  <div class="card"><h4>Printed outputs <code>D-xx</code></h4><p>Receipts, tax invoices, credit notes, Z-reports, labels, statements. These are UI too, and shops judge the product by its receipt.</p><div class="k">~8 layouts</div></div>
+</div>
+
+<figure class="diagram">
+<pre class="mermaid">
+flowchart LR
+  subgraph REGISTER["Register app (offline-first)"]
+    RS["Setup &amp; sign-in"] --> RC["Checkout"]
+    RC --> RP["Payment &amp; receipt"]
+    RC --> RR["Returns"]
+    RC --> RSH["Shift &amp; cash"]
+    RC --> RT["Tools: lookup, receiving, status"]
+  end
+  subgraph ADMIN["Admin web (online)"]
+    AD["Dashboard"] --> AC["Catalog &amp; pricing"]
+    AD --> AI["Inventory &amp; purchasing"]
+    AD --> AS["Sales, cash, customers"]
+    AD --> AT["Tax &amp; reports"]
+    AD --> AST["Settings &amp; users"]
+  end
+  subgraph CONSOLE["Platform console (DevCity)"]
+    PT["Tenants"] --> PF["Fleet health"]
+  end
+  REGISTER -- "sync" --> API(["Backend API"])
+  ADMIN --> API
+  CONSOLE --> API
+</pre>
+<figcaption>All three front-ends share <code>packages/ui</code> (components, tokens) and <code>packages/i18n</code> (en/si/ta).</figcaption>
+</figure>
+
+<h2 id="register">Register app</h2>
+<h3 id="register-flow">Register navigation</h3>
+<figure class="diagram">
+<pre class="mermaid">
+flowchart TD
+  BOOT(["App start"]) --> ENR{"Device enrolled?"}
+  ENR -- no --> R01["R-01 Device setup"]
+  R01 --> R02
+  ENR -- yes --> R02["R-02 Sign-in (PIN)"]
+  R02 --> SH{"Shift open on this register?"}
+  SH -- no --> R03["R-03 Open shift"]
+  SH -- yes --> R04
+  R03 --> R04["R-04 Checkout (home)"]
+  R04 -- "F2 / search" --> R05["R-05 Product lookup"]
+  R04 -- "scan, batch prices differ" --> R06["R-06 Batch picker"]
+  R04 -- "edit line" --> R07["R-07 Line editor"]
+  R04 -- "F3" --> R09["R-09 Customer"]
+  R04 -- "F10 Pay" --> R10["R-10 Payment"]
+  R10 --> R11["R-11 Sale complete"]
+  R11 --> R04
+  R04 -- "F6 / F7" --> R12["R-12 Held bills"]
+  R04 -- "F8" --> R13["R-13 Returns"]
+  R04 -- "menu" --> MENU["Register menu"]
+  MENU --> R14["R-14 Sales history"]
+  MENU --> R15["R-15 Cash in / out"]
+  MENU --> R16["R-16 Close shift"]
+  MENU --> R17["R-17 Goods receiving"]
+  MENU --> R18["R-18 Price &amp; stock check"]
+  MENU --> R19["R-19 Status &amp; diagnostics"]
+  MENU --> R20["R-20 Device settings"]
+  R16 --> R02
+  R07 -. "above limit" .-> R08["R-08 Manager override"]
+  R13 -. "above limit" .-> R08
+</pre>
+<figcaption>Checkout is the home screen. Everything else is one key or one tap away and returns to checkout.</figcaption>
+</figure>
+
+<h3 id="register-inventory">Register screen inventory</h3>
+<table>
+<thead><tr><th>ID</th><th>Screen</th><th>Purpose</th><th>Who</th><th>Release</th><th>Offline</th></tr></thead>
+<tbody>
+<tr><td>R-01</td><td>Device setup</td><td>Enter enrollment code, download catalog, test printer, drawer and scanner</td><td>Manager / installer</td><td><span class="badge b-mvp">MVP</span></td><td>Needs internet once</td></tr>
+<tr><td>R-02</td><td>Sign-in (PIN)</td><td>Pick user tile, enter PIN, switch language, see sync status</td><td>All staff</td><td><span class="badge b-mvp">MVP</span></td><td>✓ (local PIN hash)</td></tr>
+<tr><td>R-03</td><td>Open shift</td><td>Enter opening float by denomination</td><td>Cashier</td><td><span class="badge b-mvp">MVP</span></td><td>✓</td></tr>
+<tr><td>R-04</td><td>Checkout</td><td>Scan or search, cart, discounts, customer, totals, go to payment</td><td>Cashier, pharmacist</td><td><span class="badge b-mvp">MVP</span></td><td>✓</td></tr>
+<tr><td>R-05</td><td>Product lookup</td><td>Search by name (en/si/ta), SKU, barcode, generic name. Shows price, stock estimate, batches.</td><td>Cashier</td><td><span class="badge b-mvp">MVP</span></td><td>✓ (FTS5)</td></tr>
+<tr><td>R-06</td><td>Batch picker</td><td>Choose the batch when prices differ (BR-04)</td><td>Cashier</td><td><span class="badge b-mvp">MVP</span></td><td>✓</td></tr>
+<tr><td>R-07</td><td>Line editor</td><td>Quantity, unit, weight, line discount, note, staff ("performed by")</td><td>Cashier</td><td><span class="badge b-mvp">MVP</span></td><td>✓</td></tr>
+<tr><td>R-08</td><td>Manager override</td><td>PIN of an approver for discounts, refunds, no-sale, price override</td><td>Manager</td><td><span class="badge b-mvp">MVP</span></td><td>✓</td></tr>
+<tr><td>R-09</td><td>Customer</td><td>Find or quick-create a customer. Shows credit balance and limit.</td><td>Cashier</td><td><span class="badge b-mvp">MVP</span></td><td>✓ (synced subset; new customers queued)</td></tr>
+<tr><td>R-10</td><td>Payment</td><td>Payment types, split payment, cash given and change, tax invoice request + buyer VAT no.</td><td>Cashier</td><td><span class="badge b-mvp">MVP</span></td><td>✓</td></tr>
+<tr><td>R-11</td><td>Sale complete</td><td>Receipt number, change due, reprint, e-mail receipt (R2), next sale</td><td>Cashier</td><td><span class="badge b-mvp">MVP</span></td><td>✓</td></tr>
+<tr><td>R-12</td><td>Held bills</td><td>List, resume or discard parked bills</td><td>Cashier</td><td><span class="badge b-mvp">MVP</span></td><td>✓</td></tr>
+<tr><td>R-13</td><td>Returns</td><td>Scan receipt, choose lines and quantities, reason, refund method</td><td>Cashier (+ manager)</td><td><span class="badge b-mvp">MVP</span></td><td>✓ own register; others need manager PIN</td></tr>
+<tr><td>R-14</td><td>Sales history</td><td>Today's sales on this register/branch, view detail, reprint</td><td>Cashier, manager</td><td><span class="badge b-mvp">MVP</span></td><td>✓ local; branch-wide when online</td></tr>
+<tr><td>R-15</td><td>Cash in / out</td><td>Petty cash, safe drop, float top-up, with reason</td><td>Cashier (+ manager)</td><td><span class="badge b-mvp">MVP</span></td><td>✓</td></tr>
+<tr><td>R-16</td><td>Close shift</td><td>Blind count, variance, print Z-report, sign out</td><td>Cashier, manager</td><td><span class="badge b-mvp">MVP</span></td><td>✓</td></tr>
+<tr><td>R-17</td><td>Goods receiving</td><td>Receive a delivery at the counter with GS1 scanning (same flow as admin A-42)</td><td>Stock keeper</td><td><span class="badge b-mvp">MVP</span></td><td>Online only in MVP; offline draft in R2</td></tr>
+<tr><td>R-18</td><td>Price & stock check</td><td>Scan to see price, batches, expiry, stock estimate, without starting a sale</td><td>Any</td><td><span class="badge b-mvp">MVP</span></td><td>✓</td></tr>
+<tr><td>R-19</td><td>Status & diagnostics</td><td>Connection test, sync queue, blocked items, printer test, version, disk, upload logs</td><td>Manager, support</td><td><span class="badge b-mvp">MVP</span></td><td>✓</td></tr>
+<tr><td>R-20</td><td>Device settings</td><td>Printer profile, receipt preview, scanner test, language, training mode, quick-key layout</td><td>Manager</td><td><span class="badge b-mvp">MVP</span></td><td>✓</td></tr>
+<tr><td>R-21</td><td>Customer display</td><td>Second screen: current line, total, change, promotions</td><td>Customer</td><td><span class="badge b-r3">R3</span></td><td>✓</td></tr>
+<tr><td>R-30</td><td>Prescription capture (pharmacy)</td><td>Prescriber, Rx number, image, pharmacist PIN, in the <code>checkout.beforeComplete</code> slot</td><td>Pharmacist</td><td><span class="badge b-r2">R2</span></td><td>✓ (image uploads later)</td></tr>
+<tr><td>R-31</td><td>Generic substitution panel (pharmacy)</td><td>Same generic, strength and form, with price and stock</td><td>Pharmacist</td><td><span class="badge b-r2">R2</span></td><td>✓</td></tr>
+<tr><td>R-32</td><td>PLU keypad / weigh panel (grocery)</td><td>Enter PLU, read the scale, tare</td><td>Cashier</td><td><span class="badge b-r2">R2</span></td><td>✓</td></tr>
+<tr><td>R-33</td><td>Label printing (grocery)</td><td>Print shelf labels for changed prices</td><td>Stock keeper</td><td><span class="badge b-r2">R2</span></td><td>✓</td></tr>
+</tbody>
+</table>
+<p><strong>Shared overlays</strong> appear on every register screen: the sync/offline banner, toast messages, the "printer offline" warning, the session-lock timer, and the training-mode ribbon.</p>
+
+<h3 id="register-specs">Key register screens in detail</h3>
+
+<details open><summary>R-04 Checkout (home screen)</summary>
+<table>
+<tbody>
+<tr><th>Goal</th><td>Ring up a typical basket of 5 items in under 20 seconds with a scanner, with no mouse needed.</td></tr>
+<tr><th>Layout</th><td>Top bar: branch/register, cashier, shift time, sync status, menu. Left (≈60%): scan/search field (always focused), cart lines. Right (≈40%): customer card, totals, quick keys (favourites/categories), action buttons, big <em>Pay</em> button.</td></tr>
+<tr><th>Cart line shows</th><td>Name (in the user's language, falling back to English), variant, quantity × unit price, line discount, line total, badges: batch/expiry, <code>Rx</code> (pharmacy), <code>kg</code> (weighed), <code>offer</code>, <code>price changed</code>.</td></tr>
+<tr><th>Actions</th><td>Scan · search <kbd>F2</kbd> · customer <kbd>F3</kbd> · quantity <kbd>F4</kbd> · discount <kbd>F5</kbd> · hold <kbd>F6</kbd> · recall <kbd>F7</kbd> · return <kbd>F8</kbd> · cash in/out <kbd>F9</kbd> · pay <kbd>F10</kbd> · remove line <kbd>Del</kbd> · +/− quantity <kbd>+</kbd>/<kbd>-</kbd> · void sale <kbd>Ctrl</kbd>+<kbd>Del</kbd></td></tr>
+<tr><th>Scan rules</th><td>Unknown barcode: a red toast and a beep, and the code is kept in the search field. GS1 code: batch set automatically. Weight barcode: quantity filled in. Same SKU scanned again: increase quantity on the existing line (configurable).</td></tr>
+<tr><th>Offline</th><td>Identical behaviour. The banner shows "Offline · 12 sales waiting". Stock is shown as an estimate.</td></tr>
+<tr><th>Data</th><td>register-core <code>Cart</code>, local SQLite catalog/prices/batches. No network calls.</td></tr>
+<tr><th>Edge cases</th><td>Expired batch: warn and confirm (BR-09). Blocked/recalled batch: hard stop. Price older than 24 h offline: yellow banner. Line limit 200.</td></tr>
+<tr><th>Requirements</th><td>F-101–F-106, F-114, BR-01–BR-04, NFR-01</td></tr>
+</tbody>
+</table>
+</details>
+
+<details><summary>R-10 Payment</summary>
+<table>
+<tbody>
+<tr><th>Goal</th><td>Take payment in one or two key presses for a cash sale. Support split payment.</td></tr>
+<tr><th>Layout</th><td>Amount due (very large). Payment-type buttons: Cash, Card, LankaQR, Credit (only with a credit customer). A numeric keypad with quick cash buttons (exact, Rs 500, 1000, 5000). A list of payments added. Change due. A "Tax invoice" toggle with a buyer VAT number field.</td></tr>
+<tr><th>Rules</th><td>Card/QR: enter the approval reference (MVP, standalone terminal). Never card numbers (<span class="inv">INV-11</span>). Credit: limit check (BR-07). Complete is enabled only when the payments cover the amount due.</td></tr>
+<tr><th>Complete</th><td>One local transaction (receipt number + sale + outbox) → print → open drawer if cash → R-11. See <a href="offline-sync.html#sale-path">sale path</a>.</td></tr>
+<tr><th>Keys</th><td><kbd>Enter</kbd> = exact cash and complete · <kbd>F1</kbd>–<kbd>F4</kbd> payment types · <kbd>Esc</kbd> back to cart</td></tr>
+</tbody>
+</table>
+</details>
+
+<details><summary>R-02 Sign-in (PIN)</summary>
+<table>
+<tbody>
+<tr><th>Layout</th><td>User tiles (photo or initials, name) for staff assigned to this branch. PIN pad. Language switch (සිං / தமி / EN). Sync status. Device name and app version in small text.</td></tr>
+<tr><th>Rules</th><td>5 wrong PINs: 5-minute lockout for that user on this device, audited. Auto-lock after N minutes idle (setting). Switching cashier mid-shift is allowed only when the cart is empty, and each cashier has their own cash session unless the branch uses shared drawers (setting).</td></tr>
+</tbody>
+</table>
+</details>
+
+<details><summary>R-13 Returns</summary>
+<table>
+<tbody>
+<tr><th>Flow</th><td>Scan the receipt barcode or type the receipt number → original lines with quantity sold and already returned → choose quantities → reason (damaged, expired, wrong item, customer changed mind, other) → refund method (defaults to original) → manager PIN if above limit → print return slip / credit note.</td></tr>
+<tr><th>Without receipt</th><td>Allowed only with a manager PIN and a product scan. Refund at the lowest recent price (setting).</td></tr>
+<tr><th>Requirements</th><td>F-107, BR-06, US-03</td></tr>
+</tbody>
+</table>
+</details>
+
+<details><summary>R-16 Close shift</summary>
+<table>
+<tbody>
+<tr><th>Flow</th><td>Cart must be empty and no held bills (or transfer them) → count cash by denomination (blind) → card/QR slip totals → see expected vs counted and variance → reason if the variance is above the threshold → print Z-report → sign out.</td></tr>
+<tr><th>Requirements</th><td>F-502, F-404, BR-08, US-04</td></tr>
+</tbody>
+</table>
+</details>
+
+<details><summary>R-19 Status & diagnostics</summary>
+<table>
+<tbody>
+<tr><th>Shows</th><td>Online/offline, last pull and push times, pending/blocked outbox counts (with error codes), catalog cursor, app version, device ID, free disk space, clock skew, printer status, last error.</td></tr>
+<tr><th>Actions</th><td>Test connection · Sync now · Test print · Open drawer (audited) · Upload logs to support · Full resync (manager PIN).</td></tr>
+<tr><th>Why it matters</th><td>Support can ask a shop to read this screen over the phone. It cuts most remote-support calls short (<a href="operations.html#rb-sync">RB-01</a>).</td></tr>
+</tbody>
+</table>
+</details>
+
+<h2 id="admin">Admin web</h2>
+<h3 id="admin-sitemap">Admin sitemap</h3>
+<figure class="diagram">
+<pre class="mermaid">
+flowchart LR
+  ROOT(["Admin web"]) --> HOME["Dashboard"]
+  ROOT --> CAT["Catalog"]
+  ROOT --> PRI["Pricing"]
+  ROOT --> INV["Inventory"]
+  ROOT --> PUR["Purchasing"]
+  ROOT --> SAL["Sales"]
+  ROOT --> CUS["Customers"]
+  ROOT --> TAX["Tax"]
+  ROOT --> REP["Reports"]
+  ROOT --> SET["Settings"]
+  CAT --> CAT1["Products"] & CAT2["Categories &amp; brands"] & CAT3["Import / export"] & CAT4["Units"]
+  PRI --> PRI1["Price lists"] & PRI2["Bulk price change"] & PRI3["Discount limits"] & PRI4["Promotions (R2)"]
+  INV --> INV1["Stock on hand"] & INV2["Batches &amp; recalls"] & INV3["Adjustments"] & INV4["Stock counts"] & INV5["Expiry"] & INV6["Transfers (R2)"]
+  PUR --> PUR1["Suppliers"] & PUR2["Goods receipts"] & PUR3["Purchase orders (R2)"]
+  SAL --> SAL1["Sales history"] & SAL2["Returns"] & SAL3["Sale exceptions"] & SAL4["Shifts &amp; cash"]
+  CUS --> CUS1["Customers"] & CUS2["Credit accounts"] & CUS3["Loyalty (R2)"]
+  TAX --> TAX1["Tax documents"] & TAX2["Tax rates"] & TAX3["VAT report"]
+  SET --> SET1["Business"] & SET2["Branches &amp; registers"] & SET3["Users &amp; roles"] & SET4["Devices"] & SET5["Receipts &amp; templates"] & SET6["Modules"] & SET7["Audit log"] & SET8["Subscription"]
+</pre>
+<figcaption>Left sidebar navigation with these 10 sections. Menu items the user has no permission for are hidden, and the server checks again (<a href="security.html#rbac">RBAC</a>).</figcaption>
+</figure>
+
+<h3 id="admin-inventory">Admin screen inventory</h3>
+<table>
+<thead><tr><th>ID</th><th>Screen</th><th>Purpose / key elements</th><th>Main roles</th><th>Release</th></tr></thead>
+<tbody>
+<tr><td colspan="5"><strong>Access</strong></td></tr>
+<tr><td>A-01</td><td>Login</td><td>E-mail, password, language, "forgot password"</td><td>All</td><td><span class="badge b-mvp">MVP</span></td></tr>
+<tr><td>A-02</td><td>MFA setup / verify</td><td>QR code for an authenticator app, recovery codes, 6-digit verify</td><td>Owner, admin</td><td><span class="badge b-mvp">MVP</span></td></tr>
+<tr><td>A-03</td><td>Reset password / accept invite</td><td>Set password with strength meter</td><td>All</td><td><span class="badge b-mvp">MVP</span></td></tr>
+<tr><td>A-05</td><td>Onboarding wizard</td><td>Business → VAT → branches → registers → tax rates → receipt → import products → invite staff</td><td>Owner</td><td><span class="badge b-mvp">MVP</span></td></tr>
+<tr><td colspan="5"><strong>Home</strong></td></tr>
+<tr><td>A-10</td><td>Dashboard</td><td>Today's sales vs. last week, per branch, top items, open exceptions, low stock, near expiry, offline registers, shift variances. Mobile friendly.</td><td>Owner, manager</td><td><span class="badge b-mvp">MVP</span> (basic), <span class="badge b-r2">R2</span> (multi-branch)</td></tr>
+<tr><td colspan="5"><strong>Catalog & pricing</strong></td></tr>
+<tr><td>A-20</td><td>Products list</td><td>Search, filters (category, brand, tax, active, low stock), bulk actions, export</td><td>Manager, stock keeper</td><td><span class="badge b-mvp">MVP</span></td></tr>
+<tr><td>A-21</td><td>Product editor</td><td>Tabs: General (names en/si/ta, category, brand, type, tax) · Variants & SKUs · Barcodes & units · Prices · Stock & batches (read-only) · Extension tab (pharmacy drug info / grocery PLU) · History</td><td>Manager, stock keeper</td><td><span class="badge b-mvp">MVP</span></td></tr>
+<tr><td>A-22</td><td>Categories & brands</td><td>Tree editor, drag to reorder, quick-key colours for the register</td><td>Manager</td><td><span class="badge b-mvp">MVP</span></td></tr>
+<tr><td>A-23</td><td>Import wizard</td><td>Download template → upload → map columns → preview (new / updated / errors per row) → commit → result</td><td>Manager</td><td><span class="badge b-mvp">MVP</span></td></tr>
+<tr><td>A-24</td><td>Units</td><td>Units of measure and default conversions</td><td>Manager</td><td><span class="badge b-mvp">MVP</span></td></tr>
+<tr><td>A-30</td><td>Price lists</td><td>Retail/wholesale lists, per-branch overrides, scheduled prices (valid from)</td><td>Manager</td><td><span class="badge b-mvp">MVP</span></td></tr>
+<tr><td>A-31</td><td>Bulk price change</td><td>Filter products → % or fixed change → preview → schedule</td><td>Owner, manager</td><td><span class="badge b-mvp">MVP</span></td></tr>
+<tr><td>A-32</td><td>Discount limits</td><td>Maximum % and amount per role, override rules</td><td>Owner</td><td><span class="badge b-mvp">MVP</span></td></tr>
+<tr><td>A-33</td><td>Promotions</td><td>Rule builder: buy X get Y, mix &amp; match, happy hour, coupon, with dates and branches</td><td>Manager</td><td><span class="badge b-r2">R2</span></td></tr>
+<tr><td colspan="5"><strong>Inventory & purchasing</strong></td></tr>
+<tr><td>A-40</td><td>Stock on hand</td><td>By branch, product, batch, with valuation at cost. Negative stock highlighted.</td><td>Manager, stock keeper</td><td><span class="badge b-mvp">MVP</span></td></tr>
+<tr><td>A-41</td><td>Batch detail & recall</td><td>Movements ledger for one batch, block/unblock, buyers report</td><td>Manager, pharmacist</td><td><span class="badge b-mvp">MVP</span></td></tr>
+<tr><td>A-42</td><td>Goods receipts</td><td>List + editor: supplier, invoice no, lines with GS1 scan, batch, expiry, unit, cost. Post.</td><td>Stock keeper</td><td><span class="badge b-mvp">MVP</span></td></tr>
+<tr><td>A-43</td><td>Stock adjustments</td><td>Reason codes, approval above value limit</td><td>Stock keeper, manager</td><td><span class="badge b-mvp">MVP</span></td></tr>
+<tr><td>A-44</td><td>Stock counts</td><td>Create count (full / category / cycle) → count sheet (scan or type, works on tablet) → review variances → post</td><td>Stock keeper, manager</td><td><span class="badge b-mvp">MVP</span></td></tr>
+<tr><td>A-45</td><td>Expiry board</td><td>Expired / 30 / 60 / 90 days by branch, write-off or discount actions</td><td>Manager, pharmacist</td><td><span class="badge b-mvp">MVP</span></td></tr>
+<tr><td>A-46</td><td>Stock transfers</td><td>Request → ship → receive between branches</td><td>Manager</td><td><span class="badge b-r2">R2</span></td></tr>
+<tr><td>A-47</td><td>Purchase orders</td><td>Create from low-stock suggestions, send to supplier (PDF/e-mail), partial receiving</td><td>Manager</td><td><span class="badge b-r2">R2</span></td></tr>
+<tr><td>A-48</td><td>Suppliers</td><td>Contacts, VAT number, terms, purchase history</td><td>Manager</td><td><span class="badge b-mvp">MVP</span></td></tr>
+<tr><td colspan="5"><strong>Sales, cash, customers</strong></td></tr>
+<tr><td>A-50</td><td>Sales history</td><td>Filter by date, branch, register, cashier, customer, payment type, receipt number</td><td>Manager, accountant</td><td><span class="badge b-mvp">MVP</span></td></tr>
+<tr><td>A-51</td><td>Sale detail</td><td>Lines, batch allocations, payments, returns, tax document, exceptions, audit trail, reprint</td><td>Manager, accountant</td><td><span class="badge b-mvp">MVP</span></td></tr>
+<tr><td>A-52</td><td>Returns</td><td>List of returns and refunds, linked to originals</td><td>Manager</td><td><span class="badge b-mvp">MVP</span></td></tr>
+<tr><td>A-53</td><td>Sale exceptions queue</td><td>NEGATIVE_STOCK, PRICE_MISMATCH, EXPIRED_BATCH_SOLD, CLOCK_SKEW, RECEIPT_COLLISION. Resolve with a note and a suggested action.</td><td>Manager</td><td><span class="badge b-mvp">MVP</span></td></tr>
+<tr><td>A-55</td><td>Shifts & cash</td><td>Shifts per register, expected vs counted, variance review and approval, Z-report reprint</td><td>Manager, owner</td><td><span class="badge b-mvp">MVP</span></td></tr>
+<tr><td>A-60</td><td>Customers</td><td>List, search, merge duplicates</td><td>Manager</td><td><span class="badge b-mvp">MVP</span></td></tr>
+<tr><td>A-61</td><td>Customer detail</td><td>Profile, purchase history, credit ledger, record settlement, print statement, consent flags</td><td>Manager, accountant</td><td><span class="badge b-mvp">MVP</span></td></tr>
+<tr><td>A-62</td><td>Loyalty</td><td>Earn and redeem rules, points ledger</td><td>Owner</td><td><span class="badge b-r2">R2</span></td></tr>
+<tr><td colspan="5"><strong>Tax & reports</strong></td></tr>
+<tr><td>A-65</td><td>Tax documents</td><td>Tax invoices, credit and debit notes, fiscal status (R3), PDF download</td><td>Accountant</td><td><span class="badge b-mvp">MVP</span></td></tr>
+<tr><td>A-66</td><td>Tax rates & rules</td><td>Rates with valid-from dates, product tax classes</td><td>Owner, accountant</td><td><span class="badge b-mvp">MVP</span></td></tr>
+<tr><td>A-67</td><td>VAT report</td><td>Output tax by rate and period, credit-note adjustments, export</td><td>Accountant</td><td><span class="badge b-mvp">MVP</span></td></tr>
+<tr><td>A-70</td><td>Report centre</td><td>Daily sales, by product/category/cashier/branch, margin, stock valuation, expiry, Z-reports, credit ageing, best/slow sellers (R2), peak hours (R2). Every report: filters, chart, table, CSV/XLSX/PDF export.</td><td>Owner, manager, accountant</td><td><span class="badge b-mvp">MVP</span></td></tr>
+<tr><td colspan="5"><strong>Settings</strong></td></tr>
+<tr><td>A-80</td><td>Business profile</td><td>Name, address, VAT number, logo, currency, time zone, languages</td><td>Owner</td><td><span class="badge b-mvp">MVP</span></td></tr>
+<tr><td>A-81</td><td>Branches & registers</td><td>Branch codes, registers, generate enrollment codes</td><td>Owner</td><td><span class="badge b-mvp">MVP</span></td></tr>
+<tr><td>A-82</td><td>Users & roles</td><td>Invite users, assign roles per branch, reset PIN. Role editor with the permission checklist.</td><td>Owner</td><td><span class="badge b-mvp">MVP</span></td></tr>
+<tr><td>A-83</td><td>Devices</td><td>Enrolled devices, version, last seen, queue depth, lock/unlock</td><td>Owner, manager</td><td><span class="badge b-mvp">MVP</span></td></tr>
+<tr><td>A-84</td><td>Receipts & templates</td><td>Receipt header/footer, logo, languages, tax invoice layout, live preview</td><td>Owner</td><td><span class="badge b-mvp">MVP</span></td></tr>
+<tr><td>A-85</td><td>Modules</td><td>Enable pharmacy and grocery, with module settings</td><td>Owner</td><td><span class="badge b-r2">R2</span></td></tr>
+<tr><td>A-86</td><td>Integrations</td><td>RAMIS, payment providers, SMS, accounting connectors</td><td>Owner</td><td><span class="badge b-r3">R3</span></td></tr>
+<tr><td>A-87</td><td>Audit log</td><td>Filter by user, action, entity, date. Shows before/after and approver.</td><td>Owner, accountant</td><td><span class="badge b-mvp">MVP</span></td></tr>
+<tr><td>A-88</td><td>Data & privacy</td><td>Full data export, customer data export/erasure (PDPA), support-access consent</td><td>Owner</td><td><span class="badge b-r2">R2</span></td></tr>
+<tr><td>A-89</td><td>Subscription</td><td>Plan, modules, invoices, number of registers</td><td>Owner</td><td><span class="badge b-r2">R2</span></td></tr>
+<tr><td>A-90</td><td>My profile</td><td>Language, password, MFA, active sessions</td><td>All</td><td><span class="badge b-mvp">MVP</span></td></tr>
+<tr><td colspan="5"><strong>Industry extensions</strong></td></tr>
+<tr><td>A-100</td><td>Prescriptions (pharmacy)</td><td>Search prescriptions, view image, linked sales</td><td>Pharmacist</td><td><span class="badge b-r2">R2</span></td></tr>
+<tr><td>A-101</td><td>Controlled-drug register (pharmacy)</td><td>Running register per drug, export for inspection</td><td>Pharmacist, owner</td><td><span class="badge b-r2">R2</span></td></tr>
+<tr><td>A-102</td><td>PLU & scale profiles (grocery)</td><td>PLU codes, barcode formats, scale export file</td><td>Manager</td><td><span class="badge b-r2">R2</span></td></tr>
+<tr><td>A-103</td><td>Label templates (grocery)</td><td>Shelf label designer and print queue</td><td>Manager</td><td><span class="badge b-r2">R2</span></td></tr>
+</tbody>
+</table>
+
+<h3 id="admin-specs">Key admin screens in detail</h3>
+<details open><summary>A-10 Dashboard</summary>
+<table>
+<tbody>
+<tr><th>Top row (KPI tiles)</th><td>Sales today · transactions · average basket · gross margin % · compared with the same day last week</td></tr>
+<tr><th>Middle</th><td>Hourly sales chart (today vs last week). Sales by branch (when there is more than one).</td></tr>
+<tr><th>Action lists</th><td>"Needs attention": open sale exceptions, shift variances to approve, registers offline more than 24 h, batches expiring in 30 days, low stock. Each item links straight to the screen that resolves it.</td></tr>
+<tr><th>Data</th><td>Materialized views refreshed every 5–15 minutes. Shows an "as of" time. Never queries raw sale lines.</td></tr>
+<tr><th>Mobile</th><td>Tiles stack. Charts become sparklines. "Needs attention" comes first.</td></tr>
+</tbody>
+</table>
+</details>
+<details><summary>A-21 Product editor</summary>
+<table>
+<tbody>
+<tr><th>Pattern</th><td>Full page with tabs, a sticky Save bar, and an unsaved-changes guard. Optimistic locking (<code>If-Match</code>): on conflict, show "changed by X at time" and offer a reload.</td></tr>
+<tr><th>Validation</th><td>Inline, per field, in the user's language. Duplicate barcode check against the server as you type.</td></tr>
+<tr><th>Extension tab</th><td>Rendered by the enabled module through the <code>product.details</code> slot (pharmacy: generic name, strength, form, schedule, Rx required).</td></tr>
+</tbody>
+</table>
+</details>
+<details><summary>A-23 Import wizard</summary>
+<table>
+<tbody>
+<tr><th>Steps</th><td>1 Template → 2 Upload (XLSX/CSV, up to 20 MB) → 3 Map columns (auto-matched by header) → 4 Preview: counts plus an error table (row, column, message), downloadable → 5 Commit (progress bar, async job) → 6 Result.</td></tr>
+<tr><th>Safety</th><td>Dry run is the default. Nothing changes before Commit. A large import triggers a new register snapshot.</td></tr>
+</tbody>
+</table>
+</details>
+<details><summary>A-53 Sale exceptions queue</summary>
+<table>
+<tbody>
+<tr><th>Layout</th><td>Filterable table (type, branch, age). A side panel shows the sale, the problem, evidence (e.g. stock at the time, price on the server vs the register) and suggested actions (post the pending GRN, adjust stock, accept the price difference).</td></tr>
+<tr><th>Rule</th><td>Resolving never edits the sale (<span class="inv">INV-02</span>). Actions create adjustments or notes.</td></tr>
+</tbody>
+</table>
+</details>
+
+<h2 id="console">Platform console (DevCity internal)</h2>
+<table>
+<thead><tr><th>ID</th><th>Screen</th><th>Purpose</th><th>Release</th></tr></thead>
+<tbody>
+<tr><td>P-01</td><td>Tenants</td><td>List, plan, modules, status, created, branch and register counts</td><td><span class="badge b-mvp">MVP</span></td></tr>
+<tr><td>P-02</td><td>Tenant detail</td><td>Health summary, open exceptions, import errors, fiscal status, support-access request</td><td><span class="badge b-mvp">MVP</span></td></tr>
+<tr><td>P-03</td><td>Register fleet</td><td>All registers: version, last heartbeat, queue depth, blocked items, clock skew. Filter "needs help".</td><td><span class="badge b-mvp">MVP</span></td></tr>
+<tr><td>P-04</td><td>Register detail</td><td>Outbox items with errors. Requeue, request logs, force resync, lock, reset sequence (two-person approval).</td><td><span class="badge b-mvp">MVP</span></td></tr>
+<tr><td>P-05</td><td>Support access</td><td>Requests, approvals by tenant owners, active sessions, expiry</td><td><span class="badge b-mvp">MVP</span></td></tr>
+<tr><td>P-06</td><td>Releases & flags</td><td>Register rollout rings, crash rate per version, feature flags per tenant</td><td><span class="badge b-r2">R2</span></td></tr>
+<tr><td>P-07</td><td>System health</td><td>Links and summaries: backups, jobs, outbox, error rates</td><td><span class="badge b-r2">R2</span></td></tr>
+</tbody>
+</table>
+
+<h2 id="documents">Printed and generated documents</h2>
+<table>
+<thead><tr><th>ID</th><th>Document</th><th>Format</th><th>Contents</th><th>Release</th></tr></thead>
+<tbody>
+<tr><td>D-01</td><td>Sales receipt</td><td>80/58 mm thermal</td><td>Logo, business, branch, receipt number + barcode, date/time, cashier, lines, discounts, tax summary, payments, change, footer, return policy. en/si/ta.</td><td><span class="badge b-mvp">MVP</span></td></tr>
+<tr><td>D-02</td><td>Tax invoice</td><td>Thermal and A4 PDF</td><td>The fields VAT law prescribes: supplier and buyer VAT numbers, invoice number series, value before VAT, VAT rate and amount, total</td><td><span class="badge b-mvp">MVP</span></td></tr>
+<tr><td>D-03</td><td>Credit note / return slip</td><td>Thermal and A4 PDF</td><td>Link to the original invoice or receipt, lines, refund method</td><td><span class="badge b-mvp">MVP</span></td></tr>
+<tr><td>D-04</td><td>Z-report (shift / day)</td><td>Thermal and PDF</td><td>Sales by payment type, refunds, discounts, voids, cash movements, expected vs counted, variance</td><td><span class="badge b-mvp">MVP</span></td></tr>
+<tr><td>D-05</td><td>Customer credit statement</td><td>A4 PDF</td><td>Opening balance, sales on credit, settlements, closing balance, ageing</td><td><span class="badge b-mvp">MVP</span></td></tr>
+<tr><td>D-06</td><td>Goods receipt note</td><td>A4 PDF</td><td>Supplier, invoice, lines with batch and expiry</td><td><span class="badge b-mvp">MVP</span></td></tr>
+<tr><td>D-07</td><td>Shelf / price label</td><td>Label printer (ZPL/TSPL)</td><td>Name (si/ta/en), price, unit price, barcode</td><td><span class="badge b-r2">R2</span></td></tr>
+<tr><td>D-08</td><td>Purchase order</td><td>A4 PDF / e-mail</td><td>Supplier, lines, expected date</td><td><span class="badge b-r2">R2</span></td></tr>
+</tbody>
+</table>
+
+<h2 id="role-access">Which roles see which areas</h2>
+<table>
+<thead><tr><th>Area</th><th class="c">Owner</th><th class="c">Manager</th><th class="c">Cashier</th><th class="c">Stock keeper</th><th class="c">Pharmacist</th><th class="c">Accountant</th></tr></thead>
+<tbody>
+<tr><td>Register: checkout, returns, shift</td><td class="c">✓</td><td class="c">✓</td><td class="c">✓</td><td class="c"></td><td class="c">✓</td><td class="c"></td></tr>
+<tr><td>Register: receiving, price check</td><td class="c">✓</td><td class="c">✓</td><td class="c">price check</td><td class="c">✓</td><td class="c">✓</td><td class="c"></td></tr>
+<tr><td>Admin: dashboard</td><td class="c">✓</td><td class="c">✓ (branch)</td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c">✓</td></tr>
+<tr><td>Admin: catalog & pricing</td><td class="c">✓</td><td class="c">✓</td><td class="c"></td><td class="c">catalog</td><td class="c">drug info</td><td class="c"></td></tr>
+<tr><td>Admin: inventory & purchasing</td><td class="c">✓</td><td class="c">✓</td><td class="c"></td><td class="c">✓</td><td class="c">batches, expiry</td><td class="c">view</td></tr>
+<tr><td>Admin: sales, shifts, customers</td><td class="c">✓</td><td class="c">✓</td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c">view, credit</td></tr>
+<tr><td>Admin: tax & reports</td><td class="c">✓</td><td class="c">✓ (no profit unless granted)</td><td class="c"></td><td class="c">stock reports</td><td class="c">pharmacy reports</td><td class="c">✓</td></tr>
+<tr><td>Admin: settings, users, modules</td><td class="c">✓</td><td class="c">branch users, devices</td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c">audit log</td></tr>
+</tbody>
+</table>
+
+<h2 id="code-structure">How screens map to code</h2>
+<pre><code>apps/admin/src/routes/                    (TanStack Router, file-based)
+├─ _auth/login.tsx                        A-01
+├─ _auth/mfa.tsx                          A-02
+├─ _app/index.tsx                         A-10 Dashboard
+├─ _app/catalog/products/index.tsx        A-20
+├─ _app/catalog/products/$id.tsx          A-21
+├─ _app/catalog/import.tsx                A-23
+├─ _app/inventory/stock.tsx               A-40
+├─ _app/inventory/receipts/$id.tsx        A-42
+├─ _app/sales/exceptions.tsx              A-53
+├─ _app/reports/$reportKey.tsx            A-70
+└─ _app/settings/users.tsx                A-82
+
+apps/register/src/screens/
+├─ setup/DeviceSetup.tsx                  R-01
+├─ signin/PinSignIn.tsx                   R-02
+├─ shift/OpenShift.tsx · CloseShift.tsx   R-03, R-16
+├─ checkout/Checkout.tsx                  R-04  (+ CartLine, QuickKeys, TotalsPanel)
+├─ checkout/modals/*.tsx                  R-05..R-09
+├─ payment/Payment.tsx · Complete.tsx     R-10, R-11
+├─ returns/Returns.tsx                    R-13
+└─ tools/Status.tsx · Settings.tsx · …    R-14..R-20
+
+packages/ui/            shared components (Button, NumPad, Money, DataTable, Modal, Toast, …)
+packages/ext-pharmacy/  RegisterPlugin + admin tab components (R-30, R-31, A-100, A-101)</code></pre>
+<p>Put the screen ID in each route or screen file's header comment, so a search for <code>R-10</code> finds both the docs and the code.</p>
+
+<h2 id="build-order">Build order by phase</h2>
+<table>
+<thead><tr><th>Phase</th><th>Screens</th></tr></thead>
+<tbody>
+<tr><td>P1 Foundation</td><td>A-01, A-02, A-03, A-05 (basic), A-80, A-81, A-82, A-83, A-90, P-01, R-01, R-02</td></tr>
+<tr><td>P2 Catalog & register</td><td>A-20–A-24, A-30–A-32, A-66, R-05, R-18, R-19, R-20</td></tr>
+<tr><td>P3 Receiving & stock</td><td>A-40–A-45, A-48, R-17</td></tr>
+<tr><td>P4 Checkout</td><td>R-03, R-04, R-06–R-12, D-01, P-03, P-04</td></tr>
+<tr><td>P5 Cash, credit, returns, tax</td><td>R-13–R-16, A-50–A-55, A-60, A-61, A-65, A-67, A-70, A-84, A-87, A-10, D-02–D-06</td></tr>
+<tr><td>P6–P7 Pilot & launch</td><td>Polish from pilot feedback, P-02, P-05, onboarding wizard complete</td></tr>
+</tbody>
+</table>
+
+</article></main>
+<aside id="toc"></aside>
+</div>
+<script src="assets/search-index.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js"></script>
+<script src="assets/site.js"></script>
+</body>
+</html>

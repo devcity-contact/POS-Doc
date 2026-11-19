@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Overview · RetailOS</title>
+<meta name="description" content="RetailOS by DevCity: system design for an offline-first, multi-tenant POS for Sri Lankan retail, pharmacy and grocery, ready for 2027/2028.">
+<link rel="stylesheet" href="assets/site.css">
+<script>try{var t=localStorage.getItem("retailos-theme");if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
+</head>
+<body>
+<header id="topbar"></header>
+<div class="layout">
+<nav id="sidebar"></nav>
+<main class="content"><article>
+
+<h1>RetailOS system design</h1>
+<p class="lead">RetailOS is DevCity's point-of-sale and back-office platform for general retail, pharmacies and grocery stores. Registers keep selling when the internet drops, stock is tracked per batch and expiry date, and invoices follow Sri Lankan VAT rules. One cloud backend serves every shop and branch.</p>
+<div class="meta">
+  <span>Version 1.0 · 19 Nov 2026</span>
+  <span>Owner: DevCity architecture</span>
+  <span>Status: <span class="badge b-accent">Approved for MVP build</span></span>
+  <span>Source: RetailOS blueprint v1.0 + blueprint review (15 Nov 2026)</span>
+</div>
+
+<div class="callout tip">
+  <span class="ct">How to read this site</span>
+  Start with this page, then follow the reading path for your role below. Every diagram is written as Mermaid text inside the HTML, so it renders here and stays readable for code reviewers and AI tools. Press <code>/</code> to search.
+</div>
+
+<h2 id="at-a-glance">At a glance</h2>
+<div class="cards">
+  <div class="card"><div class="k">Modular monolith</div><p>One Spring Boot app with strict module boundaries. Split a module out only when measurements demand it.</p></div>
+  <div class="card"><div class="k">Offline-first</div><p>Every register sells from its own SQLite database and syncs in the background. A sale is never lost and never rejected.</p></div>
+  <div class="card"><div class="k">1 UI, 2 shells</div><p>One React register app packaged for Windows (Electron) and Android (Capacitor), with a device bridge for printers, drawers and scanners.</p></div>
+  <div class="card"><div class="k">Core + extensions</div><p>The core understands a generic sale. Pharmacy and grocery plug in as extension modules. General retail is the core alone.</p></div>
+  <div class="card"><div class="k">Cloud-agnostic</div><p>A container, PostgreSQL and S3-compatible storage. It runs on any provider from about US$20 a month at pilot scale.</p></div>
+  <div class="card"><div class="k">Tax-ready</div><p>A Tax module owns invoice numbering and credit notes, with an adapter for IRD e-invoicing and secured POS rules.</p></div>
+</div>
+
+<h2 id="big-picture">The big picture</h2>
+<figure class="diagram">
+<pre class="mermaid">
+flowchart LR
+  subgraph Shop["Shop / branch"]
+    direction TB
+    R1["Register (Windows)&lt;br/&gt;React + Electron + SQLite"]
+    R2["Register (Android)&lt;br/&gt;React + Capacitor + SQLite"]
+    HW["Printer · drawer · scanner · scale"]
+    R1 --- HW
+  end
+  subgraph Cloud["RetailOS cloud"]
+    direction TB
+    API["RetailOS backend&lt;br/&gt;Spring Boot modular monolith"]
+    DB[("PostgreSQL&lt;br/&gt;multi-tenant, RLS")]
+    OBJ[("Object storage&lt;br/&gt;images, exports, backups")]
+    API --> DB
+    API --> OBJ
+  end
+  ADMIN["Admin web app&lt;br/&gt;owners, managers, accountants"]
+  IRD["IRD RAMIS&lt;br/&gt;e-invoicing (when published)"]
+  R1 -- "sync: pull catalog, push sales" --> API
+  R2 -- "sync" --> API
+  ADMIN -- "REST / HTTPS" --> API
+  API -. "Tax adapter" .-> IRD
+</pre>
+<figcaption>Registers work locally and sync with one backend. Only the Tax module talks to the IRD.</figcaption>
+</figure>
+
+<h2 id="reading-paths">Reading paths</h2>
+<div class="cards">
+  <a class="card" href="requirements.html"><h4>Business analyst / product owner</h4><p>Requirements & scope → Roadmap → Screens & navigation → Industry extensions → Key flows</p></a>
+  <a class="card" href="ui-screens.html"><h4>Front-end / UI developer, designer</h4><p>Screens & navigation → UI design & wireframes → Technology stack → API design</p></a>
+  <a class="card" href="dev-guide.html"><h4>New developer (day 1)</h4><p>Overview → Glossary → Developer guide → System architecture → Backend modules → Data model</p></a>
+  <a class="card" href="offline-sync.html"><h4>Register / front-end developer</h4><p>System architecture → Offline & sync → Key flows → API design</p></a>
+  <a class="card" href="security.html"><h4>Security reviewer</h4><p>Security architecture → API design → Deployment</p></a>
+  <a class="card" href="deployment.html"><h4>Operations / support</h4><p>Deployment → Monitoring & runbooks → Cost & scaling</p></a>
+  <a class="card" href="ai-guide.html"><h4>AI coding agent</h4><p>Guide for AI agents (rules and invariants) → the module page for your task → Data model</p></a>
+</div>
+
+<h2 id="key-decisions">Key decisions</h2>
+<table>
+<thead><tr><th>Area</th><th>Decision</th><th>Why</th><th>Record</th></tr></thead>
+<tbody>
+<tr><td>Shape</td><td>Modular monolith (Spring Modulith)</td><td>One developer and one database give real transactions across sales and stock. Boundaries are tested, so a module can be split out later.</td><td><a href="adr.html#adr-001">ADR-001</a></td></tr>
+<tr><td>Register</td><td>Local-first, with SQLite on the device</td><td>Billing never stops for the internet. Adding offline later would mean rewriting checkout.</td><td><a href="adr.html#adr-002">ADR-002</a></td></tr>
+<tr><td>Runtimes</td><td>One React app in Electron (Windows) and Capacitor (Android)</td><td>One UI codebase for a one-person team. The device bridge hides hardware differences.</td><td><a href="adr.html#adr-003">ADR-003</a></td></tr>
+<tr><td>Tenancy</td><td>Shared schema, <code>tenant_id</code> on every table, PostgreSQL row-level security</td><td>Cheapest to run. RLS is a safety net if a query forgets its filter.</td><td><a href="adr.html#adr-004">ADR-004</a></td></tr>
+<tr><td>Stock</td><td>Movement ledger plus balance projection, batch-level FEFO</td><td>Every stock figure can be explained and rebuilt. This is required for pharmacy and grocery.</td><td><a href="adr.html#adr-005">ADR-005</a></td></tr>
+<tr><td>Industries</td><td>Core plus extension modules, enabled per tenant</td><td>The core stays simple. Industries plug in through defined extension points.</td><td><a href="adr.html#adr-006">ADR-006</a></td></tr>
+<tr><td>Async work</td><td>Transactional outbox (Spring Modulith event registry). No Kafka.</td><td>Reliable with nothing extra to run.</td><td><a href="adr.html#adr-007">ADR-007</a></td></tr>
+<tr><td>Payments</td><td>Record the payment type only. Card terminals run standalone.</td><td>Keeps the system out of PCI-DSS scope.</td><td><a href="adr.html#adr-008">ADR-008</a></td></tr>
+<tr><td>Hosting</td><td>A single container image on any host, with managed PostgreSQL where affordable</td><td>Low cost, no lock-in, no Kubernetes at this size.</td><td><a href="adr.html#adr-009">ADR-009</a></td></tr>
+</tbody>
+</table>
+
+<h2 id="tech-stack">Tech stack</h2>
+<p>A summary of the main choices. The full list of every technology, with its version line, role, licence, cost and the rejected alternatives, is on <a href="tech-stack.html">Technology stack</a>.</p>
+<table>
+<thead><tr><th>Layer</th><th>Choice</th><th>Notes</th></tr></thead>
+<tbody>
+<tr><td>Backend</td><td>Java 25 LTS, Spring Boot 4.x, Spring Modulith</td><td>Use virtual threads. Use JPA for CRUD and <code>JdbcClient</code> for stock, locking and reports.</td></tr>
+<tr><td>Database</td><td>PostgreSQL 18</td><td>Native <code>uuidv7()</code>, RLS, partitioning, and materialized views for reports.</td></tr>
+<tr><td>Migrations</td><td>Flyway</td><td>Use the expand/contract pattern only (<span class="inv">INV-13</span>).</td></tr>
+<tr><td>Admin web</td><td>React 19, TypeScript, Vite, TanStack Query, i18next</td><td>The API client is generated from OpenAPI.</td></tr>
+<tr><td>Register UI</td><td>The same React + TypeScript stack, in a shared <code>packages/register-core</code></td><td>Money math uses <code>decimal.js</code>, never floats (<span class="inv">INV-03</span>).</td></tr>
+<tr><td>Register shells</td><td>Electron (Windows), Capacitor (Android)</td><td>Electron uses <code>better-sqlite3</code> + SQLCipher. Android uses <code>@capacitor-community/sqlite</code> (encrypted).</td></tr>
+<tr><td>Hardware</td><td>ESC/POS printers (USB/LAN/Bluetooth), cash drawer kicked through the printer, HID scanners</td><td>All accessed through the <code>DeviceBridge</code> interface.</td></tr>
+<tr><td>Auth</td><td>Spring Security, JWT access token (10 min) plus rotating refresh token, Argon2id, TOTP MFA for owners</td><td>Staff PINs are used for fast switching and offline sign-in.</td></tr>
+<tr><td>Observability</td><td>OpenTelemetry, Micrometer, JSON logs, Sentry-compatible error reporting</td><td>Registers report errors and heartbeats.</td></tr>
+<tr><td>CI/CD</td><td>GitHub Actions (or any CI), Docker, Testcontainers, Playwright</td><td>See <a href="deployment.html">Deployment</a>.</td></tr>
+</tbody>
+</table>
+
+<h2 id="conventions">Conventions used in these docs</h2>
+<h3 id="badges">Release badges</h3>
+<p><span class="badge b-mvp">MVP</span> first sellable release &nbsp; <span class="badge b-r2">R2</span> second release &nbsp; <span class="badge b-r3">R3</span> third release &nbsp; <span class="badge b-later">Later</span> backlog, not scheduled</p>
+<h3 id="invariants">Invariants (rules that must never break)</h3>
+<p>Rules are numbered <span class="inv">INV-nn</span> and cited across all pages, in code comments and in tests. If code breaks an invariant, the code is wrong. The full list is in <a href="ai-guide.html#invariants">Guide for AI agents</a>. The most important ones:</p>
+<table>
+<thead><tr><th>ID</th><th>Rule</th></tr></thead>
+<tbody>
+<tr><td><span class="inv">INV-01</span></td><td>Every tenant-owned row has <code>tenant_id</code>, and every request runs with RLS bound to that tenant.</td></tr>
+<tr><td><span class="inv">INV-02</span></td><td>A completed sale is a fact. It is never rejected, updated or deleted, and corrections are new linked records.</td></tr>
+<tr><td><span class="inv">INV-03</span></td><td>Money is decimal everywhere: <code>NUMERIC(19,4)</code> in the database and a string in JSON. Never use floats.</td></tr>
+<tr><td><span class="inv">INV-04</span></td><td>Stock changes only through <code>stock_movement</code> rows. Balances are a rebuildable projection.</td></tr>
+<tr><td><span class="inv">INV-05</span></td><td>Every write from a register carries a client UUID that acts as an idempotency key.</td></tr>
+<tr><td><span class="inv">INV-08</span></td><td>Modules communicate only through public APIs and events, and never read each other's tables.</td></tr>
+</tbody>
+</table>
+
+<h2 id="assumptions">Assumptions and constraints</h2>
+<ul>
+<li><strong>Market:</strong> Sri Lanka first. Prices are in LKR, the time zone is <code>Asia/Colombo</code>, and the UI is in English, Sinhala and Tamil.</li>
+<li><strong>Team:</strong> one engineer at the start. Scope and technology are picked so one person can build, deploy and support the system with AI assistance. A second engineer is recommended before the pilot (see <a href="roadmap.html#team">Roadmap</a>).</li>
+<li><strong>Customers:</strong> small and medium shops with 1 to 20 branches and 1 to 10 registers per branch, in general retail, pharmacy and grocery.</li>
+<li><strong>Counter hardware:</strong> Windows PCs and Android tablets. Windows ships in the MVP and Android in R2, both from the same codebase.</li>
+<li><strong>Cloud:</strong> no provider chosen yet. The design uses only portable building blocks (see <a href="cost.html">Cost & scaling</a>).</li>
+<li><strong>Commercial model:</strong> not decided. The docs assume a monthly subscription per branch plus paid industry modules (open question Q-05).</li>
+</ul>
+
+<h2 id="open-questions">Open questions</h2>
+<table>
+<thead><tr><th>ID</th><th>Question</th><th>Affects</th><th>Owner</th></tr></thead>
+<tbody>
+<tr><td>Q-01</td><td>When will the IRD publish the secured POS specification, and does it need certified hardware?</td><td>Tax module, hardware bundles</td><td>Product</td></tr>
+<tr><td>Q-02</td><td>What does the RAMIS e-invoicing API look like for phase 2 (all VAT-registered businesses)?</td><td>Tax adapter</td><td>Architecture</td></tr>
+<tr><td>Q-03</td><td>Which NMRA record-keeping rules apply to pharmacies (controlled drugs, prescriptions)?</td><td>Pharmacy module</td><td>BA</td></tr>
+<tr><td>Q-04</td><td>Which printer, scanner and scale models will be officially supported? Keep the list short.</td><td>Device bridge, support cost</td><td>Product</td></tr>
+<tr><td>Q-05</td><td>Pricing: subscription per branch, per register, or a one-time licence?</td><td>Billing, entitlements</td><td>Business</td></tr>
+<tr><td>Q-06</td><td>Will DevCity sell hardware bundles? Who installs and supports shops outside Colombo?</td><td>Operations</td><td>Business</td></tr>
+<tr><td>Q-07</td><td>Which card terminal and LankaQR partners will be integrated in R3?</td><td>Payments module</td><td>Business</td></tr>
+</tbody>
+</table>
+
+<p class="footer-note">This site is a static HTML documentation set. Open <code>index.html</code> in any browser, or serve the <code>Doc</code> folder. An AI-readable summary is in <code>llms.txt</code> and <code>ai/</code>.</p>
+</article></main>
+<aside id="toc"></aside>
+</div>
+<script src="assets/search-index.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js"></script>
+<script src="assets/site.js"></script>
+</body>
+</html>

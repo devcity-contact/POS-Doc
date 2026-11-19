@@ -1,0 +1,271 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Key flows · RetailOS</title>
+<meta name="description" content="Sequence and state diagrams for RetailOS: goods receiving with GS1, server-side sale recording and FEFO allocation, returns, shifts, discount overrides, tax invoices, price changes and product import.">
+<link rel="stylesheet" href="assets/site.css">
+<script>try{var t=localStorage.getItem("retailos-theme");if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
+</head>
+<body>
+<header id="topbar"></header>
+<div class="layout">
+<nav id="sidebar"></nav>
+<main class="content"><article>
+
+<h1>Key flows</h1>
+<p class="lead">The flows below are the ones developers must get exactly right. Each one lists the invariants it protects. The register-side sale and sync flow is on <a href="offline-sync.html#sale-path">Offline & sync</a>.</p>
+
+<h2 id="sale-states">Sale lifecycle</h2>
+<figure class="diagram">
+<pre class="mermaid">
+stateDiagram-v2
+  [*] --> OPEN: first line added
+  OPEN --> OPEN: add or remove lines, discounts
+  OPEN --> HELD: park bill
+  HELD --> OPEN: resume
+  OPEN --> VOIDED: void before payment (reason, audited)
+  OPEN --> COMPLETED: payments cover total, receipt numbered
+  COMPLETED --> PARTLY_RETURNED: return some lines
+  PARTLY_RETURNED --> FULLY_RETURNED: return the rest
+  COMPLETED --> FULLY_RETURNED: return everything
+  VOIDED --> [*]
+  FULLY_RETURNED --> [*]
+</pre>
+<figcaption>COMPLETED is final for the sale record itself (<span class="inv">INV-02</span>). Return states are derived from linked return records, not by editing the sale.</figcaption>
+</figure>
+
+<h2 id="record-sale">Server: recording a synced sale</h2>
+<p>Protects <span class="inv">INV-02</span> <span class="inv">INV-04</span> <span class="inv">INV-05</span> <span class="inv">INV-07</span> <span class="inv">INV-14</span>.</p>
+<figure class="diagram">
+<pre class="mermaid">
+sequenceDiagram
+  autonumber
+  participant SY as Sync API
+  participant SA as Sales
+  participant EX as Extension SPIs
+  participant IN as Inventory
+  participant TX as Tax
+  participant DB as PostgreSQL
+  participant OB as Event registry (outbox)
+  SY->>SA: recordSale(cmd)
+  SA->>DB: BEGIN, set app.tenant_id
+  SA->>DB: insert sync_inbox (tenant, saleId) ON CONFLICT DO NOTHING
+  alt already present
+    SA->>DB: read stored result
+    SA-->>SY: DUPLICATE + original result
+  else new
+    SA->>SA: check register, session, totals add up
+    SA->>EX: SaleLineValidator (warnings only)
+    SA->>IN: allocateAndDeduct(lines)
+    IN->>DB: SELECT batches FOR UPDATE ordered by batch_id
+    IN->>DB: insert stock_movement rows, update stock_balance
+    IN-->>SA: allocations (+ NEGATIVE_STOCK if short)
+    SA->>DB: insert sale, sale_line, allocations, payments, receipt_registry
+    SA->>TX: issueDocument(sale) if tax invoice requested
+    SA->>OB: publish SaleCompleted, SaleException
+    SA->>DB: update sync_inbox result, COMMIT
+    SA-->>SY: ACCEPTED or ACCEPTED_WITH_EXCEPTION
+  end
+</pre>
+</figure>
+
+<h3 id="fefo">FEFO allocation algorithm</h3>
+<pre><code>allocate(line, location):
+  need = line.base_qty
+  if line.batch_hint is set:                       # cashier picked it or GS1 scan carried it
+      take min(need, onHand(hint)) from hint, or all of need if hint is the only batch
+      need -= taken
+  candidates = batches(sku, location)
+                 where status = OPEN and (expiry is null or expiry >= business_date)
+                 order by expiry_date nulls last, received_at, id
+  lock candidates FOR UPDATE in id order           # fixed lock order prevents deadlocks
+  for b in candidates while need > 0:
+      take = min(need, onHand(b)); if take > 0: allocate(b, take); need -= take
+  if need > 0:                                     # short stock: never reject (BR-05)
+      b = hint or first candidate or most recent batch of sku (even if expired/depleted)
+      allocate(b, need)                            # balance goes negative
+      raise exception NEGATIVE_STOCK(sku, location, need)
+  for each allocation: insert stock_movement(type=SALE, qty=-take, unit_cost=b.unit_cost)</code></pre>
+
+<h2 id="receiving">Goods receiving with GS1 2D</h2>
+<figure class="diagram">
+<pre class="mermaid">
+sequenceDiagram
+  autonumber
+  actor K as Stock keeper
+  participant UI as Register or admin
+  participant P as GS1 parser
+  participant PU as Purchasing
+  participant IN as Inventory
+  K->>UI: Start receipt, choose supplier, invoice no
+  K->>UI: Scan DataMatrix
+  UI->>P: parse raw string
+  P-->>UI: GTIN 08901234567890, batch A123, expiry 2027-09-30
+  UI->>UI: find SKU by GTIN barcode
+  alt unknown GTIN
+    UI-->>K: Link to existing product or create new
+  end
+  K->>UI: Enter qty, unit (box), cost
+  K->>UI: Post receipt
+  UI->>PU: POST /api/v1/goods-receipts
+  PU->>PU: validate, convert box to base units
+  PU->>IN: GoodsReceived event (same transaction via outbox)
+  IN->>IN: find or create batch (sku, location, batch_no, expiry)
+  IN->>IN: stock_movement RECEIPT, update balance
+  IN-->>UI: batches visible at next register pull
+</pre>
+<figcaption>GS1 Application Identifiers used: (01) GTIN, (10) batch/lot, (17) expiry YYMMDD, (21) serial. A day of 00 means the last day of the month.</figcaption>
+</figure>
+
+<h2 id="returns">Return and refund</h2>
+<figure class="diagram">
+<pre class="mermaid">
+sequenceDiagram
+  autonumber
+  actor C as Cashier
+  actor M as Manager
+  participant R as Register
+  participant API as Backend
+  C->>R: Scan receipt barcode CMB01-R02-000154
+  alt online
+    R->>API: GET /api/v1/sales/by-receipt/CMB01-R02-000154
+    API-->>R: sale with lines and already-returned qty
+  else offline and receipt from this register
+    R->>R: load sale from local DB
+  else offline and other register
+    R-->>C: manager PIN needed, enter lines manually
+  end
+  C->>R: Select lines and qty, reason
+  R->>R: check qty is at most sold minus returned (BR-06)
+  opt above cashier refund limit
+    R-->>M: request override
+    M->>R: PIN (audited)
+  end
+  R->>R: create sale_return linked to sale lines, refund payment, print slip
+  R->>API: push RETURN (when online)
+  API->>API: stock RETURN movement to the original batch, credit note if tax invoice
+</pre>
+</figure>
+
+<h2 id="shift">Shift and cash-up</h2>
+<figure class="diagram">
+<pre class="mermaid">
+stateDiagram-v2
+  [*] --> OPEN: cashier enters opening float
+  OPEN --> OPEN: sales, refunds, cash in, cash out, no-sale drawer open
+  OPEN --> COUNTING: close shift requested
+  COUNTING --> CLOSED: blind count entered per denomination
+  CLOSED --> REVIEWED: manager approves variance
+  CLOSED --> [*]
+  REVIEWED --> [*]
+</pre>
+<figcaption>Expected cash = opening float + cash sales - cash refunds + cash in - cash out. A variance above the tenant threshold raises CashVarianceExceeded.</figcaption>
+</figure>
+
+<h2 id="override">Manager override (discounts, refunds, no-sale)</h2>
+<figure class="diagram">
+<pre class="mermaid">
+sequenceDiagram
+  autonumber
+  actor C as Cashier
+  actor M as Manager
+  participant R as Register
+  participant A as Local audit
+  C->>R: Apply 25 percent discount
+  R->>R: role limit is 10 percent (BR-01)
+  R-->>C: Needs approval
+  M->>R: Enter PIN
+  R->>R: verify PIN hash locally, check permission sale.discount.override
+  R->>A: append OVERRIDE(who, what, amount, reason, saleId)
+  R-->>C: Discount applied, approver stored on sale line
+  Note over R,A: Five wrong PINs lock that user on this register for 5 minutes
+</pre>
+</figure>
+
+<h2 id="tax-invoice">Tax invoice and fiscal submission</h2>
+<figure class="diagram">
+<pre class="mermaid">
+sequenceDiagram
+  autonumber
+  participant SA as Sales
+  participant TX as Tax module
+  participant DB as PostgreSQL
+  participant W as Worker
+  participant FG as FiscalGateway
+  participant IRD as IRD RAMIS
+  SA->>TX: issueDocument(sale)
+  TX->>DB: insert tax_document (number from register series, status PENDING or NA)
+  TX-->>SA: document number
+  Note over TX,W: TaxDocumentIssued event, after commit
+  W->>FG: submit(document)
+  alt MVP (NoopFiscalGateway)
+    FG-->>W: NOT_APPLICABLE
+  else R3 (RamisEInvoiceGateway)
+    FG->>IRD: send invoice via Web API
+    IRD-->>FG: acknowledgement / error
+    FG-->>W: SENT or FAILED (retry with backoff, alert after 24 h)
+  end
+  W->>DB: update fiscal_status, store acknowledgement reference
+</pre>
+<figcaption>Submitted documents are never changed. A correction is a credit or debit note.</figcaption>
+</figure>
+
+<h2 id="price-change">Price change reaching the registers</h2>
+<figure class="diagram">
+<pre class="mermaid">
+sequenceDiagram
+  autonumber
+  actor M as Manager
+  participant ADM as Admin web
+  participant PR as Pricing
+  participant SY as sync_change_log
+  participant R as Register
+  M->>ADM: Set new price, effective from tomorrow 00:00
+  ADM->>PR: PUT price_list_item (valid_from)
+  PR->>SY: append UPSERT change (same transaction)
+  R->>SY: pull prices since cursor (every 60 s online)
+  SY-->>R: new price row with valid_from
+  R->>R: store, apply automatically at valid_from (works offline after pull)
+  opt grocery module
+    R-->>M: Print shelf labels for 14 changed SKUs?
+  end
+</pre>
+</figure>
+
+<h2 id="import">Bulk product import</h2>
+<figure class="diagram">
+<pre class="mermaid">
+flowchart TD
+  A["Upload .xlsx or .csv&lt;br/&gt;from template"] --> B["Store file in object storage&lt;br/&gt;create import_job"]
+  B --> C["Worker parses rows&lt;br/&gt;streaming, 1,000 per chunk"]
+  C --> D{"Row valid?"}
+  D -- no --> E["Collect error:&lt;br/&gt;row, column, message (si/ta/en)"]
+  D -- yes --> F["Upsert by SKU code or barcode&lt;br/&gt;dry-run first"]
+  E --> G["Preview report&lt;br/&gt;N new, M updated, K errors"]
+  F --> G
+  G --> H{"User confirms?"}
+  H -- yes --> I["Commit in chunks&lt;br/&gt;write sync_change_log"]
+  H -- no --> J["Discard"]
+  I --> K["Registers pull changes&lt;br/&gt;or new snapshot if over 5,000 rows"]
+</pre>
+</figure>
+
+<h2 id="recall">Batch recall (pharmacy)</h2>
+<ol class="steps">
+<li>A manager blocks batch <code>A123</code> of a SKU for every branch, with a reason.</li>
+<li>Inventory sets <code>batch.status = BLOCKED</code> and writes a <code>batches</code> change with high priority.</li>
+<li>Registers pull it on the next <code>staff/settings/batches</code> fast cycle (within 60 s while online). From then on, scanning that batch shows a hard stop.</li>
+<li>A report lists sales from the batch before the block, with customers where known. These sales stay valid as facts.</li>
+<li>Remaining stock is written off or returned to the supplier with stock movements.</li>
+</ol>
+
+</article></main>
+<aside id="toc"></aside>
+</div>
+<script src="assets/search-index.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js"></script>
+<script src="assets/site.js"></script>
+</body>
+</html>

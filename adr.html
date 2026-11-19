@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Decision records · RetailOS</title>
+<meta name="description" content="Architecture decision records (ADRs) for RetailOS: context, decision, consequences and rejected alternatives for each major choice.">
+<link rel="stylesheet" href="assets/site.css">
+<script>try{var t=localStorage.getItem("retailos-theme");if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
+</head>
+<body>
+<header id="topbar"></header>
+<div class="layout">
+<nav id="sidebar"></nav>
+<main class="content"><article>
+
+<h1>Architecture decision records</h1>
+<p class="lead">Each ADR records a decision that is expensive to reverse: why it was made, what it costs, and what would make us revisit it. Never edit an accepted ADR. Supersede it with a new one.</p>
+
+<h2 id="index">Index</h2>
+<table>
+<thead><tr><th>ADR</th><th>Title</th><th>Status</th></tr></thead>
+<tbody>
+<tr><td><a href="#adr-001">001</a></td><td>Modular monolith with Spring Modulith</td><td><span class="badge b-mvp">Accepted</span></td></tr>
+<tr><td><a href="#adr-002">002</a></td><td>Local-first register with SQLite</td><td><span class="badge b-mvp">Accepted</span></td></tr>
+<tr><td><a href="#adr-003">003</a></td><td>One React register UI in Electron and Capacitor shells</td><td><span class="badge b-mvp">Accepted</span></td></tr>
+<tr><td><a href="#adr-004">004</a></td><td>Shared-schema multi-tenancy with row-level security</td><td><span class="badge b-mvp">Accepted</span></td></tr>
+<tr><td><a href="#adr-005">005</a></td><td>Stock as an append-only movement ledger with batch-level FEFO</td><td><span class="badge b-mvp">Accepted</span></td></tr>
+<tr><td><a href="#adr-006">006</a></td><td>Industry features as extension modules</td><td><span class="badge b-mvp">Accepted</span></td></tr>
+<tr><td><a href="#adr-007">007</a></td><td>Transactional outbox via event publication registry, no broker</td><td><span class="badge b-mvp">Accepted</span></td></tr>
+<tr><td><a href="#adr-008">008</a></td><td>Stay out of PCI-DSS scope</td><td><span class="badge b-mvp">Accepted</span></td></tr>
+<tr><td><a href="#adr-009">009</a></td><td>Cloud-agnostic container hosting, no Kubernetes</td><td><span class="badge b-mvp">Accepted</span></td></tr>
+<tr><td><a href="#adr-010">010</a></td><td>Sales are never rejected; exceptions instead</td><td><span class="badge b-mvp">Accepted</span></td></tr>
+<tr><td><a href="#adr-011">011</a></td><td>Register-generated UUIDv7 and per-register receipt sequences</td><td><span class="badge b-mvp">Accepted</span></td></tr>
+<tr><td><a href="#adr-012">012</a></td><td>Shared test vectors for logic duplicated in Java and TypeScript</td><td><span class="badge b-mvp">Accepted</span></td></tr>
+<tr><td><a href="#adr-013">013</a></td><td>Sinhala and Tamil receipts printed as raster images</td><td><span class="badge b-mvp">Accepted</span></td></tr>
+<tr><td><a href="#adr-014">014</a></td><td>JPA for CRUD, explicit SQL for stock and reports</td><td><span class="badge b-mvp">Accepted</span></td></tr>
+</tbody>
+</table>
+
+<h2 id="records">Records</h2>
+
+<h3 id="adr-001">ADR-001 · Modular monolith with Spring Modulith</h3>
+<p><strong>Context.</strong> One engineer, one database, and sales and stock must change together atomically. Microservices would add network failures, distributed transactions and operational cost with no benefit at this scale.</p>
+<p><strong>Decision.</strong> One Spring Boot application split into modules. Spring Modulith verifies dependencies in tests and provides the event publication registry.</p>
+<p><strong>Consequences.</strong> Simple deploys and real ACID transactions. Boundaries need discipline, which the CI test enforces. A module can be extracted later along its boundary.</p>
+<p><strong>Rejected.</strong> Microservices (too much operations work for the team size). A plain layered monolith without enforced boundaries (erodes within months).</p>
+<p><strong>Revisit when.</strong> One module needs independent scaling or release cadence, proven by metrics.</p>
+
+<h3 id="adr-002">ADR-002 · Local-first register with SQLite</h3>
+<p><strong>Context.</strong> Sri Lankan shops have unreliable internet and power. Competitors sell offline billing. The original blueprint deferred offline to V1.2, which would have forced a rewrite of checkout, numbering and stock rules.</p>
+<p><strong>Decision.</strong> The register always sells from a local encrypted SQLite database and syncs in the background. Online and offline use one code path.</p>
+<p><strong>Consequences.</strong> More register complexity (sync engine, local migrations) and some duplicated logic (see ADR-012). The server load is mostly ingestion, which is cheap. Stock on other registers is eventually consistent.</p>
+<p><strong>Rejected.</strong> An online thin client (till stops when the network drops). A PWA with IndexedDB (can't reliably hold the sale queue, open the cash drawer or print raw ESC/POS).</p>
+
+<h3 id="adr-003">ADR-003 · One React register UI in Electron and Capacitor shells</h3>
+<p><strong>Context.</strong> Counters use Windows PCs and Android tablets. The team is one engineer who knows React and TypeScript.</p>
+<p><strong>Decision.</strong> One React app and one pure-TypeScript domain package. Electron packages it for Windows and Capacitor for Android. Hardware is reached through a <code>DeviceBridge</code> port with an adapter per shell. Windows ships in the MVP and Android in R2.</p>
+<p><strong>Consequences.</strong> Electron installers are large (~100 MB) and use more RAM, which is acceptable on POS PCs with 4 GB. Two native adapter sets to maintain.</p>
+<p><strong>Rejected.</strong> Tauri 2 for both platforms (smaller, but device plugins need Rust, which adds a second language for a one-person team; worth revisiting later). Native apps per platform (double the UI work). Flutter (new language, weaker reuse with the React admin).</p>
+
+<h3 id="adr-004">ADR-004 · Shared-schema multi-tenancy with row-level security</h3>
+<p><strong>Context.</strong> Hundreds of small tenants, low cost per tenant, one team.</p>
+<p><strong>Decision.</strong> One database and schema. <code>tenant_id</code> on every tenant-owned table. PostgreSQL RLS forced on these tables, with the tenant set per transaction.</p>
+<p><strong>Consequences.</strong> Cheapest option, with simple migrations. A noisy tenant can affect others (mitigated with rate limits and, later, cells). RLS adds a little planning overhead, which is acceptable.</p>
+<p><strong>Rejected.</strong> Schema per tenant (migration time grows with tenant count). Database per tenant (too expensive for small shops).</p>
+
+<h3 id="adr-005">ADR-005 · Stock as an append-only movement ledger with batch-level FEFO</h3>
+<p><strong>Decision.</strong> All stock changes are <code>stock_movement</code> rows at batch level. <code>stock_balance</code> is a projection updated in the same transaction and checked nightly. Allocation is FEFO unless the cashier or a GS1 code names a batch.</p>
+<p><strong>Consequences.</strong> Every figure can be explained. Correct margins per batch. More rows (handled by partitioning). Rows are locked in batch-ID order to avoid deadlocks.</p>
+
+<h3 id="adr-006">ADR-006 · Industry features as extension modules</h3>
+<p><strong>Context.</strong> Retail, pharmacy and grocery now; restaurant and salon later. Putting industry logic in Sales would make the core unmaintainable.</p>
+<p><strong>Decision.</strong> The core understands a generic sale. Industry modules implement named SPIs (server) and register plugins with UI slots, own prefixed tables, and are enabled per tenant through <code>tenant_module</code>. Some shared capabilities (batches, service items, line options, open-order state) live in the core.</p>
+<p><strong>Consequences.</strong> A clean core, modules that can be sold as add-ons, and safe enablement per tenant. SPIs are designed from real cases, not up front.</p>
+
+<h3 id="adr-007">ADR-007 · Transactional outbox via event publication registry, no broker</h3>
+<p><strong>Decision.</strong> Domain events are stored in the same transaction (Spring Modulith event publication registry) and delivered to in-process listeners, with retries for incomplete publications. No Kafka or RabbitMQ.</p>
+<p><strong>Consequences.</strong> Reliable side effects with nothing extra to run. Listeners must be idempotent. If a service is extracted later, events can be externalised to a broker with Modulith's support.</p>
+
+<h3 id="adr-008">ADR-008 · Stay out of PCI-DSS scope</h3>
+<p><strong>Decision.</strong> Card data never enters RetailOS. MVP: standalone terminals, recording the approval reference only. R3: semi-integrated terminals that return only the result.</p>
+<p><strong>Consequences.</strong> No PCI audit cost. Slightly slower card flow in the MVP, because the cashier keys the amount into the terminal.</p>
+
+<h3 id="adr-009">ADR-009 · Cloud-agnostic container hosting, no Kubernetes</h3>
+<p><strong>Decision.</strong> One OCI image, PostgreSQL and S3-compatible storage. It runs on a VPS with Docker Compose at pilot stage, and on any managed container service later. Configuration via env vars, with an off-site backup at a second provider.</p>
+<p><strong>Consequences.</strong> The hosting decision can wait, and provider lock-in stays low. No proprietary queues or databases in the core path.</p>
+<p><strong>Revisit when.</strong> More than about 10 services or a team that already runs Kubernetes.</p>
+
+<h3 id="adr-010">ADR-010 · Sales are never rejected; exceptions instead</h3>
+<p><strong>Context.</strong> A sale made offline has already happened: the customer has left with the goods. The server can't undo it.</p>
+<p><strong>Decision.</strong> The server records every completed sale. Price mismatches, short stock, expired batches and clock skew become <code>sale_exception</code> rows for a manager to review. Strict stock blocking is an option for online registers only.</p>
+<p><strong>Consequences.</strong> Stock can go negative. An exception queue UI and alerts are needed.</p>
+
+<h3 id="adr-011">ADR-011 · Register-generated UUIDv7 and per-register receipt sequences</h3>
+<p><strong>Decision.</strong> Registers create IDs (UUIDv7) for every fact they create, and number receipts from their own gap-free sequence. The server enforces uniqueness through <code>sync_inbox</code> and <code>receipt_registry</code>.</p>
+<p><strong>Consequences.</strong> No coordination is needed between registers. Replacing a device needs a sequence hand-over. Restoring a register from an old backup is detected as a collision.</p>
+
+<h3 id="adr-012">ADR-012 · Shared test vectors for logic duplicated in Java and TypeScript</h3>
+<p><strong>Context.</strong> Pricing, tax, rounding, GS1 parsing and promotions run on the register (offline) and are checked on the server.</p>
+<p><strong>Decision.</strong> Keep the logic in both languages, but drive both test suites from the same JSON vectors in <code>shared/test-vectors</code>. A change to the rules means changing the vectors first.</p>
+<p><strong>Rejected.</strong> Running the backend logic in the register (a JVM on the device is too heavy). Compiling TypeScript into the JVM through GraalJS (too complex for now).</p>
+
+<h3 id="adr-013">ADR-013 · Sinhala and Tamil receipts printed as raster images</h3>
+<p><strong>Context.</strong> Most thermal printers don't have Sinhala or Tamil fonts, and complex script shaping isn't supported in ESC/POS text mode.</p>
+<p><strong>Decision.</strong> The register renders the receipt (or the non-Latin parts) to a 1-bit image with system fonts (Noto Sans Sinhala/Tamil) and sends it with the ESC/POS raster command. English-only receipts can use text mode, which is faster.</p>
+<p><strong>Consequences.</strong> Slightly slower printing. Fonts are bundled with the app.</p>
+
+<h3 id="adr-014">ADR-014 · JPA for CRUD, explicit SQL for stock and reports</h3>
+<p><strong>Decision.</strong> Spring Data JPA for master data and admin CRUD. <code>JdbcClient</code> with hand-written SQL for allocation, row locking, ledger checks and reports, where you need to see the exact query.</p>
+<p><strong>Consequences.</strong> Two data-access styles, kept apart by module and use case.</p>
+
+<h2 id="template">ADR template</h2>
+<pre><code>### ADR-0NN · Title
+Status: Proposed | Accepted | Superseded by ADR-0MM
+Date: YYYY-MM-DD
+Context: what forces are at play (constraints, requirements IDs, metrics)
+Decision: what we will do, stated plainly
+Consequences: what gets easier, what gets harder, cost
+Rejected alternatives: and why
+Revisit when: the trigger that should reopen this decision</code></pre>
+
+</article></main>
+<aside id="toc"></aside>
+</div>
+<script src="assets/search-index.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js"></script>
+<script src="assets/site.js"></script>
+</body>
+</html>

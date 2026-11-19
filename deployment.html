@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Deployment & CI/CD · RetailOS</title>
+<meta name="description" content="How RetailOS is built, tested, released and deployed: environments, CI/CD pipeline, container runtime, zero-downtime deploys, database migrations, register app updates, backups and disaster recovery.">
+<link rel="stylesheet" href="assets/site.css">
+<script>try{var t=localStorage.getItem("retailos-theme");if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
+</head>
+<body>
+<header id="topbar"></header>
+<div class="layout">
+<nav id="sidebar"></nav>
+<main class="content"><article>
+
+<h1>Deployment & CI/CD</h1>
+<p class="lead">The goal is boring, repeatable releases that one engineer can run on a Friday without fear. Everything is a container image or a signed installer, built by CI, and nothing is deployed from a laptop. The design doesn't depend on a specific cloud provider: the hosting choice can be made later and changed without code changes.</p>
+
+<h2 id="environments">Environments</h2>
+<table>
+<thead><tr><th>Environment</th><th>Purpose</th><th>Runs on</th><th>Data</th></tr></thead>
+<tbody>
+<tr><td><strong>local</strong></td><td>Development</td><td><code>docker compose up</code>: PostgreSQL, MinIO (S3), Mailpit, backend with hot reload</td><td>Seed script with 2 demo tenants (retail + pharmacy)</td></tr>
+<tr><td><strong>ci</strong></td><td>Automated tests</td><td>CI runners + Testcontainers</td><td>Created and destroyed per run</td></tr>
+<tr><td><strong>staging</strong></td><td>Pre-release checks, pilot-shop training, DAST</td><td>Smallest production-like setup (can share a host with prod on separate databases at pilot stage)</td><td>Synthetic data only. Never copy production personal data.</td></tr>
+<tr><td><strong>production</strong></td><td>Real shops</td><td>See <a href="#topology">topology</a></td><td>Real</td></tr>
+</tbody>
+</table>
+
+<h2 id="pipeline">CI/CD pipeline</h2>
+<figure class="diagram">
+<pre class="mermaid">
+flowchart TD
+  PR["Pull request"] --> L["Lint + format&lt;br/&gt;Spotless, ESLint, Prettier"]
+  L --> UT["Unit tests&lt;br/&gt;JUnit, Vitest, shared test vectors"]
+  UT --> MT["Module boundary test&lt;br/&gt;Spring Modulith verify()"]
+  MT --> IT["Integration tests&lt;br/&gt;Testcontainers PostgreSQL&lt;br/&gt;tenant isolation, allocation concurrency"]
+  IT --> SEC["Security scans&lt;br/&gt;gitleaks, Semgrep, OSV, licences"]
+  SEC --> API["OpenAPI diff&lt;br/&gt;breaking change check"]
+  API --> MERGE{"Merge to main"}
+  MERGE --> IMG["Build backend image&lt;br/&gt;SBOM, Trivy, sign (cosign)"]
+  MERGE --> WEB["Build admin web&lt;br/&gt;static bundle"]
+  MERGE --> APPS["Build register installers&lt;br/&gt;Windows (signed) · Android (AAB/APK)"]
+  IMG --> STG["Deploy to staging&lt;br/&gt;migrate, smoke test, ZAP baseline"]
+  WEB --> STG
+  STG --> E2E["E2E: Playwright checkout&lt;br/&gt;offline sync test"]
+  E2E --> GATE{"Manual approval"}
+  GATE --> PROD["Deploy to production&lt;br/&gt;rolling, health-checked"]
+  APPS --> RING["Register rollout rings&lt;br/&gt;internal → pilot → 10% → 100%"]
+</pre>
+<figcaption>GitHub Actions is assumed (free tier is enough at the start), but every step is a plain script in <code>infra/ci/</code>, so moving to another CI is easy.</figcaption>
+</figure>
+
+<h3 id="ci-budget">Keeping CI fast and cheap</h3>
+<ul>
+<li>Cache Gradle, pnpm and Docker layers. Run front-end jobs only when <code>apps/</code> or <code>packages/</code> change (path filters).</li>
+<li>Run Testcontainers PostgreSQL once per test JVM with a template database per test class, not a container per test.</li>
+<li>Build Windows installers only on release tags, not on every PR.</li>
+<li>Target: PR pipeline under 10 minutes.</li>
+</ul>
+
+<h2 id="topology">Production topology by stage</h2>
+<figure class="diagram">
+<pre class="mermaid">
+flowchart TB
+  subgraph S1["Stage 1: pilot to ~50 branches"]
+    direction LR
+    C1["Caddy / reverse proxy&lt;br/&gt;auto TLS"] --> A1["retailos container&lt;br/&gt;api + worker profiles"]
+    A1 --> P1[("PostgreSQL&lt;br/&gt;managed small tier&lt;br/&gt;or same VM + WAL-G")]
+    A1 --> O1[("S3-compatible bucket")]
+  end
+  subgraph S2["Stage 2: ~50 to 500 branches"]
+    direction LR
+    LB["Load balancer / proxy"] --> A2["api x2"]
+    LB --> A3["(api instances are stateless)"]
+    W2["worker x1"]
+    A2 --> P2[("Managed PostgreSQL&lt;br/&gt;HA standby, PITR")]
+    W2 --> P2
+    A2 --> O2[("Bucket + CDN&lt;br/&gt;admin web, snapshots")]
+  end
+  subgraph S3["Stage 3: 500+ branches"]
+    direction LR
+    A4["api x2-4 (autoscale)"] --> P3[("Primary")]
+    R3["reporting queries"] --> RR[("Read replica")]
+    P3 --> RR
+  end
+  S1 --> S2 --> S3
+</pre>
+<figcaption>Move to the next stage only when its trigger metric is reached. See <a href="cost.html#scaling">Cost & scaling</a>.</figcaption>
+</figure>
+
+<h3 id="hosting-options">Hosting options (decide later)</h3>
+<table>
+<thead><tr><th>Building block</th><th>Portable requirement</th><th>Examples</th></tr></thead>
+<tbody>
+<tr><td>Compute</td><td>Runs an OCI container with env vars and a health check</td><td>A VPS with Docker Compose, AWS ECS/Fargate or Lightsail, Azure Container Apps, Google Cloud Run, Fly.io, DigitalOcean App Platform</td></tr>
+<tr><td>Database</td><td>PostgreSQL 17+ with point-in-time recovery</td><td>Managed: RDS, Cloud SQL, Azure Flexible Server, DigitalOcean, Neon, Crunchy. Self-managed: PostgreSQL + WAL-G/pgBackRest to a bucket.</td></tr>
+<tr><td>Object storage</td><td>S3 API, signed URLs, lifecycle rules</td><td>S3, Cloudflare R2 (no egress fees), Backblaze B2, DigitalOcean Spaces, Wasabi</td></tr>
+<tr><td>CDN / edge</td><td>TLS, caching static files, basic WAF</td><td>Cloudflare (free tier), CloudFront, Bunny</td></tr>
+<tr><td>Region</td><td>Low latency to Sri Lanka</td><td>Mumbai or Singapore</td></tr>
+</tbody>
+</table>
+
+<h2 id="container">The backend container</h2>
+<pre><code># backend/Dockerfile  (multi-stage)
+FROM eclipse-temurin:25-jdk AS build
+WORKDIR /src
+COPY . .
+RUN ./gradlew bootJar -x test --no-daemon
+
+FROM eclipse-temurin:25-jre-alpine
+RUN addgroup -S app &amp;&amp; adduser -S app -G app
+WORKDIR /app
+COPY --from=build /src/build/libs/retailos.jar app.jar
+USER app
+ENV JAVA_TOOL_OPTIONS="-XX:MaxRAMPercentage=75 -XX:+UseZGC -XX:+ExitOnOutOfMemoryError"
+EXPOSE 8080
+HEALTHCHECK CMD wget -qO- http://localhost:8080/actuator/health/readiness || exit 1
+ENTRYPOINT ["java","-jar","app.jar"]</code></pre>
+<ul>
+<li>One image for every environment. Behaviour comes from configuration: <code>SPRING_PROFILES_ACTIVE=prod,api</code> or <code>prod,worker</code>, or both in one process at Stage 1.</li>
+<li>Configuration follows 12-factor rules: env vars for DB URL, bucket, JWT keys, SMTP and SMS. No configuration baked into the image.</li>
+<li>Read-only root filesystem, non-root user, no shell needed in production.</li>
+<li>Startup: Flyway migrates (only the instance holding the migration lock), then readiness turns green. Use Spring AOT/CDS to cut startup time and memory.</li>
+</ul>
+
+<h2 id="zero-downtime">Zero-downtime deploys</h2>
+<ol class="steps">
+<li>CI pushes the signed image <code>retailos:1.6.0</code>.</li>
+<li>The migration job runs <strong>expand-only</strong> migrations (new tables, nullable columns, new indexes created <code>CONCURRENTLY</code>). The old version keeps working.</li>
+<li>Rolling restart: start the new instance, wait for readiness, move traffic, drain the old one (graceful shutdown, 30 s). At Stage 1 with one instance, a short restart is fine because registers queue offline anyway.</li>
+<li>Smoke test: login, catalog pull, push one synthetic sale to the synthetic tenant.</li>
+<li><strong>Contract</strong> migrations (drop old columns) ship in a <em>later</em> release, once no running code or supported register version uses them (<span class="inv">INV-13</span>).</li>
+<li>Rollback = redeploy the previous image. This is safe because migrations only expand.</li>
+</ol>
+
+<h2 id="migrations">Database migration rules</h2>
+<ul>
+<li>Flyway versioned scripts: <code>V2026_11_19_1__add_batch_status.sql</code>. Never edit a script once it's merged.</li>
+<li>Every migration must be backward compatible with the previous app version (expand/contract).</li>
+<li>Large backfills run as idempotent jobs in batches, not inside the migration.</li>
+<li>Locks: set <code>lock_timeout = '5s'</code> in migrations. Create indexes <code>CONCURRENTLY</code> (in a non-transactional Flyway script).</li>
+<li>Test every migration against a copy of a realistic-size dataset (synthetic, 10 million sale lines) before release.</li>
+</ul>
+
+<h2 id="releases">Register app releases</h2>
+<table>
+<thead><tr><th>Topic</th><th>Windows (Electron)</th><th>Android (Capacitor)</th></tr></thead>
+<tbody>
+<tr><td>Packaging</td><td>NSIS installer via electron-builder, Authenticode code-signed</td><td>AAB for Play Store (managed Google Play for business), or a signed APK through an MDM</td></tr>
+<tr><td>Updates</td><td>electron-updater from the bucket/CDN, with signature verification</td><td>Play staged rollout, or MDM push</td></tr>
+<tr><td>When</td><td colspan="2">Downloaded in the background, installed <strong>only when no cart is open and no unsynced sale is mid-flight</strong>, preferably at shift close or at night</td></tr>
+<tr><td>Rings</td><td colspan="2">internal → pilot shops → 10% of devices → 50% → 100%, at least 48 h per ring. Halt automatically if the error rate or crash rate rises.</td></tr>
+<tr><td>Compatibility</td><td colspan="2">The server supports register versions N and N-1. Older versions get <code>426 DEV-004</code> on pull but can still <em>push</em> sales, so no fact is ever stranded.</td></tr>
+<tr><td>Local DB</td><td colspan="2">Local SQLite migrations run on app start inside a transaction, with a backup of the DB file kept before migrating</td></tr>
+</tbody>
+</table>
+
+<h3 id="flags">Feature flags</h3>
+<p>Simple database-backed flags (<code>feature_flag(key, scope global|tenant|register, enabled, rollout_pct)</code>), synced to registers in the <code>settings</code> scope. Use them to ship unfinished code safely and to enable features for pilot shops first. Remove each flag within two releases of 100% rollout.</p>
+
+<h2 id="versioning">Versioning</h2>
+<ul>
+<li>Semantic versioning for backend, admin and register, with one shared version number per release train (e.g. <code>1.6.0</code>), so support knows what goes with what.</li>
+<li>A changelog is generated from Conventional Commits. Release notes in English, plus a short Sinhala/Tamil summary for shop staff.</li>
+</ul>
+
+<h2 id="backup">Backups and disaster recovery</h2>
+<table>
+<thead><tr><th>What</th><th>How</th><th>Retention</th></tr></thead>
+<tbody>
+<tr><td>PostgreSQL</td><td>Continuous WAL archiving + daily base backup (managed PITR, or WAL-G/pgBackRest to a bucket). RPO ≤ 5 min.</td><td>PITR 14 days, daily 35 days, monthly 12 months</td></tr>
+<tr><td>Off-site copy</td><td>Encrypted daily logical dump (<code>pg_dump -Fc</code>) to a bucket at a <em>different provider</em></td><td>30 days</td></tr>
+<tr><td>Object storage</td><td>Versioning on, lifecycle rules, replication to a second bucket for backups</td><td>As above</td></tr>
+<tr><td>Registers</td><td>Optional nightly encrypted copy of the local DB to a second disk or USB drive (configurable)</td><td>7 copies</td></tr>
+<tr><td>Configuration</td><td>Infrastructure files and encrypted secrets in git</td><td>Git history</td></tr>
+</tbody>
+</table>
+<div class="callout warn">
+<span class="ct">A backup you haven't restored isn't a backup</span>
+Every quarter, restore production to a scratch database, run the ledger check and row counts, and record the time taken. RTO target: 4 hours (NFR-06). Runbook <a href="operations.html#rb-restore">RB-05</a>.
+</div>
+
+<h3 id="dr">Disaster scenarios</h3>
+<table>
+<thead><tr><th>Scenario</th><th>Impact on shops</th><th>Recovery</th></tr></thead>
+<tbody>
+<tr><td>App host down</td><td>None for selling. Admin web unavailable.</td><td>Redeploy the image on any host (same env vars). Target under 30 min.</td></tr>
+<tr><td>Database lost or corrupted</td><td>None for selling. Registers queue.</td><td>Point-in-time restore. Registers re-push anything after the restore point, and idempotency deduplicates (<span class="inv">INV-05</span>).</td></tr>
+<tr><td>Region outage</td><td>None for selling, up to the 72 h offline limit</td><td>Restore the off-site dump plus WAL in another region and repoint DNS</td></tr>
+<tr><td>Provider account lost or locked</td><td>As above</td><td>Restore from the off-site copy at the second provider. This is why it exists.</td></tr>
+</tbody>
+</table>
+
+</article></main>
+<aside id="toc"></aside>
+</div>
+<script src="assets/search-index.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js"></script>
+<script src="assets/site.js"></script>
+</body>
+</html>

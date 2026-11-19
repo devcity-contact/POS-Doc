@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cost & scaling · RetailOS</title>
+<meta name="description" content="RetailOS workload sizing, indicative monthly cost by stage, cost levers, cost traps to avoid, per-tenant cost tracking and the scaling path with trigger metrics.">
+<link rel="stylesheet" href="assets/site.css">
+<script>try{var t=localStorage.getItem("retailos-theme");if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
+</head>
+<body>
+<header id="topbar"></header>
+<div class="layout">
+<nav id="sidebar"></nav>
+<main class="content"><article>
+
+<h1>Cost & scaling</h1>
+<p class="lead">The architecture is cheap to run by design: registers do the heavy work, so the server mostly stores facts. One process and one database carry the product a long way. Spend more only when a measured trigger says so.</p>
+
+<div class="callout warn">
+<span class="ct">Prices are indicative</span>
+The figures are rough monthly ranges in US dollars for small cloud resources in late 2026. They are meant for planning and comparing stages, not as quotes. Check current prices with the chosen provider before committing.
+</div>
+
+<h2 id="principles">Cost principles</h2>
+<ol>
+<li><strong>Push work to the edge.</strong> Pricing, tax, search and receipts run on the shop's own hardware. The cloud only ingests facts and serves changes.</li>
+<li><strong>One image, one database.</strong> No Kubernetes, Kafka, Redis or separate search cluster until a trigger metric demands it (P8).</li>
+<li><strong>Static where possible.</strong> The admin web and catalog snapshots are static files on a bucket or CDN, which costs close to nothing.</li>
+<li><strong>Pay for durability, not idle capacity.</strong> Spend on backups and PITR first. Skip HA standbys and multi-region until customers' contracts need them. Shops keep selling during an outage anyway.</li>
+<li><strong>Measure cost per active branch</strong> every month, and price the product so that cloud + messaging + support is covered with margin.</li>
+</ol>
+
+<h2 id="sizing">Workload sizing</h2>
+<p>Assumptions for a typical branch: 2 registers, 400 sales a day, 4 lines per sale, 12 trading hours, with the busiest hour carrying 15% of the day.</p>
+<table>
+<thead><tr><th>Quantity</th><th>Per branch</th><th>100 branches</th><th>1,000 branches</th></tr></thead>
+<tbody>
+<tr><td>Sales per day</td><td>400</td><td>40,000</td><td>400,000</td></tr>
+<tr><td>Peak sales per second (server ingest)</td><td>0.02</td><td>~1.7</td><td>~17</td></tr>
+<tr><td>Rows written per sale (sale, lines, allocations, movements, payment, inbox)</td><td colspan="3">~15 rows, about 5.5 KB including indexes</td></tr>
+<tr><td>Database growth per year</td><td>~0.8 GB</td><td>~80 GB</td><td>~800 GB (archive after 2 years)</td></tr>
+<tr><td>Sync pull traffic per day (deltas, gzip)</td><td>~1–5 MB</td><td>~0.3 GB</td><td>~3 GB</td></tr>
+<tr><td>Snapshot downloads (new registers, full resync)</td><td colspan="3">~5–30 MB each, served from bucket or CDN</td></tr>
+</tbody>
+</table>
+<p>A single 2–4 vCPU backend instance and a modest PostgreSQL server comfortably handle the 100-branch column. Database storage and I/O grow first, not CPU, so partitioning and archiving (see <a href="data-model.html#partitioning">Data model</a>) matter more than more servers.</p>
+
+<h2 id="stages">Monthly cost by stage (indicative)</h2>
+<table>
+<thead><tr><th>Item</th><th>Stage 1: pilot<br/>(≤ 20 branches)</th><th>Stage 2: growth<br/>(≤ 300 branches)</th><th>Stage 3: scale<br/>(≤ 2,000 branches)</th></tr></thead>
+<tbody>
+<tr><td>App compute</td><td>1 VM, 2 vCPU / 4 GB: $12–25</td><td>2–3 instances, 2 vCPU / 4 GB: $40–90</td><td>3–6 instances (autoscale): $150–350</td></tr>
+<tr><td>PostgreSQL</td><td>Same VM + WAL-G to bucket: ~$0 extra, <em>or</em> smallest managed: $15–30</td><td>Managed 2 vCPU / 8 GB, PITR: $60–150 (HA standby +100%)</td><td>Managed 4–8 vCPU HA + read replica: $400–900</td></tr>
+<tr><td>Object storage + CDN</td><td>$1–5</td><td>$5–20</td><td>$20–80</td></tr>
+<tr><td>Off-site backup copy</td><td>$1–3</td><td>$5–15</td><td>$20–60</td></tr>
+<tr><td>Observability + error tracking</td><td>$0 (free tiers)</td><td>$0–50</td><td>$50–200</td></tr>
+<tr><td>E-mail (transactional)</td><td>$0 (free tier)</td><td>$10–20</td><td>$20–60</td></tr>
+<tr><td>Domain, DNS, TLS</td><td>~$2 (TLS free)</td><td>~$2</td><td>~$5</td></tr>
+<tr><td>Windows code-signing certificate</td><td colspan="3">~$15–35 a month spread over the year (needed from the first installer)</td></tr>
+<tr><td>CI</td><td>$0 (free minutes)</td><td>$0–20</td><td>$20–60</td></tr>
+<tr><th>Total (approx.)</th><th>$30–70</th><th>$140–400</th><th>$700–1,800</th></tr>
+<tr><th>Per branch per month</th><th>$1.5–3.5 (fixed cost dominates)</th><th>$0.5–1.3</th><th>$0.35–0.9</th></tr>
+</tbody>
+</table>
+<p><strong>Not included:</strong> SMS and WhatsApp messages (pass these through to the tenant per message), card or QR transaction fees (paid by the shop to its acquirer), and support staff time, which will be the largest real cost.</p>
+
+<h2 id="levers">Cost levers</h2>
+<table>
+<thead><tr><th>Lever</th><th>Saves</th><th>How</th></tr></thead>
+<tbody>
+<tr><td>Delta sync + gzip + snapshots on CDN</td><td>Egress, CPU</td><td>Registers download only changes. Full catalogs come from cached static files.</td></tr>
+<tr><td>ARM instances</td><td>~20–40% compute</td><td>Java 25 and PostgreSQL run well on ARM. Build multi-arch images.</td></tr>
+<tr><td>JVM tuning</td><td>Memory = instance size</td><td>Virtual threads instead of large thread pools, <code>MaxRAMPercentage</code>, CDS/AOT cache, lazy init for rarely used beans. A 1 GB heap is enough at Stage 1.</td></tr>
+<tr><td>Partition + archive</td><td>Database storage and backup size</td><td>Detach sale partitions older than 2 years and export them as compressed files to cold storage.</td></tr>
+<tr><td>Purge working tables</td><td>Storage</td><td><code>sync_inbox</code> after 90 days (receipt_registry still stops duplicates), compacted <code>sync_change_log</code> after 30 days, event publications after completion.</td></tr>
+<tr><td>Materialized views, refreshed nightly or hourly</td><td>Database CPU</td><td>Dashboards read pre-aggregated rows, not raw sale lines.</td></tr>
+<tr><td>Log discipline</td><td>Observability bills</td><td>INFO for business events only, DEBUG off in production, sample successful-request traces at 10%, keep 100% of errors.</td></tr>
+<tr><td>Zero-egress object storage</td><td>Egress</td><td>Providers like Cloudflare R2 charge nothing for downloads, which suits snapshots and exports.</td></tr>
+<tr><td>Commitments</td><td>30–50% on steady workloads</td><td>Once Stage 2 load is stable for 3 months, buy reserved or committed-use capacity for the database and baseline compute.</td></tr>
+<tr><td>Staging on demand</td><td>Idle cost</td><td>Stop staging outside working hours, or run it on the same host as a small separate database at Stage 1.</td></tr>
+</tbody>
+</table>
+
+<h2 id="traps">Cost traps to avoid</h2>
+<ul>
+<li><strong>Managed NAT gateways</strong> on some clouds cost a fixed hourly fee plus per-GB charges, often more than the app server itself. Use public subnets with tight security groups, or provider setups without NAT, at Stage 1–2.</li>
+<li><strong>Kubernetes control planes and node pools</strong> for a single service: a fixed cost plus a lot of operations work for one person.</li>
+<li><strong>Multi-AZ / HA everything from day one.</strong> Shops sell offline, so a short cloud outage is not a revenue outage. Add an HA database standby when contracts or scale require it.</li>
+<li><strong>Per-host APM pricing</strong> and high-cardinality metrics (one series per sale or SKU). Keep labels to tenant/branch at most.</li>
+<li><strong>Unbounded log retention</strong> and debug logs left on.</li>
+<li><strong>Sending SMS receipts by default.</strong> Make them opt-in and billable per message.</li>
+</ul>
+
+<h2 id="monitoring-cost">Tracking cost per tenant</h2>
+<ul>
+<li>Every month, a worker job records per tenant: sales count, rows written, storage used (partition sizes by tenant are estimated from row counts), sync bytes, messages sent, support tickets.</li>
+<li>Tenant cost = shared infrastructure cost × tenant share of (rows written + sync bytes), plus direct message costs.</li>
+<li>Admin dashboard metric: <strong>cloud cost per active branch</strong>. Target under $1 at Stage 2 and beyond (BG-5).</li>
+<li>Set provider budget alerts at 80% and 100% of the monthly plan.</li>
+</ul>
+
+<h2 id="scaling">Scaling path and triggers</h2>
+<table>
+<thead><tr><th>Step</th><th>Do it when (trigger)</th><th>What changes</th></tr></thead>
+<tbody>
+<tr><td>1. Separate DB from app host</td><td>DB CPU or memory competes with the app; &gt; 20 branches; or before the first paying contract</td><td>Managed PostgreSQL with PITR</td></tr>
+<tr><td>2. Second app instance</td><td>Need zero-downtime deploys, or p95 API latency &gt; 500 ms at peak</td><td>Load balancer + 2 instances. The worker profile runs on one of them.</td></tr>
+<tr><td>3. Dedicated worker</td><td>Report refresh or exports slow down API p95</td><td>Separate container with the <code>worker</code> profile</td></tr>
+<tr><td>4. Read replica</td><td>Reporting queries &gt; 30% of DB time</td><td>Reporting module uses a replica <code>DataSource</code></td></tr>
+<tr><td>5. Partition stock_movement and audit</td><td>Table &gt; 100 M rows or vacuum falling behind</td><td>Monthly range partitions</td></tr>
+<tr><td>6. Cache (Redis)</td><td>A measured hot read the DB can't serve (e.g. token <code>ver</code> checks at &gt; 1,000 req/s)</td><td>Add Redis for that one use case. Record it in an ADR.</td></tr>
+<tr><td>7. Split a module into a service</td><td>One module needs a different scaling profile or release cadence, proven by metrics (sync ingestion is the likely first)</td><td>Extract along the existing module boundary. Events move from the in-process registry to a broker.</td></tr>
+<tr><td>8. Shard tenants</td><td>Primary DB at the limit of the largest affordable instance</td><td>Tenant-to-database routing (cell architecture), with each cell a full copy of the stack</td></tr>
+</tbody>
+</table>
+<p>Steps 6–8 are unlikely to be needed before several thousand branches. The modular monolith's boundaries keep them possible without a rewrite.</p>
+
+</article></main>
+<aside id="toc"></aside>
+</div>
+<script src="assets/search-index.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js"></script>
+<script src="assets/site.js"></script>
+</body>
+</html>

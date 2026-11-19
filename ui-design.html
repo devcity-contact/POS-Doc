@@ -1,0 +1,359 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>UI design & wireframes · RetailOS</title>
+<meta name="description" content="RetailOS UI design system: principles, layouts and breakpoints, typography for English, Sinhala and Tamil, colour and status semantics, component library, keyboard shortcuts, states, accessibility, and wireframes of the key register and admin screens.">
+<link rel="stylesheet" href="assets/site.css">
+<script>try{var t=localStorage.getItem("retailos-theme");if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
+</head>
+<body>
+<header id="topbar"></header>
+<div class="layout">
+<nav id="sidebar"></nav>
+<main class="content"><article>
+
+<h1>UI design & wireframes</h1>
+<p class="lead">How RetailOS should look and behave: the design rules, the shared component library, keyboard and touch conventions, and low-fidelity wireframes of the screens that matter most. The full screen list is on <a href="ui-screens.html">Screens & navigation</a>.</p>
+
+<div class="callout">
+<span class="ct">Wireframes, not final visuals</span>
+The wireframes below show <em>layout, content and priority</em>. Colours, logo and final spacing come from the DevCity brand tokens in <code>packages/ui/tokens</code>. Build screens from shared components so a brand change is a token change.
+</div>
+
+<h2 id="principles">Design principles</h2>
+<table>
+<thead><tr><th>#</th><th>Principle</th><th>In practice</th></tr></thead>
+<tbody>
+<tr><td>U1</td><td><strong>Speed at the counter beats beauty</strong></td><td>The scan field is always focused. The most common action is one key. No confirmation dialogs for routine actions. Undo instead of "Are you sure?".</td></tr>
+<tr><td>U2</td><td><strong>Readable at arm's length</strong></td><td>Register body text at least 16 px. Totals 32–48 px. High contrast. Works in bright shops and on cheap screens.</td></tr>
+<tr><td>U3</td><td><strong>Touch and keyboard, equally</strong></td><td>Targets at least 44 × 44 px (56 px for keypads). Every action also has a keyboard shortcut. Scanner input works on any screen.</td></tr>
+<tr><td>U4</td><td><strong>Three languages, no truncation</strong></td><td>Sinhala and Tamil text runs longer and taller than English. Layouts wrap, never clip. Never put text in images (except raster receipts).</td></tr>
+<tr><td>U5</td><td><strong>Always show system state</strong></td><td>Online/offline, items waiting to sync, printer status and training mode are always visible on the register.</td></tr>
+<tr><td>U6</td><td><strong>Errors say what to do next</strong></td><td>"Printer is out of paper. Load paper and press Reprint", not "Error 0x13". The error code goes in small text for support.</td></tr>
+<tr><td>U7</td><td><strong>Admin is for decisions</strong></td><td>Dashboards lead with what needs attention and link to the screen that resolves it. Tables export to Excel.</td></tr>
+<tr><td>U8</td><td><strong>Consistent everywhere</strong></td><td>The same component, label and icon for the same thing across register and admin (shared <code>packages/ui</code>).</td></tr>
+</tbody>
+</table>
+
+<h2 id="layouts">Layouts and screen sizes</h2>
+<table>
+<thead><tr><th>Target</th><th>Sizes</th><th>Layout rules</th></tr></thead>
+<tbody>
+<tr><td>Windows register</td><td>1366×768 (design size), at least 1024×768, up to 1920×1080. Touch optional.</td><td>Two panes: cart about 60% on the left, actions and totals about 40% on the right. Top status bar of 48 px. No page scroll, only the cart list scrolls.</td></tr>
+<tr><td>Android register (R2)</td><td>10" landscape 1280×800. 8" possible.</td><td>Same two panes. Quick keys become a swipeable grid. Bottom sheets instead of modals.</td></tr>
+<tr><td>Admin web, desktop</td><td>1280 px and up</td><td>Left sidebar (collapsible), top bar with branch switcher, search, user menu. Content max width 1440 px.</td></tr>
+<tr><td>Admin web, mobile</td><td>360–430 px</td><td>Sidebar becomes a drawer. Tables become cards. Dashboard, sales, stock lookup and approvals are fully usable. Heavy editors (product, import) show a "best on desktop" hint but still work.</td></tr>
+<tr><td>Customer display (R3)</td><td>Second monitor or a 7–10" screen</td><td>Large total, last scanned line, promotion area.</td></tr>
+</tbody>
+</table>
+
+<h2 id="typography">Typography and languages</h2>
+<ul>
+<li><strong>Fonts:</strong> Noto Sans for Latin, plus Noto Sans Sinhala and Noto Sans Tamil, bundled with the apps (no CDN, works offline). Tabular numerals for prices and quantities so columns line up.</li>
+<li><strong>Scale (register):</strong> 14 small · 16 body · 18 line name · 24 section · 32 amount due · 48 change due.</li>
+<li><strong>Scale (admin):</strong> 13 small · 14 body · 16 emphasis · 20 page title · 28 KPI.</li>
+<li><strong>Line height:</strong> 1.5 for Sinhala and Tamil (they have taller glyphs). Never fix the height of a text container.</li>
+<li><strong>Numbers:</strong> always Western digits. Currency shown as <code>Rs 1,250.00</code> (configurable symbol), formatted by <code>Intl.NumberFormat</code> with the <code>en-LK</code> locale, independent of UI language.</li>
+<li><strong>Product names:</strong> show the user's language when filled in, otherwise English. Search matches all three.</li>
+</ul>
+
+<h2 id="colour">Colour and status semantics</h2>
+<div class="callout tip"><span class="ct">Brand palette</span>RetailOS uses primary <code>#3772FF</code>, success <code>#22C55E</code>, charcoal <code>#272932</code>, off-white <code>#FDFFFC</code>, warning <code>#FF7F11</code> and error <code>#FF1B1C</code>. The exact light and dark tokens and the contrast-safe text shades are on <a href="stitch-prompts.html#tokens">Google Stitch prompts → token set</a>. The table below describes what each colour <em>means</em>.</div>
+<table>
+<thead><tr><th>Meaning</th><th>Token</th><th>Example</th><th>Used for</th></tr></thead>
+<tbody>
+<tr><td>Primary action</td><td><code>--accent</code></td><td><span class="wf-btn pri">Pay</span></td><td>One primary button per screen (Pay, Complete, Save, Post)</td></tr>
+<tr><td>Success / online</td><td><code>--ok</code></td><td><span class="wf-tag ok">Synced</span></td><td>Sync done, sale complete, variance zero</td></tr>
+<tr><td>Warning / attention</td><td><code>--warn</code></td><td><span class="wf-tag warn">Offline · 12 waiting</span></td><td>Offline, near expiry, prices may be old, low stock</td></tr>
+<tr><td>Danger / blocked</td><td><code>--bad</code></td><td><span class="wf-tag bad">Recalled batch</span></td><td>Errors, blocked batch, void, shortage over threshold</td></tr>
+<tr><td>Information</td><td><code>--info</code></td><td><span class="wf-tag info">Rx</span></td><td>Badges: prescription, weighed, offer, tax invoice</td></tr>
+<tr><td>Neutral</td><td><code>--gray-bg</code></td><td><span class="wf-tag">Held</span></td><td>Statuses without urgency</td></tr>
+</tbody>
+</table>
+<p>Never rely on colour alone. Every status badge has a text label and an icon. Contrast is at least 4.5:1 for text (WCAG 2.2 AA). Both light and dark themes are supported, and the register defaults to light for bright shops.</p>
+
+<h2 id="components">Component library (<code>packages/ui</code>)</h2>
+<table>
+<thead><tr><th>Group</th><th>Components</th><th>Notes</th></tr></thead>
+<tbody>
+<tr><td>Basics</td><td>Button, IconButton, Link, Badge, Tag, Tooltip, Avatar, Icon (Lucide), Spinner, Skeleton</td><td>Button sizes sm/md/lg/xl (xl = keypad, Pay)</td></tr>
+<tr><td>Inputs</td><td>TextField, NumberField, MoneyField, QuantityField, Select, Combobox (async search), DatePicker, Switch, Checkbox, RadioGroup, FileDrop</td><td>MoneyField works on <code>Decimal</code> strings only (<span class="inv">INV-03</span>)</td></tr>
+<tr><td>POS-specific</td><td>ScanInput (captures HID bursts), NumPad, PinPad, DenominationCounter, CartLine, TotalsPanel, TenderButton, QuickKeyGrid, BatchBadge, ExpiryBadge, SyncIndicator, OfflineBanner, PrinterStatus, TrainingRibbon</td><td>Live in <code>packages/ui/pos</code></td></tr>
+<tr><td>Layout</td><td>AppShell (admin), RegisterShell, PageHeader, Toolbar, Tabs, SplitPane, Card, StickyActionBar, EmptyState</td><td></td></tr>
+<tr><td>Data</td><td>DataTable (TanStack Table: sort, filter, column chooser, virtual rows, export), FilterBar, KpiTile, Chart (ECharts wrapper), Timeline (audit), Money, DateTime (branch time zone)</td><td>DataTable turns into cards on mobile</td></tr>
+<tr><td>Feedback</td><td>Toast, InlineAlert, Modal, BottomSheet (Android), ConfirmDialog (destructive only), ProgressSteps (wizards), ErrorPanel (message + code + retry)</td><td></td></tr>
+<tr><td>Extension slots</td><td><code>&lt;Slot name="checkout.beforeComplete"/&gt;</code> etc.</td><td>Filled by enabled industry plugins (<a href="extensions.html#register-plugins">Extensions</a>)</td></tr>
+</tbody>
+</table>
+<p>Each component has a Storybook-style catalog page (Ladle or Storybook) with en/si/ta and light/dark variants, so translation and contrast problems show up before release.</p>
+
+<h2 id="shortcuts">Register keyboard map</h2>
+<table>
+<thead><tr><th>Key</th><th>Action</th><th>Key</th><th>Action</th></tr></thead>
+<tbody>
+<tr><td><kbd>F1</kbd></td><td>Help / shortcut sheet</td><td><kbd>F7</kbd></td><td>Recall held bill</td></tr>
+<tr><td><kbd>F2</kbd></td><td>Product search</td><td><kbd>F8</kbd></td><td>Return</td></tr>
+<tr><td><kbd>F3</kbd></td><td>Customer</td><td><kbd>F9</kbd></td><td>Cash in / out</td></tr>
+<tr><td><kbd>F4</kbd></td><td>Change quantity / weight</td><td><kbd>F10</kbd></td><td>Pay</td></tr>
+<tr><td><kbd>F5</kbd></td><td>Discount (line, or bill with <kbd>Shift</kbd>)</td><td><kbd>F12</kbd></td><td>Manager functions</td></tr>
+<tr><td><kbd>F6</kbd></td><td>Hold bill</td><td><kbd>Esc</kbd></td><td>Close dialog / back</td></tr>
+<tr><td><kbd>↑</kbd> <kbd>↓</kbd></td><td>Select cart line</td><td><kbd>Del</kbd></td><td>Remove selected line</td></tr>
+<tr><td><kbd>+</kbd> <kbd>-</kbd></td><td>Quantity up/down on selected line</td><td><kbd>Ctrl</kbd>+<kbd>Del</kbd></td><td>Void whole sale (reason)</td></tr>
+<tr><td><kbd>Ctrl</kbd>+<kbd>P</kbd></td><td>Reprint last receipt</td><td><kbd>Ctrl</kbd>+<kbd>L</kbd></td><td>Lock register</td></tr>
+</tbody>
+</table>
+<p>Shortcuts are configurable per tenant (some shops use programmable POS keyboards). The shortcut sheet is always one key away.</p>
+
+<h2 id="states">Screen states</h2>
+<p>Every screen and data component must design all of these, not only the "happy" state:</p>
+<table>
+<thead><tr><th>State</th><th>Register</th><th>Admin</th></tr></thead>
+<tbody>
+<tr><td>Loading</td><td>Rare (local data). Skeleton for slow lookups over 200 ms.</td><td>Skeleton rows/tiles. Never a blank page.</td></tr>
+<tr><td>Empty</td><td>"Scan an item to start", with quick keys visible</td><td>An explanation and the next action ("Import products", "Add supplier")</td></tr>
+<tr><td>Offline</td><td>Yellow banner with waiting count. Everything works.</td><td>Full-width notice. Forms keep their values. Retry when back online.</td></tr>
+<tr><td>Error</td><td>Inline message + what to do + code. Sale data is never lost.</td><td>ErrorPanel with retry. Field errors next to fields.</td></tr>
+<tr><td>Permission denied</td><td>Opens the manager override (R-08)</td><td>Hidden in navigation. A direct URL shows "You don't have access. Ask the owner."</td></tr>
+<tr><td>Conflict</td><td>Not applicable (facts can't conflict)</td><td>"Changed by Nimal at 10:42. Reload to see changes."</td></tr>
+<tr><td>Training mode</td><td>Orange ribbon "TRAINING: sales are not real". Receipts are marked.</td><td>Training sales excluded from reports</td></tr>
+</tbody>
+</table>
+
+<h2 id="accessibility">Accessibility</h2>
+<ul>
+<li>WCAG 2.2 AA target for the admin web. The register meets contrast, focus and target-size rules.</li>
+<li>A visible focus ring on everything, and a logical tab order. Modals trap focus and return it on close.</li>
+<li>Radix primitives give correct ARIA roles. Icons have labels. Charts have a data-table alternative.</li>
+<li>Sound cues on the register (scan OK, scan error, sale complete), plus a visual cue. Volume can be adjusted.</li>
+<li>Respect reduced-motion settings. Use no animations longer than 200 ms on the register.</li>
+</ul>
+
+<h2 id="wireframes">Wireframes</h2>
+
+<h3 id="wf-signin">R-02 · Sign-in</h3>
+<div class="wf"><div class="wf-screen">
+  <div class="wf-bar">RetailOS · CMB01 · Register R02<span class="sp"></span><span class="wf-tag ok">Online · synced 10:41</span><span class="wf-tag">සිං | தமி | EN</span></div>
+  <div class="wf-grid" style="grid-template-columns:1.4fr 1fr">
+    <div class="wf-box"><h6>Who's working?</h6>
+      <div class="wf-keys">
+        <span class="wf-btn big">NP<small>Nimal P.</small></span><span class="wf-btn big">SK<small>Sachini K.</small></span><span class="wf-btn big">RF<small>Rizwan F.</small></span><span class="wf-btn big">MJ<small>Manager</small></span>
+      </div></div>
+    <div class="wf-box"><h6>Enter PIN · Sachini K.</h6>
+      <div class="wf-input" style="text-align:center;font-size:20px;letter-spacing:8px">● ● ● ○</div>
+      <div class="wf-keys k3" style="margin-top:8px">
+        <span class="wf-btn big">1</span><span class="wf-btn big">2</span><span class="wf-btn big">3</span><span class="wf-btn big">4</span><span class="wf-btn big">5</span><span class="wf-btn big">6</span><span class="wf-btn big">7</span><span class="wf-btn big">8</span><span class="wf-btn big">9</span><span class="wf-btn big">⌫</span><span class="wf-btn big">0</span><span class="wf-btn big pri">OK</span>
+      </div></div>
+  </div>
+  <div style="font-size:11px;color:var(--text-3)">Device WIN-CMB01-02 · v1.6.0 · 5 wrong PINs lock this user for 5 min</div>
+</div></div>
+<p class="wf-note">Large tiles and keypad for touch. Typing the PIN on a keyboard also works.</p>
+
+<h3 id="wf-checkout">R-04 · Checkout</h3>
+<div class="wf"><div class="wf-screen">
+  <div class="wf-bar">☰ CMB01 · R02<span class="wf-tag">Sachini K. · shift 3h 12m</span><span class="sp"></span><span class="wf-tag warn">Offline · 12 sales waiting</span><span class="wf-tag ok">Printer ready</span></div>
+  <div class="wf-grid" style="grid-template-columns:1.5fr 1fr">
+    <div class="wf-grid">
+      <div class="wf-input">🔍 Scan barcode or search name / generic / SKU … (F2)</div>
+      <div class="wf-box"><h6>Cart · 4 lines</h6>
+        <div class="wf-line"><span>1. Panadol 500mg (10s) <span class="wf-tag info">B2 · exp 09/27</span></span><span>2 × 32.00 = <b>64.00</b></span></div>
+        <div class="wf-line"><span>2. Amoxicillin 500mg caps <span class="wf-tag info">Rx</span></span><span>1 × 450.00 = <b>450.00</b></span></div>
+        <div class="wf-line sel"><span>3. Basmati rice (loose) <span class="wf-tag">1.250 kg</span></span><span>1.250 × 640.00 = <b>800.00</b></span></div>
+        <div class="wf-line"><span>4. Anchor milk powder 400g <span class="wf-tag warn">−10%</span></span><span>1 × 1,150.00 = <b>1,035.00</b></span></div>
+        <div style="height:28px"></div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap"><span class="wf-btn">Qty F4</span><span class="wf-btn">Discount F5</span><span class="wf-btn">Remove Del</span><span class="wf-btn">Note</span></div>
+      </div>
+    </div>
+    <div class="wf-grid">
+      <div class="wf-box"><h6>Customer · F3</h6>Perera Stores · credit Rs 10,000 available</div>
+      <div class="wf-box"><h6>Totals</h6>
+        <div class="wf-line"><span>Subtotal</span><span>2,464.00</span></div>
+        <div class="wf-line"><span>Discounts</span><span>−115.00</span></div>
+        <div class="wf-line"><span>VAT (incl.)</span><span>358.32</span></div>
+        <div class="wf-line"><span><b>Total</b></span><span class="wf-total">Rs 2,349.00</span></div>
+      </div>
+      <div class="wf-box"><h6>Quick keys</h6>
+        <div class="wf-keys"><span class="wf-btn">Bread</span><span class="wf-btn">Eggs</span><span class="wf-btn">Bags</span><span class="wf-btn">Veg ▸</span></div></div>
+      <div class="wf-keys"><span class="wf-btn">Hold F6</span><span class="wf-btn">Recall F7</span><span class="wf-btn">Return F8</span><span class="wf-btn">Cash F9</span></div>
+      <span class="wf-btn pri big">PAY · F10 · Rs 2,349.00</span>
+    </div>
+  </div>
+</div></div>
+<p class="wf-note">The scan field keeps focus. Badges carry batch, Rx, weight and offer information. One primary button.</p>
+
+<h3 id="wf-batch">R-06 · Batch picker</h3>
+<div class="wf"><div class="wf-screen" style="max-width:640px">
+  <div class="wf-bar">Choose batch · Panadol 500mg (10s)<span class="sp"></span>Esc</div>
+  <div class="wf-box">
+    <div class="wf-line sel"><span><b>B1</b> · exp 03/2027 · 48 in stock <span class="wf-tag ok">FEFO</span></span><span>Rs 30.00</span></div>
+    <div class="wf-line"><span><b>B2</b> · exp 09/2027 · 120 in stock</span><span>Rs 32.00</span></div>
+    <div class="wf-line"><span style="color:var(--text-3)">B0 · exp 10/2026 · expired</span><span class="wf-tag bad">Blocked</span></div>
+  </div>
+  <div style="font-size:11.5px;color:var(--text-3)">Shown only when open batches have different prices. Tip: scanning the pack's 2D code picks the batch automatically.</div>
+</div></div>
+
+<h3 id="wf-payment">R-10 · Payment</h3>
+<div class="wf"><div class="wf-screen">
+  <div class="wf-bar">← Back to cart (Esc)<span class="sp"></span>Receipt CMB01-R02-000155</div>
+  <div class="wf-grid" style="grid-template-columns:1fr 1fr">
+    <div class="wf-grid">
+      <div class="wf-box" style="text-align:center"><h6>Amount due</h6><div class="wf-total" style="font-size:36px">Rs 2,349.00</div></div>
+      <div class="wf-keys"><span class="wf-btn big pri">Cash<small>F1</small></span><span class="wf-btn big">Card<small>F2</small></span><span class="wf-btn big">LankaQR<small>F3</small></span><span class="wf-btn big">Credit<small>F4</small></span></div>
+      <div class="wf-box"><h6>Payments</h6>
+        <div class="wf-line"><span>Card · approval 482913</span><span>1,000.00</span></div>
+        <div class="wf-line"><span>Cash</span><span>2,000.00</span></div>
+        <div class="wf-line"><span><b>Change</b></span><span class="wf-total" style="color:var(--ok)">Rs 651.00</span></div>
+      </div>
+      <div class="wf-box"><h6>Tax invoice</h6>☐ Customer needs a VAT tax invoice · Buyer VAT no. <span class="wf-input" style="display:inline-block;min-width:140px">…</span></div>
+    </div>
+    <div class="wf-grid">
+      <div class="wf-input" style="text-align:right;font-size:20px">2,000.00</div>
+      <div class="wf-keys"><span class="wf-btn">Exact</span><span class="wf-btn">500</span><span class="wf-btn">1000</span><span class="wf-btn">5000</span></div>
+      <div class="wf-keys k3"><span class="wf-btn big">7</span><span class="wf-btn big">8</span><span class="wf-btn big">9</span><span class="wf-btn big">4</span><span class="wf-btn big">5</span><span class="wf-btn big">6</span><span class="wf-btn big">1</span><span class="wf-btn big">2</span><span class="wf-btn big">3</span><span class="wf-btn big">00</span><span class="wf-btn big">0</span><span class="wf-btn big">⌫</span></div>
+      <span class="wf-btn ok big">Complete sale · Enter</span>
+    </div>
+  </div>
+</div></div>
+<p class="wf-note">Card and QR record only the approval reference from the terminal (<span class="inv">INV-11</span>). Complete is enabled once the payments cover the amount due.</p>
+
+<h3 id="wf-close-shift">R-16 · Close shift (blind count)</h3>
+<div class="wf"><div class="wf-screen">
+  <div class="wf-bar">Close shift · Sachini K. · opened 07:58<span class="sp"></span><span class="wf-tag">Step 1 of 3: count cash</span></div>
+  <div class="wf-grid" style="grid-template-columns:1fr 1fr">
+    <div class="wf-box"><h6>Notes and coins</h6>
+      <div class="wf-line"><span>Rs 5000 ×</span><span class="wf-input">3</span></div>
+      <div class="wf-line"><span>Rs 1000 ×</span><span class="wf-input">14</span></div>
+      <div class="wf-line"><span>Rs 500 ×</span><span class="wf-input">9</span></div>
+      <div class="wf-line"><span>Rs 100 ×</span><span class="wf-input">22</span></div>
+      <div class="wf-line"><span>Coins total</span><span class="wf-input">340.00</span></div>
+    </div>
+    <div class="wf-grid">
+      <div class="wf-box"><h6>Counted cash</h6><div class="wf-total">Rs 36,040.00</div></div>
+      <div class="wf-box wf-dash" style="min-height:70px">Expected amount and variance are shown after you confirm the count (blind count)</div>
+      <span class="wf-btn pri big">Confirm count →</span>
+    </div>
+  </div>
+</div></div>
+
+<h3 id="wf-dashboard">A-10 · Admin dashboard</h3>
+<div class="wf"><div class="wf-screen">
+  <div class="wf-bar">RetailOS Admin<span class="wf-tag">All branches ▾</span><span class="sp"></span>🔍 Search · 🔔 3 · Owner ▾</div>
+  <div class="wf-grid" style="grid-template-columns:150px 1fr">
+    <div class="wf-box" style="line-height:2">Dashboard<br>Catalog<br>Pricing<br>Inventory<br>Purchasing<br>Sales<br>Customers<br>Tax<br>Reports<br>Settings</div>
+    <div class="wf-grid">
+      <div class="wf-grid" style="grid-template-columns:repeat(4,1fr)">
+        <div class="wf-box"><h6>Sales today</h6><div class="wf-kpi">Rs 486,200</div><span class="wf-tag ok">+8% vs last Tue</span></div>
+        <div class="wf-box"><h6>Transactions</h6><div class="wf-kpi">612</div></div>
+        <div class="wf-box"><h6>Avg basket</h6><div class="wf-kpi">Rs 794</div></div>
+        <div class="wf-box"><h6>Gross margin</h6><div class="wf-kpi">18.4%</div></div>
+      </div>
+      <div class="wf-grid" style="grid-template-columns:1.6fr 1fr">
+        <div class="wf-box"><h6>Sales by hour · today vs last week</h6><div class="wf-chart"></div><div style="font-size:11px;color:var(--text-3)">as of 10:45</div></div>
+        <div class="wf-box"><h6>Needs attention</h6>
+          <div class="wf-line"><span>Sale exceptions</span><span class="wf-tag warn">7</span></div>
+          <div class="wf-line"><span>Shift variances to approve</span><span class="wf-tag warn">2</span></div>
+          <div class="wf-line"><span>Batches expiring ≤ 30 days</span><span class="wf-tag warn">23</span></div>
+          <div class="wf-line"><span>Low stock items</span><span class="wf-tag">41</span></div>
+          <div class="wf-line"><span>Registers offline &gt; 24 h</span><span class="wf-tag bad">1</span></div>
+        </div>
+      </div>
+      <div class="wf-box"><h6>Branches today</h6>
+        <div class="wf-line"><span>CMB01 Colombo 7</span><span>Rs 211,400 · 3 registers online</span></div>
+        <div class="wf-line"><span>KDY01 Kandy</span><span>Rs 174,900 · 1 offline</span></div>
+        <div class="wf-line"><span>GAL01 Galle</span><span>Rs 99,900</span></div>
+      </div>
+    </div>
+  </div>
+</div></div>
+
+<h3 id="wf-product">A-21 · Product editor</h3>
+<div class="wf"><div class="wf-screen">
+  <div class="wf-bar">Catalog › Products › Panadol 500mg<span class="sp"></span><span class="wf-btn">Cancel</span><span class="wf-btn pri">Save</span></div>
+  <div class="wf-bar" style="font-weight:500">General · <b>Variants &amp; SKUs</b> · Barcodes &amp; units · Prices · Stock &amp; batches · Pharmacy · History</div>
+  <div class="wf-grid" style="grid-template-columns:1fr 1fr">
+    <div class="wf-box"><h6>Names</h6>
+      <div class="wf-line"><span>English</span><span class="wf-input">Panadol 500mg</span></div>
+      <div class="wf-line"><span>සිංහල</span><span class="wf-input">පැනඩෝල් 500mg</span></div>
+      <div class="wf-line"><span>தமிழ்</span><span class="wf-input">பனடோல் 500mg</span></div>
+      <div class="wf-line"><span>Category / Brand</span><span class="wf-input">Pain relief / GSK</span></div>
+      <div class="wf-line"><span>Item type · Tax</span><span class="wf-input">Stocked, batch-tracked · tax class ▾</span></div>
+    </div>
+    <div class="wf-box"><h6>Variants</h6>
+      <div class="wf-line"><span>SKU PAN-500-10 · Strip of 10</span><span>Rs 32.00</span></div>
+      <div class="wf-line"><span>SKU PAN-500-100 · Box of 100</span><span>Rs 300.00</span></div>
+      <span class="wf-btn">+ Add variant</span>
+      <h6 style="margin-top:10px">Barcodes</h6>
+      <div class="wf-line"><span>08901234567890 (GTIN)</span><span class="wf-tag">strip</span></div>
+      <div class="wf-line"><span>08901234567906 (GTIN)</span><span class="wf-tag">box</span></div>
+    </div>
+  </div>
+</div></div>
+
+<h3 id="wf-exceptions">A-53 · Sale exceptions queue</h3>
+<div class="wf"><div class="wf-screen">
+  <div class="wf-bar">Sales › Exceptions<span class="wf-tag">Type: all ▾</span><span class="wf-tag">Branch: all ▾</span><span class="wf-tag">Open ▾</span><span class="sp"></span>7 open</div>
+  <div class="wf-grid" style="grid-template-columns:1.3fr 1fr">
+    <div class="wf-box">
+      <div class="wf-line sel"><span><span class="wf-tag warn">NEGATIVE_STOCK</span> CMB01-R02-000154 · Anchor 400g</span><span>2 h ago</span></div>
+      <div class="wf-line"><span><span class="wf-tag warn">PRICE_MISMATCH</span> KDY01-R01-003310 · Sugar 1kg</span><span>5 h ago</span></div>
+      <div class="wf-line"><span><span class="wf-tag bad">EXPIRED_BATCH_SOLD</span> GAL01-R01-000981</span><span>1 d ago</span></div>
+      <div class="wf-line"><span><span class="wf-tag">CLOCK_SKEW</span> KDY01-R02 (14 min)</span><span>1 d ago</span></div>
+    </div>
+    <div class="wf-box"><h6>Negative stock · Anchor milk powder 400g</h6>
+      Sold 1 at 08:12 when stock at CMB01 was 0.<br>On hand now: −1. Pending goods receipt GRN-2291 (24 units) not posted.
+      <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap"><span class="wf-btn pri">Post GRN-2291</span><span class="wf-btn">Adjust stock</span><span class="wf-btn">Resolve with note</span></div>
+      <div style="font-size:11px;color:var(--text-3);margin-top:6px">The sale itself is never edited (INV-02).</div>
+    </div>
+  </div>
+</div></div>
+
+<h3 id="wf-receipt">D-01 · Sales receipt (80 mm)</h3>
+<pre style="max-width:360px;font-size:12px;line-height:1.45">        CITY PHARMACY &amp; MART
+     No. 12, Galle Road, Colombo 3
+   VAT Reg: 123456789-7000  ☎ 011 2xx xxxx
+------------------------------------------
+Receipt : CMB01-R02-000155
+Date    : 19/11/2026 10:46   Cashier: Sachini
+------------------------------------------
+Panadol 500mg (10s)  B2 exp 09/27
+   2 x 32.00                        64.00
+Amoxicillin 500mg caps  Rx
+   1 x 450.00                      450.00
+Basmati rice (loose)
+   1.250 kg x 640.00               800.00
+Anchor milk powder 400g
+   1 x 1,150.00                  1,150.00
+   Discount 10%                   -115.00
+------------------------------------------
+TOTAL                        Rs 2,349.00
+  incl. VAT                        358.32
+Card (482913)                    1,000.00
+Cash                             2,000.00
+CHANGE                             651.00
+------------------------------------------
+   Items: 4   You saved: Rs 115.00
+  Returns within 14 days with receipt
+        ║▌║█║▌│║▌║▌█  (receipt barcode)
+     Thank you! / ස්තූතියි / நன்றி</pre>
+<p class="wf-note">Sinhala and Tamil lines are printed as a raster image (<a href="adr.html#adr-013">ADR-013</a>). The receipt barcode drives returns (R-13). Layout is set in A-84.</p>
+
+<h2 id="ui-checklist">UI checklist for every screen</h2>
+<ul>
+<li>Screen ID in the file header and the page title (for support and search).</li>
+<li>All strings are i18n keys. Checked in si and ta at the smallest supported size.</li>
+<li>Loading, empty, error, offline and permission states designed and tested.</li>
+<li>Keyboard reachable. Shortcut listed in the F1 sheet (register).</li>
+<li>Money uses <code>Money</code>/<code>MoneyField</code>, and dates use branch time zone formatting.</li>
+<li>Built only from <code>packages/ui</code> components. A new component needs a catalog page.</li>
+<li>Playwright test for the main path (register screens: also offline).</li>
+</ul>
+
+</article></main>
+<aside id="toc"></aside>
+</div>
+<script src="assets/search-index.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js"></script>
+<script src="assets/site.js"></script>
+</body>
+</html>

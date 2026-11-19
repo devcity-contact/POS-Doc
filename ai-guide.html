@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Guide for AI agents · RetailOS</title>
+<meta name="description" content="Rules, invariants, file map and task recipes for AI coding agents and assistants working on RetailOS. Also the canonical list of invariants INV-01 to INV-15.">
+<link rel="stylesheet" href="assets/site.css">
+<script>try{var t=localStorage.getItem("retailos-theme");if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
+</head>
+<body>
+<header id="topbar"></header>
+<div class="layout">
+<nav id="sidebar"></nav>
+<main class="content"><article>
+
+<h1>Guide for AI agents</h1>
+<p class="lead">This page is written for AI coding agents (Claude Code, Copilot, Cursor and similar) and for humans who direct them. It is the most compact statement of how RetailOS must behave. A plain-text copy is in <code>ai/AGENTS.md</code> and <code>ai/system-context.md</code>, and a site index for tools is in <code>llms.txt</code>.</p>
+
+<div class="callout ai">
+<span class="ct">How to give an agent context</span>
+Copy <code>Doc/ai/AGENTS.md</code> to the repository root as <code>AGENTS.md</code> (and <code>CLAUDE.md</code> if your tool reads that name). For a task, also give the agent the module page and the flow it touches, e.g. <em>"Read Doc/modules.html#details (Sales) and Doc/flows.html#record-sale, then implement F-103."</em>
+</div>
+
+<h2 id="invariants">Invariants (canonical list)</h2>
+<p>These rules are never broken. Cite the ID in code comments next to the code that enforces it, and in test names.</p>
+<table>
+<thead><tr><th>ID</th><th>Invariant</th><th>Enforced by</th></tr></thead>
+<tbody>
+<tr><td><span class="inv">INV-01</span></td><td>Every tenant-owned row has <code>tenant_id</code>. Every DB transaction sets <code>app.tenant_id</code>. RLS is forced on every tenant table.</td><td>RLS policies, <code>TenantIsolationIT</code></td></tr>
+<tr><td><span class="inv">INV-02</span></td><td>A completed sale is a fact: never rejected by the server, never updated, never deleted. Corrections are returns, credit notes or exceptions.</td><td>DB grants (no UPDATE/DELETE on fact tables), domain model</td></tr>
+<tr><td><span class="inv">INV-03</span></td><td>Money and quantities are decimals: <code>numeric(19,4)</code>/<code>numeric(14,3)</code>, <code>BigDecimal</code>, <code>decimal.js</code>, strings in JSON. Rounding HALF_UP to 2 places for totals.</td><td>ArchUnit + ESLint rules, test vectors</td></tr>
+<tr><td><span class="inv">INV-04</span></td><td>Stock changes only by inserting <code>stock_movement</code> rows through the Inventory module. <code>stock_balance</code> is a projection.</td><td>Module boundary test, nightly ledger check</td></tr>
+<tr><td><span class="inv">INV-05</span></td><td>Every fact created on a register has a client-generated UUIDv7, which is its idempotency key. Replays return the stored result.</td><td><code>sync_inbox</code>, <code>SyncIdempotencyIT</code></td></tr>
+<tr><td><span class="inv">INV-06</span></td><td>Receipt numbers are gap-free per register, <code>{branch}-{register}-{seq}</code>, allocated in the same local transaction that completes the sale.</td><td>Local transaction, <code>receipt_registry</code></td></tr>
+<tr><td><span class="inv">INV-07</span></td><td>Tax is calculated only by the Tax module (server) and <code>register-core/tax</code> (register), from configured rules. Extensions never compute tax.</td><td>Code review, test vectors</td></tr>
+<tr><td><span class="inv">INV-08</span></td><td>Modules communicate only through their public <code>*Api</code>, <code>events</code> and <code>spi</code> packages. No module reads another's tables (Reporting reads views only).</td><td><code>ModularityTest</code></td></tr>
+<tr><td><span class="inv">INV-09</span></td><td>The audit log is append-only and hash-chained. The app role cannot update or delete it.</td><td>DB grants, nightly chain check</td></tr>
+<tr><td><span class="inv">INV-10</span></td><td>Sale lines snapshot unit price, discount, tax rate and batch cost at the moment of sale.</td><td>Schema (non-null snapshot columns)</td></tr>
+<tr><td><span class="inv">INV-11</span></td><td>Card numbers, CVV and track data never enter the system.</td><td>Design (no fields), code review</td></tr>
+<tr><td><span class="inv">INV-12</span></td><td>Master data is server-authoritative. Transactional facts are register-authoritative.</td><td>Sync protocol</td></tr>
+<tr><td><span class="inv">INV-13</span></td><td>Schema and API changes are backward compatible with the previous release and register version N-1 (expand/contract).</td><td><code>MigrationCompatIT</code>, OpenAPI diff</td></tr>
+<tr><td><span class="inv">INV-14</span></td><td>Batch allocation: an explicit batch (cashier or GS1) wins, otherwise FEFO skipping expired and blocked batches. Rows are locked in <code>batch_id</code> order.</td><td>Inventory allocation tests</td></tr>
+<tr><td><span class="inv">INV-15</span></td><td>Timestamps are UTC <code>timestamptz</code>. <code>business_date</code> uses the branch time zone and the cash session's opening date.</td><td>Schema, tests</td></tr>
+</tbody>
+</table>
+
+<h2 id="file-map">Where things live</h2>
+<table>
+<thead><tr><th>Task touches…</th><th>Look in</th><th>Read first</th></tr></thead>
+<tbody>
+<tr><td>Checkout, cart, discounts on the register</td><td><code>packages/register-core/src/cart</code>, <code>apps/register/src/screens/checkout</code></td><td><a href="flows.html#sale-states">Sale lifecycle</a>, BR-01..BR-04</td></tr>
+<tr><td>Tax calculation</td><td><code>backend/…/tax</code>, <code>packages/register-core/src/tax</code>, <code>shared/test-vectors/tax</code></td><td><a href="adr.html#adr-012">ADR-012</a></td></tr>
+<tr><td>Recording a synced sale</td><td><code>backend/…/sales/internal/application/RecordSale*</code></td><td><a href="flows.html#record-sale">Record sale flow</a></td></tr>
+<tr><td>Stock and batches</td><td><code>backend/…/inventory</code></td><td><a href="flows.html#fefo">FEFO</a>, <a href="data-model.html#erd-inventory">Inventory ERD</a></td></tr>
+<tr><td>Sync protocol</td><td><code>backend/…/sync</code>, <code>packages/register-core/src/sync</code></td><td><a href="offline-sync.html">Offline & sync</a></td></tr>
+<tr><td>Printer, drawer, scanner, scale</td><td><code>packages/register-core/src/ports/DeviceBridge.ts</code>, shell adapters</td><td><a href="architecture.html#register">Register internals</a></td></tr>
+<tr><td>Auth, permissions</td><td><code>backend/…/platform/iam</code></td><td><a href="security.html#rbac">Permission matrix</a></td></tr>
+<tr><td>New table</td><td><code>backend/src/main/resources/db/migration</code></td><td><a href="data-model.html#conventions">Conventions</a>, <a href="data-model.html#rls">RLS</a></td></tr>
+<tr><td>Industry feature</td><td><code>backend/…/ext/&lt;key&gt;</code>, <code>packages/ext-&lt;key&gt;</code></td><td><a href="extensions.html#add-extension">Add extension checklist</a></td></tr>
+<tr><td>UI text</td><td><code>packages/i18n/{en,si,ta}.json</code></td><td>NFR-11</td></tr>
+</tbody>
+</table>
+
+<h2 id="do-dont">Rules for agents</h2>
+<div class="two-col">
+<div class="card"><h4>Always</h4>
+<ul>
+<li>Run the module's tests plus <code>ModularityTest</code> before declaring done.</li>
+<li>Add <code>tenant_id</code> + RLS + an isolation test for every new table.</li>
+<li>Use the shared <code>Money</code>/<code>Decimal</code> types.</li>
+<li>Write expand-only migrations, one concern per file.</li>
+<li>Add i18n keys in all three languages (mark si/ta drafts with <code>"_review": true</code>).</li>
+<li>Put a requirement ID (<code>F-</code>, <code>BR-</code>, <code>NFR-</code>) in the PR description.</li>
+<li>Update the matching doc page when behaviour changes.</li>
+</ul></div>
+<div class="card"><h4>Never</h4>
+<ul>
+<li>Import from another module's <code>internal</code> package.</li>
+<li>Update or delete rows in <code>sale*</code>, <code>payment</code>, <code>stock_movement</code>, <code>audit_log</code>.</li>
+<li>Throw from an SPI validator to block a synced sale.</li>
+<li>Use <code>double</code>, <code>float</code> or JS <code>number</code> for money.</li>
+<li>Edit a merged Flyway script.</li>
+<li>Log secrets, PINs, tokens or personal data.</li>
+<li>Add Redis, Kafka, Kubernetes or a new datastore without an ADR.</li>
+<li>Disable a failing test to make CI green.</li>
+</ul></div>
+</div>
+
+<h2 id="recipes">Task recipes (prompts that work)</h2>
+<details open><summary>Implement a feature from the catalogue</summary>
+<pre><code>Read Doc/ai/AGENTS.md, Doc/requirements.html (F-xxx and related BR-xx),
+and the module section in Doc/modules.html. Propose the change as:
+1) schema migration, 2) domain + tests, 3) API + OpenAPI, 4) sync scope if the
+register needs it, 5) register-core + UI, 6) i18n, 7) docs update.
+List which invariants (INV-xx) are touched and how each is tested. Then implement step by step,
+running tests after each step.</code></pre>
+</details>
+<details><summary>Debug a production report ("sale missing", "stock wrong")</summary>
+<pre><code>Follow Doc/operations.html#debug-sale. Given receipt CMB01-R02-000154:
+find the sale, its sync status, its stock movements and its audit entries.
+Explain the root cause with evidence (log lines, rows) before proposing a fix.
+Do not modify production data. Corrections are new records (INV-02).</code></pre>
+</details>
+<details><summary>Review a pull request</summary>
+<pre><code>Review this diff against Doc/dev-guide.html#review and Doc/security.html#security-checklist.
+Flag any violation of INV-01..INV-15 with file:line and a concrete failure scenario.</code></pre>
+</details>
+<details><summary>Add a new industry module</summary>
+<pre><code>Follow Doc/extensions.html#add-extension. Use only existing SPIs unless you can show a concrete
+case that needs a new one. Tables must be prefixed and reference core ids only.
+Provide an end-to-end test with the module enabled and disabled.</code></pre>
+</details>
+
+<h2 id="verify">How an agent proves its work</h2>
+<pre><code>./backend/gradlew -p backend test                 # unit + module + Testcontainers
+./backend/gradlew -p backend modulithVerify       # boundaries
+pnpm -r test                                       # register-core, admin, register
+pnpm -r lint &amp;&amp; pnpm i18n:check                    # lint, money rules, missing translations
+pnpm --filter register e2e -- --grep offline       # offline-day scenario</code></pre>
+
+<h2 id="machine-files">Machine-readable files in this folder</h2>
+<table>
+<thead><tr><th>File</th><th>Use</th></tr></thead>
+<tbody>
+<tr><td><code>llms.txt</code></td><td>Index of every page with a one-line summary, following the llms.txt convention</td></tr>
+<tr><td><code>ai/AGENTS.md</code></td><td>Drop-in agent instructions for the repository root</td></tr>
+<tr><td><code>ai/system-context.md</code></td><td>Condensed system description (architecture, modules, data, sync, security) in plain Markdown, for pasting into any assistant</td></tr>
+<tr><td>Mermaid blocks in every page</td><td>Diagrams as text (<code>&lt;pre class="mermaid"&gt;</code>). Agents can read and edit them directly.</td></tr>
+</tbody>
+</table>
+
+</article></main>
+<aside id="toc"></aside>
+</div>
+<script src="assets/search-index.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js"></script>
+<script src="assets/site.js"></script>
+</body>
+</html>

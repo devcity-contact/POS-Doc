@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>API design · RetailOS</title>
+<meta name="description" content="RetailOS REST and Sync API conventions: versioning, authentication headers, idempotency, pagination, error format, rate limits and the endpoint catalog.">
+<link rel="stylesheet" href="assets/site.css">
+<script>try{var t=localStorage.getItem("retailos-theme");if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
+</head>
+<body>
+<header id="topbar"></header>
+<div class="layout">
+<nav id="sidebar"></nav>
+<main class="content"><article>
+
+<h1>API design</h1>
+<p class="lead">There are two APIs on one backend. The <strong>REST API</strong> (<code>/api/v1</code>) is for the admin web and online register lookups. The <strong>Sync API</strong> (<code>/sync/v1</code>) is for register pull and push. Both are described in one OpenAPI document, and the TypeScript clients are generated from it.</p>
+
+<h2 id="conventions">Conventions</h2>
+<table>
+<thead><tr><th>Topic</th><th>Rule</th></tr></thead>
+<tbody>
+<tr><td>Style</td><td>Resource-oriented REST, JSON, <code>camelCase</code> fields, plural nouns: <code>/api/v1/products/{id}</code>. Actions that aren't CRUD use a verb sub-resource: <code>POST /api/v1/cash-sessions/{id}/close</code>.</td></tr>
+<tr><td>Versioning</td><td>Major version in the path. Additive changes need no new version. Breaking changes need <code>/v2</code>, and both versions run until registers on N-1 are gone (<span class="inv">INV-13</span>).</td></tr>
+<tr><td>Money and quantities</td><td>Strings with 4 decimal places: <code>"320.0000"</code>. Never JSON numbers (<span class="inv">INV-03</span>).</td></tr>
+<tr><td>IDs</td><td>UUIDv7 strings. Clients may supply the ID on create, which is required for register-created facts.</td></tr>
+<tr><td>Time</td><td>ISO-8601 UTC: <code>2026-11-19T04:12:09.120Z</code>. Dates: <code>2026-11-19</code>.</td></tr>
+<tr><td>Pagination</td><td>Cursor-based: <code>?limit=50&amp;cursor=…</code>, and the response includes <code>nextCursor</code>. Offset pagination isn't allowed on large tables.</td></tr>
+<tr><td>Filtering and sorting</td><td><code>?branchId=…&amp;from=2026-11-01&amp;to=2026-11-30&amp;sort=-completedAt</code></td></tr>
+<tr><td>Idempotency</td><td>Every <code>POST</code> that creates money or stock records accepts an <code>Idempotency-Key</code> header (UUID). The Sync API uses each item's ID instead.</td></tr>
+<tr><td>Concurrency</td><td>Mutable resources return an <code>ETag</code> (version). <code>PUT</code>/<code>PATCH</code> require <code>If-Match</code>, and a mismatch returns <code>412</code>.</td></tr>
+<tr><td>Language</td><td><code>Accept-Language: si</code> localises error messages. Error codes never change.</td></tr>
+<tr><td>Compression</td><td>gzip/br for responses over 1 KB. Registers send gzipped push bodies.</td></tr>
+</tbody>
+</table>
+
+<h2 id="headers">Standard headers</h2>
+<table>
+<thead><tr><th>Header</th><th>Who sends</th><th>Purpose</th></tr></thead>
+<tbody>
+<tr><td><code>Authorization: Bearer …</code></td><td>All clients</td><td>JWT access token (10 min). Tenant and user are taken from the token, never from the body.</td></tr>
+<tr><td><code>X-Device-Id</code></td><td>Registers</td><td>Enrolled device. Must match the device bound to the token.</td></tr>
+<tr><td><code>X-App-Version</code></td><td>Registers, admin</td><td>Used for minimum-version enforcement (<code>426 DEV-004</code>) and support.</td></tr>
+<tr><td><code>Idempotency-Key</code></td><td>Clients creating facts over REST</td><td>Safe retries</td></tr>
+<tr><td><code>traceparent</code></td><td>All</td><td>W3C trace context. The register creates one per sale so you can follow a sale end to end.</td></tr>
+<tr><td><code>X-Request-Id</code></td><td>Server response</td><td>Quote it in support tickets</td></tr>
+</tbody>
+</table>
+
+<h2 id="errors">Error format</h2>
+<p>Errors use RFC 9457 <em>Problem Details</em> with a stable <code>code</code> (see the <a href="modules.html#errors">error code catalog</a>).</p>
+<pre><code>HTTP/1.1 403 Forbidden
+Content-Type: application/problem+json
+
+{
+  "type": "urn:retailos:error:AUTH-003",
+  "title": "Permission denied",
+  "status": 403,
+  "code": "AUTH-003",
+  "detail": "Missing permission: refund.create.above_limit",
+  "instance": "/api/v1/returns",
+  "requestId": "01J9Z…",
+  "errors": []               // field errors for VAL-001: [{ "field": "lines[0].qty", "code": "MIN", "message": "…" }]
+}</code></pre>
+<p>Never put stack traces, SQL, or another tenant's identifiers in an error body.</p>
+
+<h2 id="catalog">Endpoint catalog (MVP)</h2>
+<h3 id="ep-auth">Auth and devices</h3>
+<table>
+<thead><tr><th>Method</th><th>Path</th><th>Purpose</th><th>Permission</th></tr></thead>
+<tbody>
+<tr><td>POST</td><td><code>/api/v1/auth/login</code></td><td>E-mail + password (+ TOTP) → access + refresh token</td><td>public, rate limited</td></tr>
+<tr><td>POST</td><td><code>/api/v1/auth/refresh</code></td><td>Rotate refresh token</td><td>refresh token</td></tr>
+<tr><td>POST</td><td><code>/api/v1/auth/logout</code></td><td>Revoke refresh token family</td><td>authenticated</td></tr>
+<tr><td>POST</td><td><code>/api/v1/auth/pin</code></td><td>Register staff sign-in with PIN (online) → user session on this device</td><td>device credential</td></tr>
+<tr><td>POST</td><td><code>/api/v1/devices/enroll</code></td><td>Enroll with one-time code + public key</td><td>enrollment code</td></tr>
+<tr><td>POST</td><td><code>/api/v1/devices/{id}/lock</code></td><td>Remote lock</td><td><code>device.manage</code></td></tr>
+<tr><td>POST</td><td><code>/sync/v1/heartbeat</code></td><td>Version, queue depth, printer status, disk space</td><td>device</td></tr>
+</tbody>
+</table>
+
+<h3 id="ep-sync">Sync</h3>
+<table>
+<thead><tr><th>Method</th><th>Path</th><th>Purpose</th></tr></thead>
+<tbody>
+<tr><td>GET</td><td><code>/sync/v1/snapshot?scope=catalog</code></td><td>Returns a signed URL for the latest snapshot file and its cursor</td></tr>
+<tr><td>GET</td><td><code>/sync/v1/changes?scopes=…&amp;cursor=…</code></td><td>Change feed (pull)</td></tr>
+<tr><td>POST</td><td><code>/sync/v1/push</code></td><td>Batch of facts: sales, returns, cash events, customers, audit</td></tr>
+<tr><td>GET</td><td><code>/sync/v1/receipt-sequence</code></td><td>Next sequence for a replacement device</td></tr>
+</tbody>
+</table>
+
+<h3 id="ep-catalog">Catalog, pricing, inventory</h3>
+<table>
+<thead><tr><th>Method</th><th>Path</th><th>Purpose</th></tr></thead>
+<tbody>
+<tr><td>GET/POST</td><td><code>/api/v1/products</code></td><td>List and search, create</td></tr>
+<tr><td>GET/PUT</td><td><code>/api/v1/products/{id}</code></td><td>Read, update (If-Match)</td></tr>
+<tr><td>POST</td><td><code>/api/v1/products/{id}/skus</code></td><td>Add variant</td></tr>
+<tr><td>GET</td><td><code>/api/v1/barcodes/{code}</code></td><td>Resolve barcode (online lookups)</td></tr>
+<tr><td>POST</td><td><code>/api/v1/imports/products</code></td><td>Upload file → import job (dry run)</td></tr>
+<tr><td>POST</td><td><code>/api/v1/imports/{jobId}/commit</code></td><td>Commit a previewed import</td></tr>
+<tr><td>GET/PUT</td><td><code>/api/v1/price-lists/{id}/items</code></td><td>Prices, with <code>validFrom</code></td></tr>
+<tr><td>GET</td><td><code>/api/v1/stock?locationId=…&amp;skuId=…</code></td><td>Balances by batch</td></tr>
+<tr><td>POST</td><td><code>/api/v1/stock/adjustments</code></td><td>Adjustment with reason</td></tr>
+<tr><td>POST</td><td><code>/api/v1/stock-counts</code>, <code>/{id}/lines</code>, <code>/{id}/post</code></td><td>Stock count workflow</td></tr>
+<tr><td>POST</td><td><code>/api/v1/batches/{id}/block</code></td><td>Recall / block batch</td></tr>
+<tr><td>GET/POST</td><td><code>/api/v1/suppliers</code></td><td>Suppliers</td></tr>
+<tr><td>POST</td><td><code>/api/v1/goods-receipts</code>, <code>/{id}/post</code></td><td>Goods receiving</td></tr>
+</tbody>
+</table>
+
+<h3 id="ep-sales">Sales, cash, customers, tax</h3>
+<table>
+<thead><tr><th>Method</th><th>Path</th><th>Purpose</th></tr></thead>
+<tbody>
+<tr><td>GET</td><td><code>/api/v1/sales?branchId=&amp;from=&amp;to=</code></td><td>Sales history</td></tr>
+<tr><td>GET</td><td><code>/api/v1/sales/{id}</code>, <code>/sales/by-receipt/{receiptNo}</code></td><td>Sale detail, lookup for returns</td></tr>
+<tr><td>GET</td><td><code>/api/v1/sale-exceptions?status=OPEN</code></td><td>Exception queue (negative stock, price mismatch…)</td></tr>
+<tr><td>POST</td><td><code>/api/v1/sale-exceptions/{id}/resolve</code></td><td>Resolve with note</td></tr>
+<tr><td>GET</td><td><code>/api/v1/cash-sessions?registerId=</code></td><td>Shifts</td></tr>
+<tr><td>POST</td><td><code>/api/v1/cash-sessions/{id}/review</code></td><td>Manager approves variance</td></tr>
+<tr><td>GET/POST</td><td><code>/api/v1/customers</code></td><td>Customers</td></tr>
+<tr><td>POST</td><td><code>/api/v1/customers/{id}/credit-payments</code></td><td>Settle credit</td></tr>
+<tr><td>GET</td><td><code>/api/v1/tax-documents?type=&amp;from=</code></td><td>Tax invoices and credit notes</td></tr>
+<tr><td>GET</td><td><code>/api/v1/reports/{reportKey}?…</code></td><td>Reports (daily-sales, stock-valuation, expiry, vat, z-report, credit-ageing)</td></tr>
+<tr><td>POST</td><td><code>/api/v1/exports</code></td><td>Async CSV/XLSX export → signed download URL</td></tr>
+</tbody>
+</table>
+
+<h3 id="ep-admin">Tenant administration</h3>
+<table>
+<thead><tr><th>Method</th><th>Path</th><th>Purpose</th></tr></thead>
+<tbody>
+<tr><td>GET/PUT</td><td><code>/api/v1/tenant</code>, <code>/tenant/settings</code></td><td>Business profile, VAT number, receipt options</td></tr>
+<tr><td>GET/POST</td><td><code>/api/v1/branches</code>, <code>/branches/{id}/registers</code></td><td>Branches and registers</td></tr>
+<tr><td>GET/POST</td><td><code>/api/v1/users</code>, <code>/roles</code></td><td>Users, roles, permissions</td></tr>
+<tr><td>PUT</td><td><code>/api/v1/tenant/modules/{key}</code></td><td>Enable or disable an industry module</td></tr>
+<tr><td>GET</td><td><code>/api/v1/audit?entity=&amp;from=</code></td><td>Audit trail</td></tr>
+</tbody>
+</table>
+
+<h2 id="rate-limits">Rate limits</h2>
+<table>
+<thead><tr><th>Endpoint group</th><th>Limit</th><th>Key</th></tr></thead>
+<tbody>
+<tr><td>Login, PIN, enroll, refresh</td><td>10 per minute, then exponential lockout</td><td>IP + account / device</td></tr>
+<tr><td>REST (admin)</td><td>300 per minute</td><td>user</td></tr>
+<tr><td>Sync pull</td><td>120 per minute</td><td>device</td></tr>
+<tr><td>Sync push</td><td>60 per minute (50 items each)</td><td>device</td></tr>
+<tr><td>Exports and imports</td><td>5 concurrent jobs</td><td>tenant</td></tr>
+</tbody>
+</table>
+<p>Exceeding a limit returns <code>429</code> with <code>Retry-After</code>. The proxy also applies coarse per-IP limits.</p>
+
+<h2 id="openapi">OpenAPI and client generation</h2>
+<ul>
+<li>springdoc generates <code>/v3/api-docs</code>, and CI saves it as <code>backend/openapi.json</code>. A diff check fails the build on breaking changes (<code>openapi-diff</code>).</li>
+<li><code>packages/api-client</code> is generated with <code>openapi-typescript</code> and <code>openapi-fetch</code>. Never hand-write request types.</li>
+<li>Swagger UI is enabled in dev and staging only.</li>
+</ul>
+
+</article></main>
+<aside id="toc"></aside>
+</div>
+<script src="assets/search-index.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js"></script>
+<script src="assets/site.js"></script>
+</body>
+</html>

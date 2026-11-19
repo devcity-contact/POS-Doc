@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Roadmap & phases · RetailOS</title>
+<meta name="description" content="RetailOS delivery plan for a one-engineer team: MVP phases with exit tests, R2 and R3 scope, timeline, team plan and delivery risks.">
+<link rel="stylesheet" href="assets/site.css">
+<script>try{var t=localStorage.getItem("retailos-theme");if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
+</head>
+<body>
+<header id="topbar"></header>
+<div class="layout">
+<nav id="sidebar"></nav>
+<main class="content"><article>
+
+<h1>Roadmap & phases</h1>
+<p class="lead">Build in vertical slices, put the local register in early, and put real shops on the product before launch. Each phase ends with a test that proves it works, not with a date.</p>
+
+<div class="callout warn">
+<span class="ct">One engineer: be honest about time</span>
+For one experienced full-stack engineer using AI coding assistants with this documentation as context, the MVP is roughly <strong>10–12 months</strong> of focused work, including a pilot. A second engineer from phase 4 cuts this to about <strong>7–8 months</strong> and removes the single-person risk. These are planning ranges, so re-estimate after phase 1.
+</div>
+
+<h2 id="timeline">MVP timeline</h2>
+<figure class="diagram">
+<pre class="mermaid">
+gantt
+  title RetailOS MVP (one engineer, indicative)
+  dateFormat YYYY-MM-DD
+  axisFormat %b %y
+  section Foundation
+  P0 Setup and skeletons           :p0, 2026-12-01, 14d
+  P1 Tenancy, IAM, RLS, audit      :p1, after p0, 42d
+  section Register core
+  P2 Catalog and local register    :p2, after p1, 56d
+  P3 Receiving and stock           :p3, after p2, 35d
+  P4 Checkout and sale sync        :p4, after p3, 70d
+  P5 Cash-up, credit, returns, tax :p5, after p4, 49d
+  section Go to market
+  P6 Pilot in 3 shops              :p6, after p5, 49d
+  P7 Hardening and launch          :p7, after p6, 28d
+</pre>
+<figcaption>Starting 1 Dec 2026, this lands general availability around Q4 2027, in time for the 2027/2028 market and the VAT secured-POS timeline.</figcaption>
+</figure>
+
+<h2 id="phases">MVP phases and exit tests</h2>
+<table>
+<thead><tr><th>Phase</th><th>Builds</th><th>Done when (exit test)</th></tr></thead>
+<tbody>
+<tr><td><strong>P0 Setup</strong><br/>~2 weeks</td><td>Monorepo, Gradle + pnpm workspaces, docker compose (Postgres, MinIO, Mailpit), CI pipeline, Spring Modulith skeleton with empty modules, React admin and register shells, i18n wiring, AGENTS.md</td><td>CI is green with a boundary test. <code>docker compose up</code> gives a running stack. Admin login page renders in si/ta/en.</td></tr>
+<tr><td><strong>P1 Foundation</strong><br/>~6 weeks</td><td>Tenant, branch, register, users, roles, permissions, login + MFA, refresh rotation, RLS on all tables, audit log with hash chain, device enrollment, onboarding wizard (basic)</td><td><code>TenantIsolationIT</code> proves one tenant can't read another's data. A device enrolls with a code.</td></tr>
+<tr><td><strong>P2 Catalog & local register</strong><br/>~8 weeks</td><td>Products, variants, units, barcodes, price lists, tax rates, Excel import, Electron shell, encrypted SQLite, snapshot + delta pull, local search (FTS5), GS1 and weight-barcode parsing</td><td>With the network unplugged, a scan finds the right product and price in under 100 ms from 50,000 products.</td></tr>
+<tr><td><strong>P3 Receiving & stock</strong><br/>~5 weeks</td><td>Suppliers, goods receipt into batches (GS1 scan), movement ledger, balances, adjustments, stock count, expiry and low-stock alerts, nightly ledger check</td><td>Balances rebuilt from the ledger equal the stored balances after a randomised test of 10,000 operations.</td></tr>
+<tr><td><strong>P4 Checkout & sync</strong><br/>~10 weeks</td><td>Cart engine, discounts with overrides, batch picker, payment types and split payment, receipt numbering, ESC/POS printing (en/si/ta), cash drawer, hold/resume, push sync with idempotency, FEFO allocation, sale exceptions</td><td>A full day of offline sales on 2 registers syncs with no duplicate and no missing receipt, including a forced crash mid-push.</td></tr>
+<tr><td><strong>P5 Cash, credit, returns, tax</strong><br/>~7 weeks</td><td>Shift open/close, blind count, Z-report, customer credit + settlement, returns and refunds linked to the original, tax invoice series, credit notes, VAT report, fiscal adapter port (no-op), core reports</td><td>Cash in the drawer reconciles to the Z-report, and an accountant accepts the tax invoice and credit note format.</td></tr>
+<tr><td><strong>P6 Pilot</strong><br/>~7 weeks</td><td>Three real shops: one general retail, one pharmacy, one grocery. Support console, runbooks, fixes.</td><td>Four weeks of trading with no manual database fix and no lost sale.</td></tr>
+<tr><td><strong>P7 Hardening & launch</strong><br/>~4 weeks</td><td>Load and concurrency tests, restore drill, external pen test, monitoring and alerts, supported hardware list, pricing and contracts, training material</td><td>Backup restore rehearsed within RTO. No open critical or high security findings. Secured-POS spec assessed if published.</td></tr>
+</tbody>
+</table>
+
+<h2 id="r2">Release 2 (about 4–6 months after launch)</h2>
+<ul class="pill-list">
+<li>Android register (Capacitor shell + device plugins)</li>
+<li>Pharmacy module</li>
+<li>Grocery module (PLU, scale, labels)</li>
+<li>Promotions engine</li>
+<li>Purchase orders</li>
+<li>Stock transfers</li>
+<li>Supplier returns</li>
+<li>Exchanges as one flow</li>
+<li>Loyalty points</li>
+<li>E-mail receipts</li>
+<li>Multi-branch dashboard</li>
+<li>Owner mobile dashboard (responsive)</li>
+<li>Best/slow sellers, peak hours</li>
+<li>CSV accounting export</li>
+<li>PDPA export/erasure</li>
+</ul>
+
+<h2 id="r3">Release 3 (timed to IRD publications)</h2>
+<ul class="pill-list">
+<li>RAMIS e-invoicing adapter</li>
+<li>Secured POS adapter (spec dependent)</li>
+<li>Semi-integrated card terminals</li>
+<li>LankaQR dynamic QR</li>
+<li>QuickBooks / Xero / Zoho connectors</li>
+<li>SMS + WhatsApp receipts and offers</li>
+<li>Gift cards and store credit</li>
+<li>Membership tiers</li>
+<li>Customer display</li>
+<li>Clock in/out, commission</li>
+</ul>
+
+<h2 id="later">Later (not scheduled)</h2>
+<ul class="pill-list">
+<li>AI forecasting and reorder suggestions</li>
+<li>E-commerce stock sync</li>
+<li>Delivery-app orders</li>
+<li>Self-checkout kiosk</li>
+<li>Restaurant module</li>
+<li>Salon module</li>
+<li>Fingerprint login</li>
+<li>Local-network register-to-register sync</li>
+</ul>
+<p>Data for AI features is already being collected from the MVP onwards (snapshotted costs, timestamps, stock-outs via negative-stock exceptions, expiry write-offs), so forecasting can be trained on real history when it's built.</p>
+
+<h2 id="team">Team plan</h2>
+<table>
+<thead><tr><th>When</th><th>Role</th><th>Why</th></tr></thead>
+<tbody>
+<tr><td>Now</td><td>1 full-stack engineer (architect + developer)</td><td>Builds P0–P3. Uses this documentation and AGENTS.md to get the most out of AI coding assistants.</td></tr>
+<tr><td>From P4</td><td>+1 engineer (front-end / register focus)</td><td>Checkout and device work run in parallel with backend. Removes the single-person risk.</td></tr>
+<tr><td>From P6</td><td>Part-time support / implementation person</td><td>Installs, trains and handles first-line support at pilot shops, so engineers keep building.</td></tr>
+<tr><td>R2</td><td>BA / product (part-time) + QA (part-time)</td><td>Pharmacy regulation detail, test plans for three industries.</td></tr>
+</tbody>
+</table>
+
+<h2 id="risks">Delivery risks</h2>
+<table>
+<thead><tr><th>Risk</th><th>Impact</th><th>Mitigation</th></tr></thead>
+<tbody>
+<tr><td>Single engineer (bus factor 1)</td><td>All knowledge in one head. Illness or departure stops the project.</td><td>This documentation, ADRs, AGENTS.md, tests as specification, a second hire by P4</td></tr>
+<tr><td>Sync bugs duplicate or lose sales</td><td>Shops stop trusting the product within a day</td><td>Idempotency, per-register sequences, automated offline and crash tests from P4, pilot before launch</td></tr>
+<tr><td>Scope creeps back in (three industries, two platforms)</td><td>Late launch into a crowded market</td><td>Android and industry modules are in R2. The MVP core serves all three segments' basics. Hold the line on the "not in MVP" list.</td></tr>
+<tr><td>Secured POS spec needs certified hardware or a design we didn't expect</td><td>Rework, or a partnership needed</td><td>Fiscal logic behind an adapter. Follow IRD notices. Talk to hardware vendors early.</td></tr>
+<tr><td>Printer and driver problems in shops</td><td>Engineers pulled into support</td><td>Short supported-hardware list, remote diagnostics, hardware bundles (Q-06)</td></tr>
+<tr><td>Sinhala/Tamil printing quality</td><td>Shops reject receipts</td><td>Prototype raster printing in P2. Test on the supported printers.</td></tr>
+<tr><td>Competitors compete on price</td><td>Low revenue per shop</td><td>Sell compliance, batch accuracy and offline reliability. Industry modules as add-ons.</td></tr>
+</tbody>
+</table>
+
+</article></main>
+<aside id="toc"></aside>
+</div>
+<script src="assets/search-index.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js"></script>
+<script src="assets/site.js"></script>
+</body>
+</html>

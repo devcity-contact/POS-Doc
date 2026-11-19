@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Glossary · RetailOS</title>
+<meta name="description" content="Definitions of retail, pharmacy, tax and technical terms used in RetailOS: batch, FEFO, GS1, PLU, Z-report, RLS, outbox, idempotency and more.">
+<link rel="stylesheet" href="assets/site.css">
+<script>try{var t=localStorage.getItem("retailos-theme");if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
+</head>
+<body>
+<header id="topbar"></header>
+<div class="layout">
+<nav id="sidebar"></nav>
+<main class="content"><article>
+
+<h1>Glossary</h1>
+<p class="lead">One vocabulary for business people, developers and AI agents. Code, tables and UI use these words exactly.</p>
+
+<h2 id="business">Business terms</h2>
+<table>
+<thead><tr><th>Term</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td><strong>Tenant</strong></td><td>One customer business (one subscription). It may own many branches.</td></tr>
+<tr><td><strong>Branch</strong></td><td>One physical shop or outlet of a tenant, with its own stock location and registers.</td></tr>
+<tr><td><strong>Register</strong></td><td>A logical till (counter) in a branch, with its own receipt sequence. Code like <code>R02</code>.</td></tr>
+<tr><td><strong>Device</strong></td><td>The physical PC or tablet currently enrolled as a register. It can be replaced while the register stays the same.</td></tr>
+<tr><td><strong>Cash session / shift</strong></td><td>The period a cashier works a register, from opening float to close and count.</td></tr>
+<tr><td><strong>Float</strong></td><td>Cash placed in the drawer at the start of a shift, for change.</td></tr>
+<tr><td><strong>Blind count</strong></td><td>The cashier counts the drawer without seeing the expected amount.</td></tr>
+<tr><td><strong>Z-report</strong></td><td>The end-of-shift or end-of-day report of sales, payments and cash variance.</td></tr>
+<tr><td><strong>Product / SKU / variant</strong></td><td>A product is the general item ("Coca-Cola"). A SKU is a specific sellable variant ("Coca-Cola 500 ml"), with its own barcodes and prices.</td></tr>
+<tr><td><strong>Unit / conversion</strong></td><td>The measure a SKU is counted in (piece, box, kg) and how units relate (1 box = 12 pieces). Stock is stored in the base unit.</td></tr>
+<tr><td><strong>Batch (lot)</strong></td><td>A quantity of a SKU received together, with the same batch number, expiry date and cost.</td></tr>
+<tr><td><strong>FEFO</strong></td><td>First Expired, First Out: sell the batch that expires soonest first.</td></tr>
+<tr><td><strong>GRN / goods receipt</strong></td><td>The record of stock arriving from a supplier. It creates batches.</td></tr>
+<tr><td><strong>Price list</strong></td><td>A named set of prices (retail, wholesale), optionally per branch, with valid-from dates.</td></tr>
+<tr><td><strong>Payment type (tender)</strong></td><td>How a sale is paid: cash, card, LankaQR, customer credit.</td></tr>
+<tr><td><strong>Credit sale</strong></td><td>"Buy now, pay later" for a named customer with a credit account and limit.</td></tr>
+<tr><td><strong>Held / parked bill</strong></td><td>An unfinished sale put aside on a register to serve another customer.</td></tr>
+<tr><td><strong>Void</strong></td><td>Cancelling an <em>open</em> sale or line before payment. After completion, use a return.</td></tr>
+<tr><td><strong>Return / refund</strong></td><td>A new record that reverses some or all lines of a completed sale and pays money back.</td></tr>
+<tr><td><strong>Exchange</strong></td><td>A return plus a new sale, linked.</td></tr>
+<tr><td><strong>Sale exception</strong></td><td>Something unexpected found when a sale reaches the server (negative stock, price mismatch, expired batch, clock skew). A manager reviews it, and the sale itself stands.</td></tr>
+<tr><td><strong>PLU</strong></td><td>Price Look-Up code: a short number for loose items (fruit, vegetables), used by scales and cashiers.</td></tr>
+<tr><td><strong>Weight-embedded barcode</strong></td><td>A barcode printed by a scale that carries the PLU and the weight or price, usually starting with prefix 2.</td></tr>
+</tbody>
+</table>
+
+<h2 id="tax-terms">Tax and compliance</h2>
+<table>
+<thead><tr><th>Term</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td><strong>IRD</strong></td><td>Inland Revenue Department of Sri Lanka.</td></tr>
+<tr><td><strong>VAT</strong></td><td>Value Added Tax. Rates are configured as tax rules, never hard-coded.</td></tr>
+<tr><td><strong>Tax invoice</strong></td><td>An invoice in the format VAT law prescribes, issued by a VAT-registered business, with its own number series.</td></tr>
+<tr><td><strong>Credit note / debit note</strong></td><td>Documents that correct an issued tax invoice down or up. Invoices are never edited.</td></tr>
+<tr><td><strong>RAMIS</strong></td><td>The IRD's Revenue Administration Management Information System. National e-invoicing is submitted through its Web API.</td></tr>
+<tr><td><strong>Secured POS</strong></td><td>POS machines meeting IRD specifications, required by the VAT (Amendment) Act No. 14 of 2026 from a date still to be prescribed.</td></tr>
+<tr><td><strong>Fiscal adapter / FiscalGateway</strong></td><td>The port in the Tax module that sends tax documents to the authority. No-op in the MVP.</td></tr>
+<tr><td><strong>NMRA</strong></td><td>National Medicines Regulatory Authority of Sri Lanka. Relevant to pharmacy rules.</td></tr>
+<tr><td><strong>PDPA</strong></td><td>Personal Data Protection Act, No. 9 of 2022 (Sri Lanka).</td></tr>
+<tr><td><strong>PCI-DSS</strong></td><td>Card industry security standard. RetailOS stays out of its scope by never handling card data.</td></tr>
+<tr><td><strong>LankaQR</strong></td><td>Sri Lanka's national QR payment standard.</td></tr>
+</tbody>
+</table>
+
+<h2 id="tech-terms">Technical terms</h2>
+<table>
+<thead><tr><th>Term</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td><strong>Modular monolith</strong></td><td>One deployable application divided into modules with enforced boundaries.</td></tr>
+<tr><td><strong>Spring Modulith</strong></td><td>A library that verifies module boundaries and stores domain events reliably.</td></tr>
+<tr><td><strong>SPI</strong></td><td>Service Provider Interface: an interface owned by the core that extensions implement.</td></tr>
+<tr><td><strong>Local-first</strong></td><td>The app works against its own local database first and syncs with the server in the background.</td></tr>
+<tr><td><strong>Outbox (register)</strong></td><td>A local table of facts waiting to be pushed to the server.</td></tr>
+<tr><td><strong>Event publication registry (server)</strong></td><td>The server-side outbox: events saved with the business change in one transaction and delivered afterwards.</td></tr>
+<tr><td><strong>Change feed / cursor</strong></td><td>The ordered list of server-side changes (<code>sync_change_log</code>) and the position a register has read up to.</td></tr>
+<tr><td><strong>Snapshot</strong></td><td>A full compressed copy of a scope (e.g. catalog) used to bootstrap or reset a register.</td></tr>
+<tr><td><strong>Tombstone</strong></td><td>A change-feed entry saying a record was deleted.</td></tr>
+<tr><td><strong>Idempotency</strong></td><td>Doing the same request twice has the same effect as once. Achieved with client UUIDs.</td></tr>
+<tr><td><strong>UUIDv7</strong></td><td>A time-ordered UUID. Created on registers for facts, and good for index locality.</td></tr>
+<tr><td><strong>RLS</strong></td><td>PostgreSQL Row-Level Security: database-enforced filtering of rows by tenant.</td></tr>
+<tr><td><strong>Ledger / projection</strong></td><td>The ledger is the append-only list of changes (stock movements). A projection is a derived current state (stock balance) that can be rebuilt from it.</td></tr>
+<tr><td><strong>PITR</strong></td><td>Point-in-time recovery: restoring the database to any moment using base backups plus WAL logs.</td></tr>
+<tr><td><strong>RPO / RTO</strong></td><td>Recovery Point Objective (how much data can be lost) and Recovery Time Objective (how long recovery may take).</td></tr>
+<tr><td><strong>Expand/contract</strong></td><td>A migration pattern: add new schema first (expand), remove old schema only in a later release (contract).</td></tr>
+<tr><td><strong>DeviceBridge</strong></td><td>The register port for hardware: print, open drawer, read scanner and scale.</td></tr>
+<tr><td><strong>ESC/POS</strong></td><td>The command language of most thermal receipt printers.</td></tr>
+<tr><td><strong>GS1 / GTIN / AI</strong></td><td>GS1 sets barcode standards. GTIN is the global product number. Application Identifiers (AIs) like (01), (10) and (17) label the data fields in 2D codes.</td></tr>
+<tr><td><strong>DataMatrix</strong></td><td>A 2D barcode common on medicines. It can carry GTIN, batch, expiry and serial number.</td></tr>
+<tr><td><strong>ADR</strong></td><td>Architecture Decision Record.</td></tr>
+<tr><td><strong>INV-nn</strong></td><td>A numbered invariant in this documentation. See <a href="ai-guide.html#invariants">the list</a>.</td></tr>
+</tbody>
+</table>
+
+</article></main>
+<aside id="toc"></aside>
+</div>
+<script src="assets/search-index.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js"></script>
+<script src="assets/site.js"></script>
+</body>
+</html>

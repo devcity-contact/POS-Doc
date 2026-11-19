@@ -1,0 +1,313 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Technology stack · RetailOS</title>
+<meta name="description" content="Every technology used to build, test, run and operate RetailOS: backend, database, admin web, register app, hardware, DevOps, security tooling, observability, external services, with purpose, reason, alternatives, licence and cost.">
+<link rel="stylesheet" href="assets/site.css">
+<script>try{var t=localStorage.getItem("retailos-theme");if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
+</head>
+<body>
+<header id="topbar"></header>
+<div class="layout">
+<nav id="sidebar"></nav>
+<main class="content"><article>
+
+<h1>Technology stack</h1>
+<p class="lead">This page lists every technology used to build, test, ship and run RetailOS: what each one does in the system, why it was chosen, and what was rejected. If a library is not on this page, add it here (with a reason) in the same pull request that introduces it.</p>
+
+<div class="callout">
+<span class="ct">How to read the versions</span>
+The "Version line" column is the major line to start on, as of November 2026. Pin exact versions in <code>build.gradle.kts</code> and <code>package.json</code>, and let Renovate propose updates. Prefer LTS releases, and upgrade a major line only through a planned pull request with the full test suite.
+</div>
+
+<h2 id="overview">Stack at a glance</h2>
+<figure class="diagram">
+<pre class="mermaid">
+flowchart TB
+  subgraph Clients["Clients"]
+    direction LR
+    ADM["Admin web&lt;br/&gt;React 19 · TypeScript · Vite&lt;br/&gt;TanStack Query · Tailwind · Radix"]
+    REG["Register app&lt;br/&gt;React 19 · TypeScript · register-core&lt;br/&gt;decimal.js · i18next · Zustand"]
+  end
+  subgraph Shells["Register shells"]
+    direction LR
+    WIN["Windows: Electron&lt;br/&gt;better-sqlite3 + SQLCipher&lt;br/&gt;node-usb · serialport"]
+    AND["Android: Capacitor&lt;br/&gt;community sqlite (SQLCipher)&lt;br/&gt;Kotlin printer plugin · ML Kit"]
+  end
+  subgraph Server["Backend"]
+    direction LR
+    BOOT["Java 25 · Spring Boot 4&lt;br/&gt;Spring Modulith · Spring Security&lt;br/&gt;JPA/Hibernate · JdbcClient · Flyway"]
+  end
+  subgraph Data["Data"]
+    direction LR
+    PG[("PostgreSQL 18&lt;br/&gt;RLS · partitioning · pg_trgm")]
+    S3[("S3-compatible storage")]
+  end
+  subgraph Ops["Build and run"]
+    direction LR
+    CI["GitHub Actions · Docker · Caddy&lt;br/&gt;Trivy · Semgrep · gitleaks · Renovate"]
+    OBS["OpenTelemetry · Micrometer&lt;br/&gt;Grafana stack · Sentry-compatible"]
+  end
+  REG --> WIN
+  REG --> AND
+  ADM --> BOOT
+  WIN --> BOOT
+  AND --> BOOT
+  BOOT --> PG
+  BOOT --> S3
+  CI -.-> BOOT
+  BOOT -.-> OBS
+</pre>
+<figcaption>Two languages in total: Java on the server, TypeScript everywhere else. Kotlin appears only in a thin Android device plugin.</figcaption>
+</figure>
+
+<h3 id="languages">Languages</h3>
+<table>
+<thead><tr><th>Language</th><th>Version line</th><th>Used for</th><th>Why</th></tr></thead>
+<tbody>
+<tr><td><strong>Java</strong></td><td>25 LTS</td><td>Backend</td><td>Long-term support until at least 2030. Virtual threads, records and pattern matching. A strong ecosystem for transactional business systems.</td></tr>
+<tr><td><strong>TypeScript</strong></td><td>5.x</td><td>Admin web, register UI, register-core domain, Electron main process, scripts</td><td>One language for every client. Strict typing catches errors in money and sync code.</td></tr>
+<tr><td><strong>SQL</strong> (PostgreSQL, SQLite dialects)</td><td>n/a</td><td>Migrations, stock allocation, reports, local register store</td><td>The critical queries stay explicit and reviewable (<a href="adr.html#adr-014">ADR-014</a>).</td></tr>
+<tr><td><strong>Kotlin</strong></td><td>2.x</td><td>Android only: a small Capacitor plugin for USB/Bluetooth printer transport</td><td>Native USB and Bluetooth access on Android. Kept to a few hundred lines.</td></tr>
+</tbody>
+</table>
+
+<h2 id="backend">Backend</h2>
+<table>
+<thead><tr><th>Technology</th><th>Version line</th><th>Role in RetailOS</th><th>Why chosen</th><th>Licence</th></tr></thead>
+<tbody>
+<tr><td><strong>Spring Boot</strong></td><td>4.0.x</td><td>Application framework, configuration, Actuator health and metrics</td><td>Mature and well documented, and AI assistants know it well. The 3.x line is out of open-source support.</td><td>Apache-2.0</td></tr>
+<tr><td><strong>Spring Modulith</strong></td><td>2.x (matches Boot 4)</td><td>Module boundary verification, event publication registry (outbox), module docs</td><td>Enforces <span class="inv">INV-08</span>, and gives a reliable outbox without a broker (<a href="adr.html#adr-007">ADR-007</a>).</td><td>Apache-2.0</td></tr>
+<tr><td><strong>Spring Web MVC</strong> on virtual threads</td><td>Boot 4</td><td>REST and Sync APIs</td><td>Simple blocking code that still scales thanks to virtual threads. No reactive complexity.</td><td>Apache-2.0</td></tr>
+<tr><td><strong>Spring Security</strong> (OAuth2 Resource Server, Nimbus JOSE)</td><td>7.x</td><td>JWT validation, method security (<code>@PreAuthorize</code>), password encoders</td><td>Standard, audited security building blocks.</td><td>Apache-2.0</td></tr>
+<tr><td><strong>Argon2id</strong> via Spring Security + Bouncy Castle</td><td>Bouncy Castle 1.8x</td><td>Password and PIN hashing</td><td>The current OWASP recommendation for password hashing.</td><td>MIT-style</td></tr>
+<tr><td><strong>TOTP library</strong> (e.g. <code>dev.samstevens.totp</code>)</td><td>latest</td><td>MFA for owners and admins</td><td>Small and well tested. Works with Google Authenticator, Microsoft Authenticator and similar apps.</td><td>MIT</td></tr>
+<tr><td><strong>Spring Data JPA / Hibernate ORM</strong></td><td>Hibernate 7.x</td><td>CRUD for master data (catalog, users, suppliers, settings)</td><td>Fast to build simple modules.</td><td>Apache-2.0 / LGPL</td></tr>
+<tr><td><strong>JdbcClient</strong> (Spring JDBC)</td><td>Boot 4</td><td>Stock allocation with <code>FOR UPDATE</code>, ledger checks, reports, bulk inserts</td><td>Exact SQL where correctness and performance matter.</td><td>Apache-2.0</td></tr>
+<tr><td><strong>Flyway</strong></td><td>11.x (Community)</td><td>Database migrations, core and extension locations</td><td>Versioned SQL scripts that are easy to review.</td><td>Apache-2.0</td></tr>
+<tr><td><strong>Jakarta Bean Validation</strong> (Hibernate Validator)</td><td>Boot 4</td><td>DTO validation at the API edge</td><td>Declarative, and produces consistent <code>VAL-001</code> errors.</td><td>Apache-2.0</td></tr>
+<tr><td><strong>Jackson</strong></td><td>3.x (Boot 4)</td><td>JSON. <code>BigDecimal</code> is written as a string (<span class="inv">INV-03</span>).</td><td>The default in Spring. A custom module handles Money.</td><td>Apache-2.0</td></tr>
+<tr><td><strong>springdoc-openapi</strong></td><td>3.x (Boot 4)</td><td>OpenAPI document and Swagger UI (dev and staging only)</td><td>The TypeScript API client is generated from it.</td><td>Apache-2.0</td></tr>
+<tr><td><strong>MapStruct</strong></td><td>1.6.x</td><td>Compile-time DTO ↔ domain mapping</td><td>No reflection, and mapping errors show up at compile time.</td><td>Apache-2.0</td></tr>
+<tr><td><strong>ShedLock</strong></td><td>6.x</td><td>Makes sure a scheduled job runs on only one instance (nightly ledger check, snapshots)</td><td>Uses the existing PostgreSQL, so no extra infrastructure.</td><td>Apache-2.0</td></tr>
+<tr><td><strong>Bucket4j</strong></td><td>8.x</td><td>Rate limiting per IP, user and device</td><td>Runs in-process, and can move to PostgreSQL or Redis storage later.</td><td>Apache-2.0</td></tr>
+<tr><td><strong>Apache POI</strong> (streaming) + <strong>FastCSV</strong></td><td>5.x / 3.x</td><td>Excel and CSV product import and export</td><td>Streams large files with low memory use and ignores macros.</td><td>Apache-2.0 / MIT</td></tr>
+<tr><td><strong>OpenPDF</strong> or <strong>JasperReports</strong> (pick one)</td><td>latest</td><td>Tax invoice and statement PDFs, Z-report PDF</td><td>Printable A4 tax documents for accountants.</td><td>LGPL/MPL</td></tr>
+<tr><td><strong>AWS SDK for Java v2</strong> (S3 client only)</td><td>2.x</td><td>Object storage: works with any S3-compatible provider</td><td>One API for every provider. Swap providers through the endpoint URL.</td><td>Apache-2.0</td></tr>
+<tr><td><strong>Gradle</strong> (Kotlin DSL)</td><td>9.x</td><td>Build, test, code generation, dependency locking</td><td>Standard for Spring. Build cache speeds up CI.</td><td>Apache-2.0</td></tr>
+</tbody>
+</table>
+
+<h2 id="database">Database and storage</h2>
+<table>
+<thead><tr><th>Technology</th><th>Version line</th><th>Role</th><th>Notes</th></tr></thead>
+<tbody>
+<tr><td><strong>PostgreSQL</strong></td><td>18</td><td>System of record for all tenants</td><td>Native <code>uuidv7()</code>, row-level security, declarative partitioning, materialized views. Free, and every cloud offers it managed.</td></tr>
+<tr><td><code>pg_trgm</code> extension</td><td>bundled</td><td>Fuzzy product and customer search in the admin web</td><td>Typo-tolerant search with no separate search engine.</td></tr>
+<tr><td><code>pg_stat_statements</code></td><td>bundled</td><td>Finding slow queries</td><td>Turned on in every environment.</td></tr>
+<tr><td><strong>WAL-G</strong> or <strong>pgBackRest</strong></td><td>latest</td><td>Point-in-time backups to object storage (only if PostgreSQL is self-managed)</td><td>Not needed with a managed database that has PITR.</td></tr>
+<tr><td><strong>PgBouncer</strong></td><td>1.2x</td><td>Connection pooling <span class="badge b-later">Stage 3</span></td><td>Only when connection counts grow. Use transaction mode and keep <code>set_config(..., true)</code> per transaction.</td></tr>
+<tr><td><strong>HikariCP</strong></td><td>Boot 4 default</td><td>Application connection pool</td><td>The pool is small (10–20 connections) because virtual threads wait cheaply.</td></tr>
+<tr><td><strong>S3-compatible object storage</strong></td><td>any</td><td>Product images, catalog snapshots, exports, prescription images (encrypted), backups</td><td>For example Cloudflare R2, AWS S3, Backblaze B2, DigitalOcean Spaces. Chosen at deployment time.</td></tr>
+</tbody>
+</table>
+
+<h2 id="frontend">Front-end (shared by admin and register)</h2>
+<table>
+<thead><tr><th>Technology</th><th>Version line</th><th>Role</th><th>Why chosen</th></tr></thead>
+<tbody>
+<tr><td><strong>React</strong></td><td>19.x</td><td>UI library for admin and register</td><td>Largest ecosystem and hiring pool. The same skills cover both apps.</td></tr>
+<tr><td><strong>Vite</strong></td><td>7.x</td><td>Dev server and bundler</td><td>Fast, simple, and works inside Electron and Capacitor.</td></tr>
+<tr><td><strong>pnpm workspaces</strong></td><td>10.x</td><td>Monorepo package manager (<code>apps/*</code>, <code>packages/*</code>)</td><td>Fast and disk-efficient, with strict dependency isolation.</td></tr>
+<tr><td><strong>TanStack Query</strong></td><td>5.x</td><td>Server state, caching and retries in the admin web</td><td>Removes most hand-written loading and caching code.</td></tr>
+<tr><td><strong>TanStack Router</strong> (or React Router 7)</td><td>1.x</td><td>Type-safe routing</td><td>Typed URLs and search parameters for reports.</td></tr>
+<tr><td><strong>TanStack Table</strong></td><td>8.x</td><td>Large data grids (products, sales, stock)</td><td>Headless, with virtualisation for 50,000-row lists.</td></tr>
+<tr><td><strong>Zustand</strong></td><td>5.x</td><td>Register cart and session state</td><td>Tiny, and easy to test without the UI.</td></tr>
+<tr><td><strong>React Hook Form</strong> + <strong>Zod</strong></td><td>7.x / 4.x</td><td>Forms and validation. Zod also validates API and SQLite rows at the edges.</td><td>One schema gives both types and runtime checks.</td></tr>
+<tr><td><strong>Tailwind CSS</strong></td><td>4.x</td><td>Styling with design tokens</td><td>Consistent spacing and colour, and fast to build screens.</td></tr>
+<tr><td><strong>Radix UI primitives</strong> (shadcn/ui pattern)</td><td>latest</td><td>Accessible dialogs, menus, popovers, tabs</td><td>Keyboard and screen-reader support built in. The components live in our own code.</td></tr>
+<tr><td><strong>Apache ECharts</strong> (or Recharts)</td><td>5.x</td><td>Dashboard charts</td><td>Handles large series and works well on mobile.</td></tr>
+<tr><td><strong>i18next</strong> + <strong>react-i18next</strong></td><td>25.x / 15.x</td><td>English, Sinhala and Tamil UI text</td><td>Plurals, interpolation, lazy loading. A CI check catches missing keys.</td></tr>
+<tr><td><strong>decimal.js</strong></td><td>10.x</td><td>All money and quantity arithmetic (<span class="inv">INV-03</span>)</td><td>Arbitrary-precision decimals with configurable rounding (HALF_UP).</td></tr>
+<tr><td><strong>date-fns</strong> + <strong>@date-fns/tz</strong></td><td>4.x</td><td>Dates and business date in <code>Asia/Colombo</code></td><td>Tree-shakeable and time-zone aware.</td></tr>
+<tr><td><strong>uuid</strong></td><td>11.x</td><td>UUIDv7 creation on the register (<span class="inv">INV-05</span>)</td><td>Standard and well tested.</td></tr>
+<tr><td><strong>openapi-typescript</strong> + <strong>openapi-fetch</strong></td><td>7.x / 0.x</td><td>Typed API client generated from the backend's OpenAPI document</td><td>No hand-written request types, so front-end and back-end can't drift.</td></tr>
+<tr><td><strong>Noto Sans Sinhala / Tamil</strong> fonts</td><td>latest</td><td>UI and raster receipts</td><td>Open font licence, and good rendering of complex scripts (<a href="adr.html#adr-013">ADR-013</a>).</td></tr>
+</tbody>
+</table>
+
+<h2 id="register">Register app and shells</h2>
+<table>
+<thead><tr><th>Technology</th><th>Platform</th><th>Role</th><th>Notes</th></tr></thead>
+<tbody>
+<tr><td><strong>Electron</strong> (current stable line)</td><td>Windows</td><td>Desktop shell for the React register</td><td>Hardened: context isolation, sandbox, typed IPC allowlist (<a href="security.html#register-security">Security</a>). Upgrade every few months to stay on a supported Chromium.</td></tr>
+<tr><td><strong>electron-builder</strong> + <strong>electron-updater</strong></td><td>Windows</td><td>Signed NSIS installer, staged auto-update from bucket/CDN</td><td>Rollout rings and signature verification (<a href="deployment.html#releases">Releases</a>).</td></tr>
+<tr><td><strong>better-sqlite3-multiple-ciphers</strong></td><td>Windows</td><td>Local SQLite database with SQLCipher encryption</td><td>Synchronous and very fast. Runs in the Electron main process, not the renderer.</td></tr>
+<tr><td><strong>Capacitor</strong></td><td>Android</td><td>Native shell for the same React register <span class="badge b-r2">R2</span></td><td>Web code reused as-is. Native plugins for hardware.</td></tr>
+<tr><td><strong>@capacitor-community/sqlite</strong></td><td>Android</td><td>Local SQLite with encryption</td><td>Same schema and SQL as Windows. The key is stored in the Android Keystore.</td></tr>
+<tr><td>Custom Kotlin plugin <code>retailos-device</code></td><td>Android</td><td>USB and Bluetooth printer transport, cash drawer kick, scale read</td><td>A small in-house plugin, so we don't depend on unmaintained community printer plugins.</td></tr>
+<tr><td><strong>@capacitor-mlkit/barcode-scanning</strong></td><td>Android</td><td>Camera scanning (1D and DataMatrix) when no hardware scanner is present <span class="badge b-r2">R2</span></td><td>Google ML Kit runs on the device and works offline.</td></tr>
+<tr><td><strong>@point-of-sale/receipt-printer-encoder</strong></td><td>Both</td><td>Builds ESC/POS byte streams: text, barcodes, QR, raster images, drawer kick</td><td>Pure JavaScript, so it's shared by both shells. Only the transport differs.</td></tr>
+<tr><td><strong>usb</strong> (node-usb), <strong>serialport</strong>, Node <code>net</code></td><td>Windows</td><td>Printer transport over USB, serial or LAN (TCP 9100). Serial scale reading.</td><td>Accessed only from the Electron main process through the DeviceBridge.</td></tr>
+<tr><td>HID keyboard-wedge scanners</td><td>Both</td><td>Barcode input</td><td>No driver or library needed. The register detects fast keystroke bursts that end with Enter.</td></tr>
+<tr><td>In-house <strong>GS1 parser</strong></td><td>Both + Java</td><td>Parses GS1 DataMatrix/QR (AIs 01, 10, 17, 21) and weight-embedded barcodes</td><td>Small, and driven by shared test vectors so the Java and TS versions match (<a href="adr.html#adr-012">ADR-012</a>).</td></tr>
+<tr><td><strong>SQLite FTS5</strong></td><td>Both</td><td>Instant local product search in three languages</td><td>Built into SQLite. Meets the NFR-01 target of under 100 ms.</td></tr>
+</tbody>
+</table>
+
+<h2 id="testing">Testing and quality tools</h2>
+<table>
+<thead><tr><th>Tool</th><th>Used for</th></tr></thead>
+<tbody>
+<tr><td><strong>JUnit Jupiter</strong> + <strong>AssertJ</strong> + <strong>Mockito</strong></td><td>Backend unit tests</td></tr>
+<tr><td><strong>Testcontainers</strong> (PostgreSQL 18)</td><td>Integration tests against a real database: RLS, allocation concurrency, migrations</td></tr>
+<tr><td><strong>Spring Modulith test support</strong></td><td>Module tests and the boundary check <code>verify()</code></td></tr>
+<tr><td><strong>ArchUnit</strong></td><td>Architecture rules: no <code>double</code> for money, no <code>internal</code> imports, naming</td></tr>
+<tr><td><strong>Vitest</strong> + <strong>Testing Library</strong></td><td>Front-end unit and component tests, register-core domain tests</td></tr>
+<tr><td><strong>Playwright</strong></td><td>End-to-end tests: admin flows, checkout, offline-then-sync (Electron supported)</td></tr>
+<tr><td><strong>MSW</strong> (Mock Service Worker)</td><td>Simulated API responses and network failures in front-end tests</td></tr>
+<tr><td><strong>k6</strong></td><td>Load tests for sync push and pull (phase P7)</td></tr>
+<tr><td><strong>Spotless</strong> (google-java-format), <strong>ESLint 9</strong> (flat config), <strong>Prettier</strong></td><td>Formatting and linting, including the custom money-arithmetic rule</td></tr>
+<tr><td><strong>JaCoCo</strong>, Vitest coverage (v8)</td><td>Coverage reports for the 80% target on core modules</td></tr>
+<tr><td><strong>openapi-diff</strong></td><td>Fails CI on breaking API changes (<span class="inv">INV-13</span>)</td></tr>
+</tbody>
+</table>
+
+<h2 id="devops">DevOps, build and hosting</h2>
+<table>
+<thead><tr><th>Technology</th><th>Role</th><th>Cost</th></tr></thead>
+<tbody>
+<tr><td><strong>Git</strong> + <strong>GitHub</strong> (private repo)</td><td>Source control, pull requests, issues</td><td>Free tier is enough at the start</td></tr>
+<tr><td><strong>GitHub Actions</strong></td><td>CI/CD (the scripts live in <code>infra/ci/</code>, so they're portable to GitLab CI and others)</td><td>Free minutes, then pay per use</td></tr>
+<tr><td><strong>Docker</strong> + <strong>Docker Compose</strong></td><td>Local stack, and production at Stage 1</td><td>Free (Docker Desktop licence rules apply to larger companies)</td></tr>
+<tr><td><strong>GitHub Container Registry</strong> (or any OCI registry)</td><td>Stores backend images</td><td>Free / low</td></tr>
+<tr><td><strong>Caddy</strong></td><td>Reverse proxy with automatic HTTPS at Stage 1</td><td>Free</td></tr>
+<tr><td><strong>Cloudflare</strong> (free plan) or another CDN</td><td>DNS, CDN for admin web and snapshots, basic WAF and DDoS protection</td><td>Free tier</td></tr>
+<tr><td><strong>OpenTofu</strong> (Terraform-compatible)</td><td>Infrastructure as code once the provider is chosen <span class="badge b-r2">Stage 2</span></td><td>Free</td></tr>
+<tr><td><strong>sops</strong> + <strong>age</strong></td><td>Encrypted secrets in git for VPS deployments</td><td>Free</td></tr>
+<tr><td>Local S3 server (MinIO, SeaweedFS or Garage)</td><td>S3-compatible storage in <code>docker compose</code> for development</td><td>Free. Check the current image and licence terms before choosing.</td></tr>
+<tr><td><strong>Mailpit</strong></td><td>Catches e-mails locally</td><td>Free</td></tr>
+<tr><td>Windows code-signing certificate (OV/EV, or a cloud signing service)</td><td>Signs the register installer and updates</td><td>About $200–400 a year</td></tr>
+<tr><td>Google Play Console (managed Google Play for business)</td><td>Distributing the Android register <span class="badge b-r2">R2</span></td><td>One-time $25 developer fee</td></tr>
+</tbody>
+</table>
+
+<h2 id="security-tools">Security tooling</h2>
+<table>
+<thead><tr><th>Tool</th><th>Stage</th><th>Purpose</th></tr></thead>
+<tbody>
+<tr><td><strong>gitleaks</strong></td><td>Pre-commit + CI</td><td>Blocks committed secrets</td></tr>
+<tr><td><strong>Semgrep</strong> (or GitHub CodeQL)</td><td>CI</td><td>Static code analysis for Java and TypeScript</td></tr>
+<tr><td><strong>OSV-Scanner</strong> + <strong>Renovate</strong></td><td>CI + weekly</td><td>Vulnerable dependency detection, automatic update PRs</td></tr>
+<tr><td><strong>Trivy</strong></td><td>Image build</td><td>Container image and OS package vulnerabilities, misconfiguration</td></tr>
+<tr><td><strong>CycloneDX</strong> (Gradle + npm plugins)</td><td>Release</td><td>Software bill of materials (SBOM) per release</td></tr>
+<tr><td><strong>cosign</strong> (Sigstore)</td><td>Release</td><td>Signs container images. Production pulls only signed images.</td></tr>
+<tr><td><strong>OWASP ZAP</strong></td><td>Staging</td><td>Baseline dynamic scan before each release</td></tr>
+<tr><td><strong>OWASP ASVS / MASVS checklists</strong></td><td>Design + review</td><td>Security requirements baseline (<a href="security.html">Security</a>)</td></tr>
+</tbody>
+</table>
+
+<h2 id="observability">Observability</h2>
+<table>
+<thead><tr><th>Technology</th><th>Role</th><th>Cost-efficient option</th></tr></thead>
+<tbody>
+<tr><td><strong>OpenTelemetry</strong> (Java agent or Spring Boot starter, collector)</td><td>Traces, metrics and logs in a vendor-neutral format</td><td>Free. Lets you switch backends without code changes.</td></tr>
+<tr><td><strong>Micrometer</strong></td><td>Application and business metrics (sync lag, outbox backlog, exceptions)</td><td>Built into Spring Boot</td></tr>
+<tr><td><strong>Grafana</strong> + <strong>Prometheus/Mimir</strong>, <strong>Loki</strong>, <strong>Tempo</strong></td><td>Dashboards, metrics, logs, traces</td><td>Grafana Cloud free tier at Stage 1, or self-host on the same VM</td></tr>
+<tr><td><strong>Sentry SDKs</strong> (<code>sentry-java</code>, <code>@sentry/electron</code>, <code>@sentry/capacitor</code>, <code>@sentry/react</code>)</td><td>Crash and error reporting from the backend, admin and every register</td><td>Sentry free tier, or self-hosted GlitchTip (accepts Sentry SDKs)</td></tr>
+<tr><td><strong>Uptime Kuma</strong> (or a hosted uptime checker)</td><td>External uptime checks for the API and admin web</td><td>Free</td></tr>
+</tbody>
+</table>
+
+<h2 id="external">External services</h2>
+<table>
+<thead><tr><th>Service</th><th>Used for</th><th>Release</th><th>Selection rule</th></tr></thead>
+<tbody>
+<tr><td>Transactional e-mail provider</td><td>Password reset, MFA setup, e-mail receipts, reports</td><td><span class="badge b-mvp">MVP</span></td><td>SMTP or API with good delivery and a free tier. Hidden behind a <code>MailSender</code> port.</td></tr>
+<tr><td>Sri Lankan SMS gateway</td><td>OTP, receipts, offers</td><td><span class="badge b-r3">R3</span></td><td>Local provider with an HTTP API and sender ID support. Hidden behind a <code>SmsSender</code> port.</td></tr>
+<tr><td>WhatsApp Business Platform (via a provider)</td><td>Receipts and offers with approved templates</td><td><span class="badge b-r3">R3</span></td><td>Cost per message is passed to the tenant</td></tr>
+<tr><td>IRD RAMIS Web API</td><td>E-invoicing submission</td><td><span class="badge b-r3">R3</span></td><td>Implemented in <code>RamisEInvoiceGateway</code> once the specification is published (Q-02)</td></tr>
+<tr><td>Card acquirer / LankaQR provider</td><td>Semi-integrated card and dynamic QR payments</td><td><span class="badge b-r3">R3</span></td><td>Q-07. Must keep RetailOS out of PCI scope.</td></tr>
+<tr><td>Accounting APIs (QuickBooks, Xero, Zoho Books)</td><td>Journal export</td><td><span class="badge b-r3">R3</span></td><td>CSV export first (R2)</td></tr>
+</tbody>
+</table>
+
+<h2 id="dev-tools">Developer tools</h2>
+<ul class="pill-list">
+<li>IntelliJ IDEA (backend)</li>
+<li>VS Code (front-end)</li>
+<li>Docker Desktop</li>
+<li>JDK 25 (Eclipse Temurin)</li>
+<li>Node.js 22 LTS</li>
+<li>pnpm</li>
+<li>DBeaver / pgAdmin</li>
+<li>DB Browser for SQLite</li>
+<li>Bruno (API collections in git)</li>
+<li>Claude Code / AI coding assistant with <code>AGENTS.md</code></li>
+<li>An ESC/POS network printer emulator</li>
+<li>A real 80 mm printer, cash drawer and 2D scanner for testing</li>
+</ul>
+
+<h2 id="hardware">Reference hardware</h2>
+<table>
+<thead><tr><th>Device</th><th>Minimum spec / requirement</th></tr></thead>
+<tbody>
+<tr><td>Windows register PC</td><td>Windows 10/11 x64, 4 GB RAM, SSD, 1366×768 or larger (touch optional)</td></tr>
+<tr><td>Android register tablet <span class="badge b-r2">R2</span></td><td>Android 10+, 3 GB RAM, 10" screen, USB-OTG or Bluetooth</td></tr>
+<tr><td>Receipt printer</td><td>80 mm or 58 mm thermal, ESC/POS, raster image support, USB/LAN/Bluetooth, drawer-kick port</td></tr>
+<tr><td>Barcode scanner</td><td>2D imager (must read GS1 DataMatrix and QR), USB HID or Bluetooth HID</td></tr>
+<tr><td>Cash drawer</td><td>RJ11/RJ12, opened by the printer</td></tr>
+<tr><td>Scale</td><td>Label-printing scale with configurable EAN-13 prefix-2 format (MVP). Serial/USB PC scale (R2).</td></tr>
+<tr><td>Label printer <span class="badge b-r2">R2</span></td><td>ZPL or TSPL</td></tr>
+</tbody>
+</table>
+<p>The exact supported models list is open question Q-04. Keep it short: every extra model adds support cost.</p>
+
+<h2 id="rejected">Considered and rejected</h2>
+<table>
+<thead><tr><th>Option</th><th>Instead of</th><th>Why not (for now)</th></tr></thead>
+<tbody>
+<tr><td>Microservices, Kubernetes</td><td>Modular monolith, Docker</td><td>Too much operations work for one engineer (<a href="adr.html#adr-001">ADR-001</a>, <a href="adr.html#adr-009">ADR-009</a>)</td></tr>
+<tr><td>Kafka / RabbitMQ</td><td>Spring Modulith event registry</td><td>Nothing needs a broker yet (<a href="adr.html#adr-007">ADR-007</a>)</td></tr>
+<tr><td>Redis</td><td>PostgreSQL + in-process caches</td><td>No measured hot path. Registers serve reads locally.</td></tr>
+<tr><td>Elasticsearch / OpenSearch</td><td>pg_trgm + SQLite FTS5</td><td>Search runs on the register. Admin search is small.</td></tr>
+<tr><td>Node.js / NestJS backend</td><td>Spring Boot</td><td>The blueprint already chose Java, and its transactional and locking tooling is mature</td></tr>
+<tr><td>Tauri 2</td><td>Electron + Capacitor</td><td>Smaller apps, but device plugins need Rust, which would be a third language (<a href="adr.html#adr-003">ADR-003</a>)</td></tr>
+<tr><td>Flutter / React Native</td><td>React + Capacitor</td><td>Would split UI code from the React admin</td></tr>
+<tr><td>PWA in the browser</td><td>Desktop/mobile shells</td><td>Can't reliably hold the offline queue, print raw ESC/POS or open the drawer (<a href="adr.html#adr-002">ADR-002</a>)</td></tr>
+<tr><td>GraphQL</td><td>REST + OpenAPI</td><td>REST is simpler to cache, rate-limit and generate clients for</td></tr>
+<tr><td>MongoDB / NoSQL</td><td>PostgreSQL</td><td>Money and stock need ACID transactions, constraints and RLS</td></tr>
+<tr><td>Separate identity server (Keycloak, Auth0)</td><td>Spring Security</td><td>More than the MVP needs. Revisit if SSO for enterprise customers is required.</td></tr>
+</tbody>
+</table>
+
+<h2 id="skills">Skills needed to build it</h2>
+<table>
+<thead><tr><th>Area</th><th>Must know</th><th>Nice to have</th></tr></thead>
+<tbody>
+<tr><td>Backend</td><td>Java 21+, Spring Boot, JPA, SQL and PostgreSQL transactions/locking, REST, Spring Security basics</td><td>Spring Modulith, Testcontainers, performance tuning</td></tr>
+<tr><td>Front-end</td><td>TypeScript, React, state management, forms, i18n</td><td>Tailwind, accessibility, TanStack libraries</td></tr>
+<tr><td>Register</td><td>Electron main/renderer/IPC model, SQLite, offline-first patterns</td><td>Capacitor, Kotlin, ESC/POS, USB/serial</td></tr>
+<tr><td>Operations</td><td>Docker, Linux basics, CI pipelines, backups</td><td>OpenTelemetry, Grafana, infrastructure as code</td></tr>
+</tbody>
+</table>
+
+<h2 id="upgrades">Version and upgrade policy</h2>
+<ul>
+<li><strong>Runtimes:</strong> Java and Node stay on LTS lines. Move to the next LTS within 6 months of its release.</li>
+<li><strong>Frameworks:</strong> stay within the supported window of Spring Boot, Electron and React. Electron needs upgrading every few months to keep its Chromium security fixes.</li>
+<li><strong>Dependencies:</strong> Renovate groups minor and patch updates weekly. Security fixes are merged within 14 days (NFR-08). Major upgrades are planned work.</li>
+<li><strong>Licences:</strong> allow MIT, Apache-2.0, BSD, ISC, MPL-2.0 and LGPL (dynamically linked). Anything GPL or AGPL needs approval before it ships inside the product. CI checks licences.</li>
+<li><strong>New technology:</strong> needs an ADR and a row on this page.</li>
+</ul>
+
+</article></main>
+<aside id="toc"></aside>
+</div>
+<script src="assets/search-index.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js"></script>
+<script src="assets/site.js"></script>
+</body>
+</html>

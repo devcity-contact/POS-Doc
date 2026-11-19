@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Backend modules · RetailOS</title>
+<meta name="description" content="Every RetailOS backend module: responsibility, owned tables, public API, events published and consumed, extension points and release.">
+<link rel="stylesheet" href="assets/site.css">
+<script>try{var t=localStorage.getItem("retailos-theme");if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
+</head>
+<body>
+<header id="topbar"></header>
+<div class="layout">
+<nav id="sidebar"></nav>
+<main class="content"><article>
+
+<h1>Backend modules</h1>
+<p class="lead">Each module owns its tables, exposes one public API interface and publishes events. If you need data from another module, call its API or listen to its events. Never query its tables (<span class="inv">INV-08</span>).</p>
+
+<h2 id="map">Module map</h2>
+<table>
+<thead><tr><th>Module</th><th>Package</th><th>Owns</th><th>Style</th><th>Release</th></tr></thead>
+<tbody>
+<tr><td>Tenancy</td><td><code>platform.tenancy</code></td><td>tenant, branch, register, tenant_module, settings</td><td>CRUD</td><td><span class="badge b-mvp">MVP</span></td></tr>
+<tr><td>Identity & access</td><td><code>platform.iam</code></td><td>app_user, role, permission, user_role, refresh_token, staff_pin</td><td>CRUD + security</td><td><span class="badge b-mvp">MVP</span></td></tr>
+<tr><td>Devices</td><td><code>devices</code></td><td>device, device_enrollment, device_heartbeat</td><td>CRUD</td><td><span class="badge b-mvp">MVP</span></td></tr>
+<tr><td>Audit</td><td><code>platform.audit</code></td><td>audit_log (append-only, hash-chained)</td><td>Append-only</td><td><span class="badge b-mvp">MVP</span></td></tr>
+<tr><td>Catalog</td><td><code>catalog</code></td><td>product, product_variant, sku, barcode, unit, unit_conversion, category, brand</td><td>CRUD + import</td><td><span class="badge b-mvp">MVP</span></td></tr>
+<tr><td>Pricing</td><td><code>pricing</code></td><td>price_list, price_list_item, discount_rule, promotion</td><td>Rich domain</td><td><span class="badge b-mvp">MVP</span> (promotions <span class="badge b-r2">R2</span>)</td></tr>
+<tr><td>Inventory</td><td><code>inventory</code></td><td>stock_location, batch, stock_movement, stock_balance, stock_count, stock_exception</td><td>Rich domain</td><td><span class="badge b-mvp">MVP</span></td></tr>
+<tr><td>Purchasing</td><td><code>purchasing</code></td><td>supplier, goods_receipt, goods_receipt_line, purchase_order</td><td>CRUD + workflow</td><td><span class="badge b-mvp">MVP</span> (PO <span class="badge b-r2">R2</span>)</td></tr>
+<tr><td>Sales</td><td><code>sales</code></td><td>sale, sale_line, sale_line_allocation, sale_return, sale_return_line, held_bill</td><td>Rich domain</td><td><span class="badge b-mvp">MVP</span></td></tr>
+<tr><td>Payments</td><td><code>payments</code></td><td>payment, tender_type, refund_payment</td><td>Rich domain</td><td><span class="badge b-mvp">MVP</span></td></tr>
+<tr><td>Cash</td><td><code>cash</code></td><td>cash_session, cash_movement, cash_count</td><td>Rich domain</td><td><span class="badge b-mvp">MVP</span></td></tr>
+<tr><td>Customers</td><td><code>customers</code></td><td>customer, credit_account, credit_ledger, loyalty_account</td><td>CRUD + ledger</td><td><span class="badge b-mvp">MVP</span> (loyalty <span class="badge b-r2">R2</span>)</td></tr>
+<tr><td>Tax</td><td><code>tax</code></td><td>tax_rate, tax_rule, tax_invoice, credit_note, fiscal_submission</td><td>Rich domain + adapter</td><td><span class="badge b-mvp">MVP</span></td></tr>
+<tr><td>Sync</td><td><code>sync</code></td><td>sync_change_log, sync_cursor, sync_inbox, catalog_snapshot</td><td>Infrastructure</td><td><span class="badge b-mvp">MVP</span></td></tr>
+<tr><td>Reporting</td><td><code>reporting</code></td><td>materialized views (mv_*), report_job</td><td>Read-only</td><td><span class="badge b-mvp">MVP</span></td></tr>
+<tr><td>Notifications</td><td><code>notifications</code></td><td>notification, message_template, outbound_message</td><td>Adapter</td><td><span class="badge b-r2">R2</span></td></tr>
+<tr><td>Pharmacy extension</td><td><code>ext.pharmacy</code></td><td>ph_drug_info, ph_prescription, ph_prescription_line, ph_controlled_register</td><td>Extension</td><td><span class="badge b-r2">R2</span></td></tr>
+<tr><td>Grocery extension</td><td><code>ext.grocery</code></td><td>gr_plu, gr_scale_profile, gr_label_template</td><td>Extension</td><td><span class="badge b-r2">R2</span></td></tr>
+</tbody>
+</table>
+
+<h2 id="dependencies">Dependency rules</h2>
+<ul>
+<li>Allowed direction: <code>extensions → core → platform</code>. Platform never depends on core, and core never depends on an extension.</li>
+<li>Core modules may call another core module's <code>*Api</code> interface only when they need an answer <em>now</em> (inside the same transaction). Everything else uses events.</li>
+<li>Circular dependencies fail the build (<code>ApplicationModules.of(App.class).verify()</code>).</li>
+<li>The Sales module owns the sale transaction. Stock deduction happens in the <em>same</em> database transaction through <code>InventoryApi.allocateAndDeduct()</code>, because money and stock must never drift apart. Events are only for work that can safely happen afterwards (customer stats, notifications, reporting).</li>
+</ul>
+
+<h2 id="details">Module details</h2>
+
+<details open><summary>Sales: records sales, returns and held bills</summary>
+<p><strong>Responsibility.</strong> Turns a register's completed sale into a permanent fact, allocates batches, and records returns linked to original lines. Owns the sale lifecycle.</p>
+<table>
+<tbody>
+<tr><th>Public API</th><td><code>SalesApi.recordSale(RecordSaleCommand)</code>, <code>recordReturn(...)</code>, <code>getSale(saleId)</code>, <code>findByReceipt(receiptNo)</code></td></tr>
+<tr><th>Publishes</th><td><code>SaleCompleted</code>, <code>SaleReturned</code>, <code>SaleException</code> (price mismatch, negative stock, expired batch)</td></tr>
+<tr><th>Consumes</th><td>None. It is called by Sync and by the REST API.</td></tr>
+<tr><th>SPI (extension points)</th><td><code>SaleLineValidator</code>, <code>SaleEnricher</code>, <code>ReceiptSectionProvider</code></td></tr>
+<tr><th>Invariants</th><td><span class="inv">INV-02</span> <span class="inv">INV-05</span> <span class="inv">INV-06</span> <span class="inv">INV-10</span> <span class="inv">INV-14</span></td></tr>
+</tbody>
+</table>
+<p><strong>Key logic.</strong> <code>RecordSale</code>: check idempotency (sale UUID) → validate tenant, branch, register and cash session → run SPI validators (they warn, they never reject) → call <code>InventoryApi.allocateAndDeduct</code> (locks batch rows in <code>batch_id</code> order) → persist sale, lines, allocations and payments → call <code>TaxApi.issueDocument</code> when needed → publish <code>SaleCompleted</code> through the outbox, all in one transaction.</p>
+</details>
+
+<details><summary>Inventory: batches, ledger, balances, counts</summary>
+<p><strong>Responsibility.</strong> The only module that changes stock. Every change is a <code>stock_movement</code> row, and <code>stock_balance</code> is updated in the same transaction as the projection (<span class="inv">INV-04</span>).</p>
+<table>
+<tbody>
+<tr><th>Public API</th><td><code>allocateAndDeduct(AllocationRequest)</code>, <code>receive(ReceiveBatchCommand)</code>, <code>adjust(...)</code>, <code>returnToBatch(...)</code>, <code>availableBatches(skuId, locationId)</code></td></tr>
+<tr><th>Publishes</th><td><code>StockLow</code>, <code>BatchNearExpiry</code>, <code>StockWentNegative</code>, <code>StockAdjusted</code></td></tr>
+<tr><th>Consumes</th><td><code>GoodsReceived</code> (purchasing), <code>TransferShipped</code>/<code>TransferReceived</code> (R2)</td></tr>
+<tr><th>Jobs</th><td>Nightly ledger check: rebuild balances from movements, report drift. Daily expiry scan.</td></tr>
+<tr><th>Movement types</th><td><code>RECEIPT, SALE, RETURN, ADJUST_IN, ADJUST_OUT, COUNT_CORRECTION, TRANSFER_OUT, TRANSFER_IN, SUPPLIER_RETURN, WRITE_OFF_EXPIRED</code></td></tr>
+</tbody>
+</table>
+</details>
+
+<details><summary>Catalog: products, SKUs, barcodes, units</summary>
+<p><strong>Responsibility.</strong> Master data for what can be sold. Products have variants, and every sellable thing is a SKU with one or more barcodes. Units and conversions are defined here (box → pieces).</p>
+<table>
+<tbody>
+<tr><th>Public API</th><td><code>findSkuByBarcode</code>, <code>getSku</code>, <code>importProducts(file)</code> (async job), <code>exportProducts</code></td></tr>
+<tr><th>Publishes</th><td><code>ProductChanged</code>, <code>SkuChanged</code>, <code>BarcodeChanged</code>. Each change also writes <code>sync_change_log</code> rows.</td></tr>
+<tr><th>SPI</th><td><code>ProductAttributeProvider</code> (extensions add fields such as generic name or PLU)</td></tr>
+<tr><th>Item types</th><td><code>STOCKED</code>, <code>SERVICE</code> (no stock, e.g. salon), <code>WEIGHED</code>, <code>NON_INVENTORY</code></td></tr>
+</tbody>
+</table>
+</details>
+
+<details><summary>Pricing: price lists, discounts, promotions</summary>
+<p><strong>Responsibility.</strong> Holds the price for a SKU per branch and price list (retail, wholesale), including batch-level prices. Discount limits per role. Promotions (R2) are rules evaluated by the same logic on the register and the server.</p>
+<table>
+<tbody>
+<tr><th>Public API</th><td><code>priceFor(sku, branch, priceList, batch?)</code>, <code>validateDiscount(user, amount)</code></td></tr>
+<tr><th>SPI</th><td><code>PricingRule</code> (e.g. happy hour, mix &amp; match from extensions)</td></tr>
+<tr><th>Note</th><td>A sale arriving from a register is <em>not</em> repriced. The server compares prices and raises a <code>PRICE_MISMATCH</code> exception if they differ.</td></tr>
+</tbody>
+</table>
+</details>
+
+<details><summary>Payments: payment types, split payments, refunds</summary>
+<p><strong>Responsibility.</strong> Records how a sale was paid: cash, card, LankaQR, customer credit, and later gift card and loyalty points. In the MVP card and QR store only a reference and the last 4 digits from the terminal slip (<span class="inv">INV-11</span>).</p>
+<table>
+<tbody>
+<tr><th>SPI</th><td><code>PaymentProvider</code> (R3: semi-integrated terminal, LankaQR dynamic QR)</td></tr>
+<tr><th>Publishes</th><td><code>PaymentRecorded</code>, <code>RefundRecorded</code></td></tr>
+</tbody>
+</table>
+</details>
+
+<details><summary>Cash: shifts and cash-up</summary>
+<p><strong>Responsibility.</strong> Opening float, cash in/out (petty cash, safe drops), blind count at close, expected vs counted, shortage and overage. One open cash session per register.</p>
+<table>
+<tbody>
+<tr><th>Consumes</th><td><code>SaleCompleted</code>, <code>RefundRecorded</code> (cash totals per session)</td></tr>
+<tr><th>Publishes</th><td><code>ShiftClosed</code> (with variance), <code>CashVarianceExceeded</code></td></tr>
+</tbody>
+</table>
+</details>
+
+<details><summary>Customers: profiles, credit, loyalty</summary>
+<p><strong>Responsibility.</strong> Customer records with minimal personal data. Credit accounts use their own ledger (sale on credit = debit, settlement = credit). Loyalty points follow in R2.</p>
+<table>
+<tbody>
+<tr><th>Consumes</th><td><code>SaleCompleted</code> (credit debit, purchase stats), <code>SaleReturned</code></td></tr>
+<tr><th>Publishes</th><td><code>CreditLimitExceeded</code>, <code>CreditSettled</code></td></tr>
+</tbody>
+</table>
+</details>
+
+<details><summary>Tax: rates, invoices, credit notes, fiscal adapter</summary>
+<p><strong>Responsibility.</strong> The only place tax is calculated and tax documents are issued (<span class="inv">INV-07</span>). Owns tax rate rules with valid-from dates, tax invoice series, credit and debit notes, and the fiscal adapter port.</p>
+<table>
+<tbody>
+<tr><th>Public API</th><td><code>calculate(lines, branch, date)</code>, <code>issueDocument(sale)</code>, <code>issueCreditNote(return)</code></td></tr>
+<tr><th>Port</th><td><code>FiscalGateway</code>: <code>NoopFiscalGateway</code> (MVP), <code>RamisEInvoiceGateway</code> (R3), <code>SecuredPosGateway</code> (R3, spec pending)</td></tr>
+<tr><th>Publishes</th><td><code>TaxDocumentIssued</code>, <code>FiscalSubmissionFailed</code></td></tr>
+<tr><th>Rule</th><td>Submitted documents are never changed. Corrections are new documents (IRD practice for RAMIS).</td></tr>
+</tbody>
+</table>
+</details>
+
+<details><summary>Sync: register pull and push</summary>
+<p><strong>Responsibility.</strong> Serves change feeds and catalog snapshots to registers, and accepts batches of sales, returns, cash events and audit entries. Owns the idempotency inbox. Contains no business rules: it delegates to Sales, Cash and Audit.</p>
+<p>See <a href="offline-sync.html">Offline & sync</a> for the full protocol.</p>
+</details>
+
+<details><summary>Reporting: read models</summary>
+<p><strong>Responsibility.</strong> SQL views and materialized views (<code>mv_daily_sales</code>, <code>mv_stock_valuation</code>, <code>mv_expiry</code>), refreshed by the worker. Uses the read replica when one exists. It may read other modules' tables through <em>views only</em>, which is the one documented exception to <span class="inv">INV-08</span>.</p>
+</details>
+
+<details><summary>Tenancy, IAM, Audit, Devices (platform)</summary>
+<ul>
+<li><strong>Tenancy</strong> resolves the tenant from the token and sets <code>app.tenant_id</code> for RLS on every transaction. It stores per-tenant settings and enabled modules.</li>
+<li><strong>IAM</strong>: users, roles, permissions, password and MFA, refresh token rotation, staff PIN hashes for registers.</li>
+<li><strong>Audit</strong>: <code>AuditApi.record(event)</code> appends a hash-chained entry. Registers push their local audit entries through Sync.</li>
+<li><strong>Devices</strong>: enrollment codes, device keys, heartbeat (app version, queue depth, printer status, last sync), remote lock.</li>
+</ul>
+</details>
+
+<h2 id="events">Domain event catalog</h2>
+<p>Events are published through Spring Modulith's event publication registry, so they are stored in the same transaction as the change and retried until every listener succeeds (<a href="adr.html#adr-007">ADR-007</a>). Listeners must be idempotent.</p>
+<table>
+<thead><tr><th>Event</th><th>Publisher</th><th>Key fields</th><th>Listeners</th></tr></thead>
+<tbody>
+<tr><td><code>SaleCompleted</code></td><td>sales</td><td>tenantId, saleId, branchId, registerId, cashSessionId, customerId?, totals, lines[]</td><td>cash, customers, reporting, notifications, extensions</td></tr>
+<tr><td><code>SaleReturned</code></td><td>sales</td><td>returnId, originalSaleId, lines[], refundTotal</td><td>cash, customers, tax (credit note)</td></tr>
+<tr><td><code>SaleException</code></td><td>sales</td><td>saleId, type (PRICE_MISMATCH, NEGATIVE_STOCK, EXPIRED_BATCH_SOLD, CLOCK_SKEW), details</td><td>notifications, reporting (exception queue)</td></tr>
+<tr><td><code>GoodsReceived</code></td><td>purchasing</td><td>receiptId, supplierId, lines[] with batch, expiry, cost</td><td>inventory</td></tr>
+<tr><td><code>StockLow</code>, <code>BatchNearExpiry</code></td><td>inventory</td><td>skuId, locationId, qty / batchId, expiry</td><td>notifications</td></tr>
+<tr><td><code>ShiftClosed</code></td><td>cash</td><td>cashSessionId, expected, counted, variance</td><td>reporting, notifications</td></tr>
+<tr><td><code>TaxDocumentIssued</code></td><td>tax</td><td>documentId, type, number, saleId</td><td>tax worker (fiscal submission)</td></tr>
+<tr><td><code>ProductChanged</code> etc.</td><td>catalog, pricing</td><td>entity, id, op</td><td>sync (change log), reporting</td></tr>
+</tbody>
+</table>
+
+<h2 id="errors">Error code catalog</h2>
+<p>Every error returned by the API carries a stable code (see <a href="api.html#errors">API errors</a>). Codes are searchable in logs. The prefix tells you which module to look in.</p>
+<table>
+<thead><tr><th>Code</th><th>HTTP</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td><code>AUTH-001</code></td><td>401</td><td>Token missing or expired</td></tr>
+<tr><td><code>AUTH-003</code></td><td>403</td><td>Permission denied (the permission name is in <code>detail</code>)</td></tr>
+<tr><td><code>TEN-001</code></td><td>403</td><td>Tenant suspended</td></tr>
+<tr><td><code>DEV-002</code></td><td>403</td><td>Device not enrolled or locked</td></tr>
+<tr><td><code>DEV-004</code></td><td>426</td><td>Register version too old (below minimum supported)</td></tr>
+<tr><td><code>SYNC-001</code></td><td>200 (per item)</td><td>Duplicate sale UUID: already recorded, original result returned</td></tr>
+<tr><td><code>SYNC-003</code></td><td>409</td><td>Cursor expired, full resync needed</td></tr>
+<tr><td><code>SALE-002</code></td><td>422</td><td>Cash session not open (online-only API)</td></tr>
+<tr><td><code>SALE-005</code></td><td>422</td><td>Return quantity exceeds what can be returned</td></tr>
+<tr><td><code>INV-004</code></td><td>409</td><td>Insufficient stock (only when the tenant uses strict mode online)</td></tr>
+<tr><td><code>PRC-001</code></td><td>403</td><td>Discount above role limit without override</td></tr>
+<tr><td><code>TAX-002</code></td><td>422</td><td>Buyer VAT number invalid for a tax invoice</td></tr>
+<tr><td><code>VAL-001</code></td><td>400</td><td>Validation failed (field errors listed)</td></tr>
+</tbody>
+</table>
+
+</article></main>
+<aside id="toc"></aside>
+</div>
+<script src="assets/search-index.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js"></script>
+<script src="assets/site.js"></script>
+</body>
+</html>

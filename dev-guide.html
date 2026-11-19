@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Developer guide · RetailOS</title>
+<meta name="description" content="Onboarding for RetailOS developers: local setup, coding conventions for Java and TypeScript, module rules, testing strategy, Git workflow, definition of done, how to add a feature and how to debug.">
+<link rel="stylesheet" href="assets/site.css">
+<script>try{var t=localStorage.getItem("retailos-theme");if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
+</head>
+<body>
+<header id="topbar"></header>
+<div class="layout">
+<nav id="sidebar"></nav>
+<main class="content"><article>
+
+<h1>Developer guide</h1>
+<p class="lead">Everything a new developer needs on day one, and what everyone follows every day after. If this page and the code disagree, fix one of them in the same pull request.</p>
+
+<h2 id="day-one">Day one</h2>
+<ol class="steps">
+<li>Read the <a href="index.html">Overview</a>, the <a href="glossary.html">Glossary</a> and the <a href="ai-guide.html#invariants">invariants</a>.</li>
+<li>Set up the local stack (below) and run all tests.</li>
+<li>Walk through one sale: scan → complete → sync → server allocation → report, using <a href="offline-sync.html#sale-path">Offline & sync</a> and <a href="flows.html#record-sale">Key flows</a> next to the code.</li>
+<li>Pick a ticket labelled <code>good-first-issue</code>.</li>
+</ol>
+
+<h2 id="setup">Local setup</h2>
+<p><strong>Prerequisites:</strong> Git, Docker Desktop, JDK 25 (Temurin), Node 22 LTS + pnpm 9, an IDE (IntelliJ IDEA or VS Code). Optional: an 80 mm ESC/POS printer or a network printer emulator.</p>
+<pre><code>git clone &lt;repo-url&gt; retailos &amp;&amp; cd retailos
+cp infra/.env.example infra/.env            # local-only secrets, never commit .env
+docker compose -f infra/docker-compose.yml up -d   # postgres:18, minio, mailpit
+./backend/gradlew -p backend bootRun --args='--spring.profiles.active=local'
+pnpm install
+pnpm --filter admin dev                      # http://localhost:5173
+pnpm --filter register-electron dev          # opens the register window
+pnpm seed                                    # demo tenants: "Lanka Retail" and "City Pharmacy"</code></pre>
+<p>Demo logins and enrollment codes are printed by the seed script and stored in <code>infra/seed/README.md</code>. Never use real credentials locally.</p>
+
+<h2 id="java">Java conventions (backend)</h2>
+<ul>
+<li>Package by module: <code>com.devcity.retailos.&lt;module&gt;</code>. Only the module root, <code>events</code> and <code>spi</code> packages are public. Everything else lives in <code>internal</code>.</li>
+<li>Domain classes have no Spring or JPA annotations in rich modules. Map to persistence entities in <code>persistence/</code>.</li>
+<li>Use <code>BigDecimal</code> for money with the shared <code>Money</code> type (scale 4, <code>RoundingMode.HALF_UP</code>). <code>double</code>/<code>float</code> for money fail the ArchUnit test (<span class="inv">INV-03</span>).</li>
+<li>Use records for DTOs, commands and events. Events are immutable and versioned (<code>SaleCompletedV1</code> when the shape must change).</li>
+<li>One transaction per use case, opened in the application service. Never call a remote service inside a transaction.</li>
+<li>Validate at the edge (Bean Validation on DTOs), and enforce business rules in the domain.</li>
+<li>Errors: throw a <code>DomainException</code> with an error code from the catalog. A global handler maps it to a Problem Details response.</li>
+<li>Formatting: Spotless (google-java-format). Null-safety with JSpecify annotations.</li>
+</ul>
+
+<h2 id="ts">TypeScript conventions (admin and register)</h2>
+<ul>
+<li><code>strict: true</code>, no <code>any</code> (lint error), and <code>zod</code> schemas at the edges (API responses, local DB rows).</li>
+<li>Money and quantity use <code>Decimal</code> from <code>decimal.js</code>, serialised as strings. A lint rule flags arithmetic on money fields.</li>
+<li><code>register-core</code> has no React or shell imports (an ESLint boundary rule enforces this).</li>
+<li>Server state goes through TanStack Query with the generated client. UI state uses React state or Zustand for the register cart. Don't keep global mutable singletons.</li>
+<li>Every user-visible string uses <code>t('key')</code> with keys in <code>packages/i18n/{en,si,ta}.json</code>. CI fails on missing keys in any language.</li>
+<li>Components: functional, typed props, and accessible (labels, focus order, large touch targets on the register: at least 44 px).</li>
+<li>Register UX rules: every action is reachable from the keyboard, no confirmation dialog for routine actions, errors are shown inline in plain language (si/ta/en).</li>
+</ul>
+
+<h2 id="testing">Testing strategy</h2>
+<figure class="diagram">
+<pre class="mermaid">
+flowchart TB
+  E2E["E2E (few)&lt;br/&gt;Playwright: checkout, offline then sync, return, shift close"]
+  INT["Integration (some)&lt;br/&gt;Testcontainers PostgreSQL: RLS, allocation concurrency, sync idempotency, migrations"]
+  MOD["Module tests&lt;br/&gt;Spring Modulith @ApplicationModuleTest, boundary verify()"]
+  UNIT["Unit (many)&lt;br/&gt;JUnit + Vitest: domain rules, pricing, tax, GS1 parser, FEFO"]
+  VEC["Shared test vectors&lt;br/&gt;same JSON cases run in Java AND TypeScript"]
+  E2E --> INT --> MOD --> UNIT
+  UNIT --- VEC
+</pre>
+</figure>
+<table>
+<thead><tr><th>Must-have test</th><th>Proves</th></tr></thead>
+<tbody>
+<tr><td><code>TenantIsolationIT</code></td><td>No cross-tenant reads through any repository or endpoint (<span class="inv">INV-01</span>)</td></tr>
+<tr><td><code>ModularityTest</code></td><td>Module boundaries hold (<span class="inv">INV-08</span>)</td></tr>
+<tr><td><code>SyncIdempotencyIT</code></td><td>Pushing the same sale 3 times records it once and returns the same result (<span class="inv">INV-05</span>)</td></tr>
+<tr><td><code>AllocationConcurrencyIT</code></td><td>50 parallel sales of the same SKU produce no deadlock and correct balances (<span class="inv">INV-04</span>)</td></tr>
+<tr><td><code>LedgerRebuildIT</code></td><td>Balances rebuilt from movements equal stored balances after random operations</td></tr>
+<tr><td><code>TaxVectorsTest</code> (Java + TS)</td><td>Register and server calculate tax and rounding identically</td></tr>
+<tr><td><code>Gs1ParserVectorsTest</code></td><td>GS1 AI parsing, including FNC1 separators and day-00 expiry</td></tr>
+<tr><td><code>offline-day.e2e.ts</code></td><td>A day of offline sales syncs with no gaps or duplicates, including a crash mid-push</td></tr>
+<tr><td><code>MigrationCompatIT</code></td><td>Previous app version runs against the new schema (<span class="inv">INV-13</span>)</td></tr>
+</tbody>
+</table>
+<p><strong>Coverage target:</strong> at least 80% lines on <code>sales</code>, <code>inventory</code>, <code>pricing</code>, <code>tax</code>, <code>sync</code> and <code>register-core</code>. Other modules are covered by meaningful tests, not a number.</p>
+
+<h2 id="git">Git workflow</h2>
+<ul>
+<li>Trunk-based: short-lived branches <code>feat/…</code>, <code>fix/…</code>, merged to <code>main</code> by PR within a few days. Unfinished work goes behind a feature flag.</li>
+<li>Conventional Commits: <code>feat(sales): record batch hint from GS1 scan</code>. These generate the changelog.</li>
+<li>Every PR: CI green, self-review against the checklist below, and a link to the requirement ID (<code>F-103</code>, <code>BR-04</code>…).</li>
+<li>Releases are tagged <code>v1.6.0</code>. The tag builds the installers.</li>
+</ul>
+
+<h2 id="dod">Definition of done</h2>
+<ul>
+<li>Acceptance criteria from the user story pass as automated tests.</li>
+<li>Works offline on the register (if it's a register feature) and survives an app restart.</li>
+<li>Strings translated to si/ta (machine draft allowed, marked for review).</li>
+<li>Permissions checked on the server, and audit entries added for money, stock and permission actions.</li>
+<li>Migration is expand-only, and the API change is additive (or ADR + <code>/v2</code>).</li>
+<li>Metrics and logs added for new failure modes, with a runbook entry if support could hit it.</li>
+<li>Docs updated: module page, data model, flows, and this site's search index (<code>pnpm docs:index</code>).</li>
+</ul>
+
+<h2 id="add-feature">Walkthrough: adding a feature end to end</h2>
+<p>Example: <em>F-209 near-expiry discount suggestion</em>.</p>
+<ol class="steps">
+<li><strong>Spec:</strong> add acceptance criteria to the requirement (or ticket). Decide which module owns it: inventory (expiry) + pricing (suggestion).</li>
+<li><strong>Schema:</strong> <code>V2027_02_10_1__near_expiry_rule.sql</code> adds a <code>near_expiry_rule</code> table with <code>tenant_id</code>, RLS policy and indexes. Add it to <code>TenantIsolationIT</code>.</li>
+<li><strong>Domain:</strong> <code>NearExpiryPolicy</code> in <code>pricing/internal/domain</code>, with unit tests and test vectors.</li>
+<li><strong>API:</strong> <code>GET/PUT /api/v1/pricing/near-expiry-rules</code> with permission <code>price.edit</code>. Regenerate the OpenAPI client.</li>
+<li><strong>Sync:</strong> add the rule to the <code>prices</code> scope in <code>sync_change_log</code> writes, and the local SQLite table + migration in register-core.</li>
+<li><strong>Register:</strong> the cart engine applies the suggestion. The UI shows a badge. i18n keys go in all three languages.</li>
+<li><strong>Admin:</strong> settings screen to edit rules.</li>
+<li><strong>Observe:</strong> counter metric <code>near_expiry_discount_applied_total</code>.</li>
+<li><strong>Docs:</strong> update <a href="modules.html">Modules</a>, <a href="data-model.html">Data model</a> and <a href="requirements.html">Requirements</a> status.</li>
+</ol>
+
+<h2 id="debugging">Debugging locally</h2>
+<ul>
+<li><strong>Backend:</strong> run with the <code>local</code> profile for SQL logging (<code>logging.level.org.springframework.jdbc.core=DEBUG</code> and Hibernate SQL). The Actuator endpoint <code>/actuator/modulith</code> lists modules and events.</li>
+<li><strong>Register:</strong> <kbd>Ctrl+Shift+D</kbd> opens the developer panel (debug builds only): local DB browser, outbox queue, sync log, device bridge simulator (fake printer writes PNG receipts to <code>./tmp/receipts</code>).</li>
+<li><strong>Offline testing:</strong> the developer panel has a <em>Simulate offline</em> toggle. For a real test, block the backend port in the firewall.</li>
+<li><strong>Clock skew:</strong> <code>REGISTER_FAKE_CLOCK=2026-12-31T23:59:00+05:30</code> tests business-date rollover.</li>
+<li><strong>Production issues:</strong> follow <a href="operations.html#debug-sale">Trace a sale end to end</a>. Never connect to production with a superuser for reading. Use the support console or a read-only role.</li>
+</ul>
+
+<h2 id="review">Code review checklist</h2>
+<ul>
+<li>Which invariants does this touch? Are they tested?</li>
+<li>Does any module read another module's table or internal class?</li>
+<li>Money: decimals only, rounding as BR-03?</li>
+<li>Can this fail offline? What does the cashier see?</li>
+<li>Is it safe to retry (idempotent)? Safe to run on two instances (ShedLock)?</li>
+<li>Tenant ID in every query, cache key and job payload?</li>
+<li>N+1 queries, missing indexes, unbounded lists (pagination)?</li>
+<li>Logs free of secrets and personal data?</li>
+<li>Security checklist in <a href="security.html#security-checklist">Security</a> passed?</li>
+</ul>
+
+</article></main>
+<aside id="toc"></aside>
+</div>
+<script src="assets/search-index.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js"></script>
+<script src="assets/site.js"></script>
+</body>
+</html>

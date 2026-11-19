@@ -1,0 +1,42 @@
+# RetailOS system design (DevCity)
+
+> Offline-first, multi-tenant POS and back office for Sri Lankan retail, pharmacy and grocery. Spring Boot modular monolith + PostgreSQL (RLS) backend; one React register app in Electron (Windows) and Capacitor (Android) shells with encrypted SQLite; industry features as extension modules; cloud-agnostic, low-cost hosting. Ready for 2027/2028 VAT e-invoicing and secured-POS rules.
+
+Start with ai/AGENTS.md (rules and invariants) and ai/system-context.md (condensed design). All pages are static HTML; diagrams are Mermaid text inside <pre class="mermaid"> blocks.
+
+## Overview
+- [Overview](index.html): what RetailOS is, key decisions, tech stack, invariants summary, assumptions, open questions
+- [Glossary](glossary.html): business, tax and technical terms
+
+## Business analysis
+- [Requirements & scope](requirements.html): goals, personas, feature catalogue F-xxx with release tags, user stories, business rules BR-xx, non-functional requirements NFR-xx
+- [Roadmap & phases](roadmap.html): MVP phases with exit tests, R2/R3/later scope, team plan, delivery risks
+
+## User interface
+- [Screens & navigation](ui-screens.html): every screen with IDs (register R-xx, admin A-xx, platform console P-xx, printed documents D-xx), navigation maps, roles, release, offline behaviour, detailed specs of key screens, route/file mapping, build order
+- [UI design & wireframes](ui-design.html): design principles, layouts and breakpoints, typography for en/si/ta, colour semantics, component library, register keyboard map, screen states, accessibility, wireframes of key screens and the receipt
+- [DESIGN.md](DESIGN.md): Markdown copy of the design system and all Google Stitch prompts
+- [Google Stitch prompts](stitch-prompts.html): brand palette (#3772FF primary, #22C55E success, #272932, #FDFFFC, #FF7F11, #FF1B1C) with measured contrast rules and light/dark tokens, master prompt, dark-variant prompt, one prompt per screen, state/language/refinement prompts
+
+## Architecture
+- [System architecture](architecture.html): principles, C4 context and containers, register internals, backend layering, quality strategies, repository layout
+- [Technology stack](tech-stack.html): every language, framework, library, tool and external service with version line, role, reason, licence/cost, rejected alternatives, reference hardware, upgrade policy
+- [Backend modules](modules.html): each module's tables, API, events, SPIs; event catalog; error code catalog
+- [Industry extensions](extensions.html): core vs extension, SPIs, register plugins, pharmacy, grocery, restaurant, salon, checklist
+- [Data model](data-model.html): conventions, ER diagrams, key table DDL, row-level security, partitioning, register SQLite schema
+- [Offline & sync](offline-sync.html): authority rules, sale path, outbox states, bootstrap, pull and push protocol, receipt numbering, guard rails, failures
+- [Key flows](flows.html): sale lifecycle, server sale recording, FEFO, GS1 receiving, returns, shifts, overrides, tax invoices, price changes, import, recall
+- [API design](api.html): conventions, headers, Problem Details errors, endpoint catalog, rate limits, OpenAPI
+
+## Security
+- [Security architecture](security.html): STRIDE threat model, authentication, tokens, permission matrix, tenant isolation, device security, encryption, audit, PCI scope, SDLC, PDPA, incident response
+
+## Operations
+- [Deployment & CI/CD](deployment.html): environments, pipeline, topology by stage, container, zero-downtime deploys, migrations, register releases, backups and DR
+- [Monitoring & runbooks](operations.html): observability, metrics and alerts, support console, tracing a sale, maintenance calendar, runbooks RB-01..RB-09
+- [Cost & scaling](cost.html): sizing, monthly cost by stage, cost levers and traps, cost per tenant, scaling triggers
+
+## Engineering
+- [Developer guide](dev-guide.html): setup, Java/TS conventions, testing strategy, Git workflow, definition of done, feature walkthrough, debugging, review checklist
+- [Decision records](adr.html): ADR-001..ADR-014
+- [Guide for AI agents](ai-guide.html): canonical invariants INV-01..INV-15, file map, rules, prompt recipes, verification commands

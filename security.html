@@ -1,0 +1,241 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Security architecture · RetailOS</title>
+<meta name="description" content="RetailOS security: threat model, authentication, permissions matrix, tenant isolation, device and register security, encryption, audit, PCI scope, secure SDLC, privacy (PDPA) and incident response.">
+<link rel="stylesheet" href="assets/site.css">
+<script>try{var t=localStorage.getItem("retailos-theme");if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
+</head>
+<body>
+<header id="topbar"></header>
+<div class="layout">
+<nav id="sidebar"></nav>
+<main class="content"><article>
+
+<h1>Security architecture</h1>
+<p class="lead">A POS handles money, stock, staff and customer data for many businesses at once. The two worst outcomes are one shop seeing another shop's data, and undetected manipulation of sales or cash. Every control below exists to prevent one of those, or to limit the damage if it happens.</p>
+
+<div class="callout">
+<span class="ct">Target</span>
+OWASP ASVS 4.0 level 2 for the backend and admin web, OWASP MASVS L1 for the Android register, and Electron security guidelines for the Windows register. The card-payment design stays out of PCI-DSS scope.
+</div>
+
+<h2 id="threats">Threat model (STRIDE)</h2>
+<figure class="diagram">
+<pre class="mermaid">
+flowchart LR
+  subgraph Untrusted["Untrusted zone"]
+    NET["Internet"]
+    SHOP["Shop PC / tablet&lt;br/&gt;physically accessible"]
+    BROWSER["Admin browser"]
+  end
+  subgraph DMZ["Edge"]
+    PROXY["TLS proxy / WAF&lt;br/&gt;rate limits"]
+  end
+  subgraph Trusted["Private network"]
+    APP["Backend"]
+    DB[("PostgreSQL")]
+    S3[("Object storage")]
+    SEC["Secrets store"]
+  end
+  SHOP -- "TB1: device + user tokens" --> PROXY
+  BROWSER -- "TB2: user tokens, MFA" --> PROXY
+  NET --> PROXY
+  PROXY -- "TB3" --> APP
+  APP -- "TB4: RLS role" --> DB
+  APP --> S3
+  APP --> SEC
+</pre>
+<figcaption>TB = trust boundary. The shop device is treated as hostile: it can be stolen, shared or tampered with.</figcaption>
+</figure>
+<table>
+<thead><tr><th>Threat</th><th>Example</th><th>Controls</th></tr></thead>
+<tbody>
+<tr><td><strong>S</strong>poofing</td><td>A cashier uses a manager's identity. A fake register pushes sales.</td><td>Personal PINs with lockout, device enrollment with key pair, tokens bound to the device, MFA for owners and admins</td></tr>
+<tr><td><strong>T</strong>ampering</td><td>Deleting a sale to steal cash. Editing the local SQLite file.</td><td>Immutable facts (<span class="inv">INV-02</span>), gap-free receipt numbers, encrypted local DB, hash-chained audit log, server-side checks of totals</td></tr>
+<tr><td><strong>R</strong>epudiation</td><td>"I didn't give that 50% discount"</td><td>Every override records user, approver, device, time and reason in the audit log (<span class="inv">INV-09</span>)</td></tr>
+<tr><td><strong>I</strong>nformation disclosure</td><td>Tenant A reads tenant B's sales. A customer list leaks.</td><td>RLS (<span class="inv">INV-01</span>), isolation tests in CI, least-privilege roles, encryption at rest, minimal personal data, no PII in logs</td></tr>
+<tr><td><strong>D</strong>enial of service</td><td>Login brute force. Sync flood from a buggy register.</td><td>Rate limits per IP, account and device; jittered retries; the register works offline anyway</td></tr>
+<tr><td><strong>E</strong>levation of privilege</td><td>A cashier calls a manager-only API directly</td><td>Permission checks on the server for every endpoint (<code>@PreAuthorize</code>), not only hidden UI buttons; deny by default</td></tr>
+</tbody>
+</table>
+
+<h2 id="authn">Authentication</h2>
+<table>
+<thead><tr><th>Actor</th><th>Method</th><th>Details</th></tr></thead>
+<tbody>
+<tr><td>Owner, admin, accountant (web)</td><td>E-mail + password + TOTP MFA</td><td>MFA required for <code>OWNER</code> and <code>ADMIN</code>, optional for others. Passwords: at least 10 characters, checked against a breached-password list (NIST 800-63B), no forced rotation. Argon2id (m=64 MB, t=3, p=1).</td></tr>
+<tr><td>Register device</td><td>Enrollment code → device key pair → device credential</td><td>The device's private key never leaves Windows DPAPI or the Android Keystore. Device tokens are revoked on remote lock.</td></tr>
+<tr><td>Register staff</td><td>4–6 digit PIN on an enrolled device</td><td>Online: checked by the server. Offline: checked against a local hash (Argon2id with a per-user salt), inside the encrypted DB. 5 failures → 5-minute lockout on that device, audited.</td></tr>
+<tr><td>Platform support</td><td>SSO + hardware key (FIDO2) + just-in-time tenant access</td><td>Access to a tenant needs that tenant's consent, expires after 4 h and is logged visibly to the owner.</td></tr>
+</tbody>
+</table>
+<h3 id="tokens">Tokens and sessions</h3>
+<ul>
+<li>Access token: signed JWT (EdDSA or ES256), 10-minute lifetime. Claims: <code>sub, tid (tenant), bid (branch), did (device), roles, ver</code>. Kept in memory, never in <code>localStorage</code>.</li>
+<li>Refresh token: opaque, stored hashed on the server, 30-day sliding lifetime, rotated on every use. If an old one is reused, the whole token family is revoked (theft detection).</li>
+<li>Admin web: the refresh token is in an <code>HttpOnly; Secure; SameSite=Strict</code> cookie scoped to <code>/api/v1/auth</code>.</li>
+<li>Signing keys rotate every 90 days. The JWKS publishes the current and previous key.</li>
+<li>A permission change or user deactivation increments <code>ver</code>. Tokens with an older <code>ver</code> are rejected, checked against a small in-memory cache.</li>
+</ul>
+
+<h2 id="rbac">Authorisation and permission matrix</h2>
+<p>Roles are bundles of fine-grained permissions. Tenants can create custom roles from the same permissions. Checks run on the server for every request, and on the register for offline actions.</p>
+<table>
+<thead><tr><th>Permission</th><th class="c">Owner</th><th class="c">Manager</th><th class="c">Cashier</th><th class="c">Stock keeper</th><th class="c">Pharmacist</th><th class="c">Accountant</th></tr></thead>
+<tbody>
+<tr><td><code>sale.create</code></td><td class="c">✓</td><td class="c">✓</td><td class="c">✓</td><td class="c"></td><td class="c">✓</td><td class="c"></td></tr>
+<tr><td><code>sale.discount.within_limit</code></td><td class="c">✓</td><td class="c">✓</td><td class="c">✓</td><td class="c"></td><td class="c">✓</td><td class="c"></td></tr>
+<tr><td><code>sale.discount.override</code></td><td class="c">✓</td><td class="c">✓</td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td></tr>
+<tr><td><code>sale.void_open</code></td><td class="c">✓</td><td class="c">✓</td><td class="c">✓ (own, reason)</td><td class="c"></td><td class="c">✓</td><td class="c"></td></tr>
+<tr><td><code>refund.create.within_limit</code></td><td class="c">✓</td><td class="c">✓</td><td class="c">✓</td><td class="c"></td><td class="c">✓</td><td class="c"></td></tr>
+<tr><td><code>refund.create.above_limit</code></td><td class="c">✓</td><td class="c">✓</td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td></tr>
+<tr><td><code>price.override_at_till</code></td><td class="c">✓</td><td class="c">✓</td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td></tr>
+<tr><td><code>cash.drawer.no_sale</code></td><td class="c">✓</td><td class="c">✓</td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td></tr>
+<tr><td><code>shift.open_close</code></td><td class="c">✓</td><td class="c">✓</td><td class="c">✓</td><td class="c"></td><td class="c">✓</td><td class="c"></td></tr>
+<tr><td><code>shift.review_variance</code></td><td class="c">✓</td><td class="c">✓</td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td></tr>
+<tr><td><code>stock.receive</code></td><td class="c">✓</td><td class="c">✓</td><td class="c"></td><td class="c">✓</td><td class="c">✓</td><td class="c"></td></tr>
+<tr><td><code>stock.adjust</code></td><td class="c">✓</td><td class="c">✓</td><td class="c"></td><td class="c">✓ (limit)</td><td class="c"></td><td class="c"></td></tr>
+<tr><td><code>batch.block</code></td><td class="c">✓</td><td class="c">✓</td><td class="c"></td><td class="c"></td><td class="c">✓</td><td class="c"></td></tr>
+<tr><td><code>catalog.edit</code></td><td class="c">✓</td><td class="c">✓</td><td class="c"></td><td class="c">✓</td><td class="c"></td><td class="c"></td></tr>
+<tr><td><code>price.edit</code></td><td class="c">✓</td><td class="c">✓</td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td></tr>
+<tr><td><code>customer.credit.manage</code></td><td class="c">✓</td><td class="c">✓</td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c">✓</td></tr>
+<tr><td><code>report.view_profit</code></td><td class="c">✓</td><td class="c">✓</td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c">✓</td></tr>
+<tr><td><code>tax.documents.view</code></td><td class="c">✓</td><td class="c">✓</td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c">✓</td></tr>
+<tr><td><code>user.manage</code></td><td class="c">✓</td><td class="c">branch only</td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td></tr>
+<tr><td><code>device.manage</code></td><td class="c">✓</td><td class="c">✓</td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td></tr>
+<tr><td><code>tenant.settings</code>, <code>tenant.modules</code></td><td class="c">✓</td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td></tr>
+<tr><td><code>audit.view</code></td><td class="c">✓</td><td class="c">✓</td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c">✓</td></tr>
+</tbody>
+</table>
+<p>Users can be scoped to branches (<code>user_role.branch_id</code>). A manager of branch A can't approve anything in branch B.</p>
+
+<h2 id="tenant-isolation">Tenant isolation</h2>
+<ol class="steps">
+<li><strong>Token:</strong> the tenant comes only from the signed token, never from a URL or body.</li>
+<li><strong>Application:</strong> a request filter sets <code>TenantContext</code>, and repositories always filter by <code>tenant_id</code>.</li>
+<li><strong>Database:</strong> <code>set_config('app.tenant_id', …, true)</code> per transaction, with forced RLS on every tenant table. A missing setting fails closed. See <a href="data-model.html#rls">Data model → RLS</a>.</li>
+<li><strong>Storage:</strong> object keys are prefixed <code>tenants/{tenantId}/…</code>. Downloads use 5-minute signed URLs issued after a permission check.</li>
+<li><strong>Caches and jobs:</strong> every cache key and job payload includes the tenant ID. Jobs set the tenant context before touching data.</li>
+<li><strong>Tests:</strong> <code>TenantIsolationIT</code> runs in CI against every repository and every REST endpoint with a token from another tenant.</li>
+</ol>
+
+<h2 id="register-security">Register and device security</h2>
+<table>
+<thead><tr><th>Control</th><th>Windows (Electron)</th><th>Android (Capacitor)</th></tr></thead>
+<tbody>
+<tr><td>Local DB encryption</td><td>SQLCipher (AES-256). Key wrapped with DPAPI (machine + user scope).</td><td>SQLCipher via the community plugin. Key in the Android Keystore.</td></tr>
+<tr><td>App integrity</td><td>Code-signed installer and updates (Authenticode). The updater verifies signatures.</td><td>Play-signed or MDM-distributed APK. Play Integrity check in R3.</td></tr>
+<tr><td>Process hardening</td><td><code>contextIsolation</code>, <code>sandbox</code>, no <code>nodeIntegration</code>, typed IPC allowlist, strict CSP, <code>webSecurity</code> on, no remote content loaded in the window</td><td>No cleartext traffic, WebView debugging off in release builds, exported components minimised</td></tr>
+<tr><td>Transport</td><td colspan="2">TLS 1.2+ only. Certificate pinning to the issuing CA's intermediate (with a backup pin) from R2.</td></tr>
+<tr><td>Kiosk / lockdown</td><td>Optional Windows assigned-access (kiosk) mode guide for shops</td><td>Android screen pinning / MDM kiosk</td></tr>
+<tr><td>Remote control</td><td colspan="2">Remote lock, forced re-sync and log upload, triggered from the support console. A locked device stops selling at the next pull.</td></tr>
+<tr><td>Local logs</td><td colspan="2">Rotated, at most 50 MB. No PINs, tokens or customer phone numbers in logs.</td></tr>
+</tbody>
+</table>
+
+<h2 id="data-protection">Encryption and secrets</h2>
+<ul>
+<li><strong>In transit:</strong> TLS 1.2/1.3 everywhere, HSTS on the admin domain, TLS between the app and the database when they're on different hosts.</li>
+<li><strong>At rest:</strong> encrypted disks and volumes on the database and object storage (provider-managed keys are acceptable). Backups are encrypted with a separate key (age/GPG or the provider's KMS) before leaving the database host.</li>
+<li><strong>Field-level:</strong> customer phone and e-mail are stored plainly for search, but are masked in logs and exports unless the user has permission. Prescription images are encrypted per tenant.</li>
+<li><strong>Secrets:</strong> never in git. Injected as environment variables from the host's secret store (Docker secrets, cloud secret manager, or <code>sops</code>-encrypted files for a VPS). Rotated every 90 days or immediately after a staff change. CI uses short-lived OIDC credentials where the provider supports them.</li>
+</ul>
+
+<h2 id="audit">Audit logging</h2>
+<p>The audit log answers "who did what, when, from which device, and who approved it". It is tamper-evident:</p>
+<pre><code>audit_log(seq, tenant_id, occurred_at, actor_id, approver_id, device_id, action,
+          entity, entity_id, before jsonb, after jsonb, reason, prev_hash, hash)
+
+hash = SHA-256(prev_hash || tenant_id || seq || occurred_at || actor_id || action || entity_id || after)</code></pre>
+<ul>
+<li>The app role has only <code>INSERT</code> and <code>SELECT</code> on <code>audit_log</code> (<span class="inv">INV-09</span>). A nightly job verifies the chain per tenant and alerts on a break.</li>
+<li>Audited actions: login and failures, PIN overrides, voids, refunds, discounts above limit, price changes, no-sale drawer opens, stock adjustments, batch blocks, role and permission changes, device enrollment and lock, settings changes, data exports, support access.</li>
+<li>Registers keep a local audit chain and push it. The server appends it to the tenant chain with the device ID.</li>
+</ul>
+
+<h2 id="pci">Payments and PCI-DSS</h2>
+<div class="callout tip">
+<span class="ct">Stay out of PCI scope (<span class="inv">INV-11</span>)</span>
+Card numbers, CVV and track data never enter RetailOS: no screen, API, log or database ever sees them. In the MVP the card terminal runs standalone, and the cashier records the approval code and last 4 digits. In R3, semi-integrated terminals send us only the result (approved/declined, reference, masked PAN). LankaQR uses dynamic QR codes from the acquirer, and we store only the transaction reference.
+</div>
+
+<h2 id="appsec">Application security controls</h2>
+<table>
+<thead><tr><th>Area</th><th>Control</th></tr></thead>
+<tbody>
+<tr><td>Input validation</td><td>Bean Validation on every DTO. Explicit allowlists for sort fields. Parameterised SQL only, never string-built.</td></tr>
+<tr><td>Output</td><td>React escapes by default. <code>dangerouslySetInnerHTML</code> is banned by a lint rule. Receipts are rendered from templates with escaping.</td></tr>
+<tr><td>File uploads</td><td>Imports and images: size limit, content-type sniffing, images re-encoded, macros ignored when parsing XLSX (Apache POI streaming), stored outside the web root, virus scan optional.</td></tr>
+<tr><td>Admin web headers</td><td>Strict CSP (no inline scripts), <code>X-Content-Type-Options</code>, <code>Referrer-Policy</code>, <code>frame-ancestors 'none'</code>.</td></tr>
+<tr><td>CSRF</td><td>Bearer tokens on API calls. The refresh cookie is <code>SameSite=Strict</code> and only accepted on the refresh endpoint, with an Origin check.</td></tr>
+<tr><td>CORS</td><td>Allowlist of the admin origin only. Registers aren't browsers, so they need no CORS.</td></tr>
+<tr><td>SSRF</td><td>The backend makes outbound calls only to configured integration hosts (IRD, SMS gateway), through an egress allowlist.</td></tr>
+<tr><td>Mass assignment</td><td>Separate request DTOs. Entities are never bound directly from JSON.</td></tr>
+<tr><td>Business logic</td><td>Server re-checks totals = sum(lines) and payments ≥ total. Discount and refund limits are checked on the server too (the register can be tampered with).</td></tr>
+</tbody>
+</table>
+
+<h2 id="sdlc">Secure development lifecycle</h2>
+<figure class="diagram">
+<pre class="mermaid">
+flowchart LR
+  A["Commit&lt;br/&gt;pre-commit secret scan"] --> B["Pull request&lt;br/&gt;review checklist"]
+  B --> C["CI&lt;br/&gt;tests, SAST, deps, licences"]
+  C --> D["Build image&lt;br/&gt;SBOM + container scan"]
+  D --> E["Staging&lt;br/&gt;DAST baseline scan"]
+  E --> F["Production&lt;br/&gt;signed image only"]
+</pre>
+</figure>
+<table>
+<thead><tr><th>Stage</th><th>Tool (free or low cost)</th><th>Gate</th></tr></thead>
+<tbody>
+<tr><td>Secrets</td><td>gitleaks (pre-commit and CI)</td><td>Any finding blocks the merge</td></tr>
+<tr><td>SAST</td><td>Semgrep or CodeQL</td><td>High findings block the merge</td></tr>
+<tr><td>Dependencies</td><td>Renovate/Dependabot + OSV-Scanner</td><td>Critical CVEs block. Fix high within 14 days (NFR-08).</td></tr>
+<tr><td>Container</td><td>Trivy, distroless/temurin-jre base, non-root user, read-only filesystem</td><td>Critical CVEs block</td></tr>
+<tr><td>SBOM</td><td>CycloneDX (Gradle and npm plugins)</td><td>Stored with each release</td></tr>
+<tr><td>DAST</td><td>OWASP ZAP baseline against staging</td><td>Reviewed before each release</td></tr>
+<tr><td>Pen test</td><td>External test before general availability, then yearly</td><td>Fix critical and high before launch</td></tr>
+</tbody>
+</table>
+
+<h2 id="privacy">Privacy and data protection</h2>
+<p>Sri Lanka's Personal Data Protection Act, No. 9 of 2022, applies to customer and staff data. RetailOS is the <em>processor</em>, and each shop is the <em>controller</em> for its customers. Confirm current obligations with legal counsel, because operational dates have been phased.</p>
+<ul>
+<li><strong>Minimise:</strong> only a name and phone number are needed for credit and loyalty. No national ID numbers unless a regulator requires them (for example for controlled drugs, Q-03).</li>
+<li><strong>Consent:</strong> marketing needs an explicit opt-in, stored with time and source (F-305).</li>
+<li><strong>Rights:</strong> export and erasure of a customer's personal data (F-1006). Erasure anonymises the customer but keeps sales and tax facts, which have their own legal retention.</li>
+<li><strong>Data residency:</strong> choose a hosting region near Sri Lanka (e.g. Mumbai or Singapore) and document it in the customer contract.</li>
+<li><strong>Agreements:</strong> a data processing agreement in the tenant terms, and a list of sub-processors (hosting, SMS, e-mail).</li>
+</ul>
+
+<h2 id="incident">Incident response</h2>
+<ol class="steps">
+<li><strong>Detect:</strong> alerts for auth failure spikes, RLS errors, audit chain breaks, unusual exports, register tokens used from new countries.</li>
+<li><strong>Contain:</strong> revoke tokens (bump user or tenant <code>ver</code>), lock devices, rotate secrets, disable affected integrations. Runbook <a href="operations.html#rb-security">RB-07</a>.</li>
+<li><strong>Assess:</strong> use the audit log and access logs to find which tenants and records were affected.</li>
+<li><strong>Notify:</strong> affected shop owners within 72 hours, and regulators as the law requires.</li>
+<li><strong>Recover and learn:</strong> fix, restore if needed, write a blameless post-mortem, and add a test or alert that would have caught it.</li>
+</ol>
+
+<h2 id="security-checklist">Security checklist for every pull request</h2>
+<ul>
+<li>New endpoint has <code>@PreAuthorize</code> with a specific permission, plus a test proving a cashier token is refused.</li>
+<li>New table has <code>tenant_id</code>, an RLS policy and a row in <code>TenantIsolationIT</code>.</li>
+<li>No secrets, tokens, PINs or personal data in logs, errors or analytics.</li>
+<li>Money uses <code>BigDecimal</code>/<code>decimal.js</code>. Inputs are validated with limits (max quantity, max discount).</li>
+<li>Audit entry added for any action on money, stock, permissions or settings.</li>
+<li>New dependency checked for licence and maintenance status.</li>
+</ul>
+
+</article></main>
+<aside id="toc"></aside>
+</div>
+<script src="assets/search-index.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js"></script>
+<script src="assets/site.js"></script>
+</body>
+</html>

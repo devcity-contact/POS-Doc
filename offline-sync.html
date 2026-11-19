@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Offline & sync · RetailOS</title>
+<meta name="description" content="How RetailOS registers sell offline and sync: bootstrap, pull change feed, push sales, idempotency, receipt numbering, conflict rules and failure handling.">
+<link rel="stylesheet" href="assets/site.css">
+<script>try{var t=localStorage.getItem("retailos-theme");if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
+</head>
+<body>
+<header id="topbar"></header>
+<div class="layout">
+<nav id="sidebar"></nav>
+<main class="content"><article>
+
+<h1>Offline & sync</h1>
+<p class="lead">Every sale follows the same path whether the network is up or down. The register sells from its own database, then a background engine pulls reference data and pushes facts. This is the largest technical risk in the product, so this page defines the protocol exactly.</p>
+
+<div class="callout danger">
+<span class="ct">The three rules that make sync safe</span>
+<ol style="margin:4px 0 0">
+<li><strong>Facts come from the register, reference data from the server</strong> (<span class="inv">INV-12</span>). The server never rejects a completed sale (<span class="inv">INV-02</span>).</li>
+<li><strong>Every fact has a client-generated UUID</strong>, and pushing it twice is harmless (<span class="inv">INV-05</span>).</li>
+<li><strong>Receipt numbers are allocated locally, gap-free, per register</strong> (<span class="inv">INV-06</span>).</li>
+</ol>
+</div>
+
+<h2 id="authority">Who owns what</h2>
+<table>
+<thead><tr><th>Data</th><th>Authority</th><th>Direction</th><th>On disagreement</th></tr></thead>
+<tbody>
+<tr><td>Products, SKUs, barcodes, prices, tax rates</td><td>Server</td><td>Pull</td><td>The server version overwrites the local copy</td></tr>
+<tr><td>Batches (open, this branch) and estimated stock</td><td>Server</td><td>Pull</td><td>The local estimate is replaced on each pull</td></tr>
+<tr><td>Users, roles, PIN hashes, settings, enabled modules</td><td>Server</td><td>Pull (high priority)</td><td>Server wins. A locked user is locked at the next pull.</td></tr>
+<tr><td>Customers (credit-enabled, recent)</td><td>Server</td><td>Pull</td><td>Server wins. A customer created on the register is pushed as a fact first.</td></tr>
+<tr><td>Sales, returns, payments</td><td>Register</td><td>Push</td><td>Server records them as-is and raises exceptions for review</td></tr>
+<tr><td>Cash sessions, cash movements, counts</td><td>Register</td><td>Push</td><td>Server records them as-is</td></tr>
+<tr><td>Local audit entries, device heartbeat</td><td>Register</td><td>Push</td><td>Appended</td></tr>
+<tr><td>Held bills, cart drafts</td><td>Register only</td><td>Never synced</td><td>Not applicable</td></tr>
+</tbody>
+</table>
+
+<h2 id="sale-path">The path of one sale</h2>
+<figure class="diagram">
+<pre class="mermaid">
+sequenceDiagram
+  autonumber
+  actor C as Cashier
+  participant UI as Register UI
+  participant CORE as register-core
+  participant DB as Local SQLite
+  participant PR as Printer
+  participant SE as Sync engine
+  participant API as Sync API
+  participant S as Sales module
+  C->>UI: Scan items, take payment, Complete
+  UI->>CORE: completeSale(cart, payments)
+  CORE->>DB: BEGIN
+  CORE->>DB: next receipt_seq for this register
+  CORE->>DB: insert sale, lines, payments (status COMPLETED)
+  CORE->>DB: insert outbox row (kind SALE, sale UUID)
+  CORE->>DB: COMMIT
+  CORE->>PR: print receipt, kick drawer
+  Note over SE,API: Later, whenever the network is available
+  SE->>DB: read up to 50 pending outbox rows, oldest first
+  SE->>API: POST /sync/v1/push (batch)
+  API->>S: recordSale(saleUUID) for each item
+  S->>S: idempotency check, FEFO allocation, stock movements, outbox events
+  S-->>API: ACCEPTED or DUPLICATE or ACCEPTED_WITH_EXCEPTION
+  API-->>SE: per-item results
+  SE->>DB: mark outbox rows SENT, store server results
+</pre>
+<figcaption>The commit happens before printing. If the power fails after the commit, the sale exists and the receipt can be reprinted.</figcaption>
+</figure>
+
+<h3 id="outbox-states">Outbox item states</h3>
+<figure class="diagram">
+<pre class="mermaid">
+stateDiagram-v2
+  [*] --> PENDING: sale committed locally
+  PENDING --> IN_FLIGHT: picked by sync engine
+  IN_FLIGHT --> SENT: ACCEPTED / DUPLICATE / ACCEPTED_WITH_EXCEPTION
+  IN_FLIGHT --> PENDING: network error or 5xx (retry with backoff)
+  IN_FLIGHT --> BLOCKED: 4xx validation error (bug or corrupt payload)
+  BLOCKED --> PENDING: support fixes cause and requeues
+  SENT --> [*]: purged after 30 days
+</pre>
+<figcaption>BLOCKED items raise an alert in the support console. They are never dropped silently.</figcaption>
+</figure>
+
+<h2 id="bootstrap">Enrolling and bootstrapping a register</h2>
+<ol class="steps">
+<li>A manager creates the register in the admin app and gets a one-time <strong>enrollment code</strong>, valid for 15 minutes.</li>
+<li>The register app generates a device key pair, held by Windows DPAPI or the Android Keystore, and calls <code>POST /api/v1/devices/enroll</code> with the code and its public key. It receives a device ID and device credentials.</li>
+<li>The register downloads the latest <strong>catalog snapshot</strong>: a gzipped NDJSON file per scope, built nightly per tenant and branch, stored in object storage and fetched with a short-lived signed URL. It loads the snapshot into SQLite.</li>
+<li>It then pulls changes since the snapshot's cursor (delta).</li>
+<li>The server tells it the next receipt sequence: 1 for a new register, or the last known sequence + 1 for a <em>replaced</em> device on an existing register.</li>
+<li>The register is ready once staff can sign in with a PIN and a test receipt prints.</li>
+</ol>
+
+<h2 id="pull">Pull: the change feed</h2>
+<pre><code>GET /sync/v1/changes?scopes=catalog,prices,batches,staff,taxes,settings&amp;cursor=184220&amp;limit=1000
+Authorization: Bearer &lt;device+user token&gt;
+X-Register-Id: 0190f3c2-...       X-App-Version: 1.4.2
+
+200 OK
+{
+  "cursor": 185220,
+  "hasMore": true,
+  "changes": [
+    { "seq": 184221, "scope": "prices", "entity": "price_list_item", "op": "UPSERT",
+      "id": "0190f3...", "data": { "skuId": "...", "unitId": "...", "price": "320.0000", "validFrom": "2026-11-20T00:00:00Z" } },
+    { "seq": 184222, "scope": "catalog", "entity": "barcode", "op": "DELETE", "id": "0190aa..." }
+  ]
+}</code></pre>
+<ul>
+<li>The register applies each page in <strong>one local transaction</strong> and stores the new cursor in the same transaction, so a crash in the middle is safe.</li>
+<li>Changes are filtered on the server by tenant, by branch (when <code>branch_id</code> is set) and by enabled modules.</li>
+<li><code>staff</code> and <code>settings</code> scopes are pulled first and more often (every 60 s while online), so a blocked user or a recalled batch takes effect quickly.</li>
+<li>If the cursor is older than the compaction window (30 days), the server returns <code>409 SYNC-003</code> and the register downloads a fresh snapshot.</li>
+<li>Responses are gzip-compressed. A typical delta is a few KB. This keeps mobile-data and cloud egress costs low.</li>
+</ul>
+
+<h2 id="push">Push: sending facts</h2>
+<pre><code>POST /sync/v1/push
+{
+  "registerId": "0190f3c2-...",
+  "items": [
+    { "kind": "CASH_SESSION_OPENED", "id": "0191a0...", "payload": { ... } },
+    { "kind": "SALE", "id": "0191a1...", "payload": {
+        "receiptNo": "CMB01-R02-000154", "receiptSeq": 154,
+        "cashSessionId": "0191a0...", "completedAt": "2026-11-19T04:12:09.120Z",
+        "deviceSeq": 9123, "priceListId": "...",
+        "lines": [ { "id": "...", "skuId": "...", "qty": "2.000", "unitId": "...",
+                     "unitPrice": "320.0000", "discount": "0", "taxRate": "18.0000",
+                     "taxAmount": "97.6271", "lineTotal": "640.0000", "batchHint": null } ],
+        "payments": [ { "id": "...", "tender": "CASH", "amount": "1000.0000" } ],
+        "change": "360.0000", "grandTotal": "640.0000" } }
+  ]
+}
+
+200 OK
+{ "results": [
+  { "id": "0191a0...", "status": "ACCEPTED" },
+  { "id": "0191a1...", "status": "ACCEPTED_WITH_EXCEPTION",
+    "exceptions": [ { "code": "NEGATIVE_STOCK", "skuId": "...", "onHand": "-1.000" } ] }
+] }</code></pre>
+<ul>
+<li><strong>Order matters.</strong> Items are pushed in local creation order (<code>deviceSeq</code>), so a cash session is opened before its sales and a sale is recorded before its return.</li>
+<li><strong>Each item is its own server transaction.</strong> One bad item doesn't block the rest. If an item fails because something it depends on is missing, that item is retried. Items for <em>other</em> cash sessions are not held back.</li>
+<li><strong>Idempotency.</strong> The server first checks <code>sync_inbox</code>. If the ID exists, it returns the stored result with status <code>DUPLICATE</code>. The inbox row and the sale are written in the same transaction.</li>
+<li><strong>Retry policy.</strong> Exponential backoff (2 s, 4 s, 8 s … capped at 5 min) with jitter, so 300 registers coming back online after an outage don't all hit the server at once.</li>
+<li><strong>Batch size.</strong> Up to 50 items or 512 KB per request.</li>
+</ul>
+
+<h2 id="receipts">Receipt numbering</h2>
+<p>Format: <code>{branchCode}-{registerCode}-{seq:6}</code>, e.g. <code>CMB01-R02-000154</code>. Tax invoices use their own series, e.g. <code>CMB01-R02-TI-000031</code>.</p>
+<ul>
+<li>The sequence is incremented inside the same local transaction that completes the sale, so there are no gaps and no duplicates on that register.</li>
+<li>Each register has its own sequence, so registers never coordinate with each other, online or offline.</li>
+<li>Voided <em>open</em> sales never get a number. Only completed sales do.</li>
+<li><strong>Receipt collision.</strong> If the server receives the same <code>(register, seq)</code> with a different sale ID (for example after a register was restored from an old backup), it records both, raises <code>RECEIPT_COLLISION</code>, locks the register and tells support. The register must re-sync its sequence from the server before it sells again.</li>
+</ul>
+
+<h2 id="offline-rules">Offline guard rails</h2>
+<table>
+<thead><tr><th>Situation</th><th>Register behaviour</th></tr></thead>
+<tbody>
+<tr><td>Offline for more than 24 h (configurable)</td><td>A yellow banner says prices may be out of date. Selling continues.</td></tr>
+<tr><td>Offline for more than 72 h (configurable)</td><td>A red banner. A manager PIN is needed each day to continue (limits the risk from a stolen device).</td></tr>
+<tr><td>Credit sale offline</td><td>Checks the last synced balance plus this register's unsynced credit sales. Going over the limit needs a manager override.</td></tr>
+<tr><td>Loyalty redemption offline <span class="badge b-r2">R2</span></td><td>Capped per customer per day, so points can't be double-spent on two registers.</td></tr>
+<tr><td>Stock shown offline</td><td>Last pulled balance minus local unsynced sales. Shown as an estimate, never used to block a sale.</td></tr>
+<tr><td>Expired batch, data stale</td><td>Warns and asks for confirmation. The server raises <code>EXPIRED_BATCH_SOLD</code> (BR-09).</td></tr>
+<tr><td>Returns of sales from another register</td><td>Online: looked up on the server. Offline: allowed with a manager PIN, using the receipt barcode data. Checked by the server on push.</td></tr>
+<tr><td>Recalled or blocked batch</td><td>Blocked as soon as the high-priority pull arrives. Earlier sales are reported.</td></tr>
+</tbody>
+</table>
+
+<h2 id="clock">Clocks and dates</h2>
+<ul>
+<li>The register sends <code>completedAt</code> (device clock) and a monotonic <code>deviceSeq</code>. The server adds <code>received_at</code>.</li>
+<li>Every sync response includes the server time. If the device clock is off by more than 5 minutes, the register warns, and the server tags pushed sales with a <code>CLOCK_SKEW</code> exception.</li>
+<li><code>business_date</code> is taken from the cash session's opening date in the branch time zone, so a shift that runs past midnight stays on one business day.</li>
+</ul>
+
+<h2 id="failures">Failure scenarios</h2>
+<table>
+<thead><tr><th>Failure</th><th>What happens</th><th>Recovery</th></tr></thead>
+<tbody>
+<tr><td>Power cut mid-sale</td><td>SQLite in WAL mode: the sale is either fully committed or not there at all</td><td>On restart the uncommitted cart is restored from <code>cart_draft</code>. A committed sale offers a receipt reprint.</td></tr>
+<tr><td>Network drops during push</td><td>The server may or may not have committed</td><td>The retry is safe: the server answers <code>DUPLICATE</code> (<span class="inv">INV-05</span>).</td></tr>
+<tr><td>Server down for hours</td><td>The queue grows locally. Selling is unaffected.</td><td>The backlog drains with jittered backoff.</td></tr>
+<tr><td>Bug makes the server reject a payload (4xx)</td><td>The item is <code>BLOCKED</code>, later items continue, and support is alerted</td><td>Fix and deploy, then requeue from the support console.</td></tr>
+<tr><td>Disk full on register</td><td>The app checks free space at startup and every hour, and warns below 500 MB</td><td>Purge SENT rows and logs. Selling stops only if a sale can't be written.</td></tr>
+<tr><td>Register PC dies with unsynced sales</td><td>Those sales are only on that disk</td><td>Copy the encrypted database to a new PC and enroll it as a <em>replacement</em> device for the same register. Recommended: a nightly encrypted local copy to a USB drive or second disk.</td></tr>
+<tr><td>Device stolen</td><td>The local database is encrypted. The key is bound to the OS account and device.</td><td>Lock the device remotely. Its tokens are revoked and pushes are refused.</td></tr>
+</tbody>
+</table>
+
+<h2 id="multi-register">Several registers in one branch</h2>
+<p>Registers don't talk to each other. Each one sees other registers' sales through the server after both have synced, usually within a minute while online. During a long internet outage, stock estimates on each register drift apart. This is acceptable because sales are never blocked on stock. Peer-to-peer sync over the shop's local network is a possible later enhancement (<span class="badge b-later">Later</span>), needed mainly by the restaurant module.</p>
+
+</article></main>
+<aside id="toc"></aside>
+</div>
+<script src="assets/search-index.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js"></script>
+<script src="assets/site.js"></script>
+</body>
+</html>

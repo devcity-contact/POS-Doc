@@ -1,0 +1,280 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>System architecture · RetailOS</title>
+<meta name="description" content="C4 context and container diagrams, register internals, backend module layout, architecture principles and quality strategies for RetailOS.">
+<link rel="stylesheet" href="assets/site.css">
+<script>try{var t=localStorage.getItem("retailos-theme");if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
+</head>
+<body>
+<header id="topbar"></header>
+<div class="layout">
+<nav id="sidebar"></nav>
+<main class="content"><article>
+
+<h1>System architecture</h1>
+<p class="lead">RetailOS has three deployable parts: a modular monolith backend, an admin web app, and a register app packaged for Windows and Android. This page shows how they fit together, from the outside in, following the C4 model.</p>
+
+<h2 id="principles">Architecture principles</h2>
+<table>
+<thead><tr><th>#</th><th>Principle</th><th>What it means in practice</th></tr></thead>
+<tbody>
+<tr><td>P1</td><td><strong>The till never stops</strong></td><td>Anything a cashier does works offline. The network is for syncing, not for selling.</td></tr>
+<tr><td>P2</td><td><strong>Facts are immutable</strong></td><td>Sales, payments, stock movements and audit entries are only ever appended. Corrections are new records (<span class="inv">INV-02</span>, <span class="inv">INV-04</span>).</td></tr>
+<tr><td>P3</td><td><strong>One deployable, many modules</strong></td><td>One backend process with strict internal boundaries. No microservices until a measurement justifies one (<span class="inv">INV-08</span>).</td></tr>
+<tr><td>P4</td><td><strong>Core stays generic</strong></td><td>Industry behaviour lives in extension modules that plug into named extension points.</td></tr>
+<tr><td>P5</td><td><strong>Boring, portable infrastructure</strong></td><td>Containers, PostgreSQL and S3-compatible storage. No vendor-only services in the core path.</td></tr>
+<tr><td>P6</td><td><strong>Secure by default</strong></td><td>Tenant isolation in the database, least privilege, encrypted at rest and in transit, audit everything that touches money.</td></tr>
+<tr><td>P7</td><td><strong>Observable from afar</strong></td><td>Every register and request can be traced remotely by sale UUID, register ID and trace ID.</td></tr>
+<tr><td>P8</td><td><strong>Simple until proven otherwise</strong></td><td>Build Redis, Kafka, Kubernetes, CQRS read stores or WebSockets only when a measured need appears. Record the trigger in an ADR.</td></tr>
+</tbody>
+</table>
+
+<h2 id="context">Level 1: system context</h2>
+<figure class="diagram">
+<pre class="mermaid">
+flowchart TB
+  cashier(["Cashier / pharmacist"])
+  manager(["Owner / manager / accountant"])
+  support(["DevCity support"])
+  customer(["Customer"])
+  subgraph RetailOS["RetailOS platform"]
+    sys["RetailOS&lt;br/&gt;POS + back office"]
+  end
+  ird["IRD RAMIS&lt;br/&gt;e-invoicing / secured POS"]
+  sms["SMS / e-mail / WhatsApp&lt;br/&gt;gateways"]
+  pay["Card terminal / LankaQR&lt;br/&gt;acquirers (R3)"]
+  acc["Accounting software&lt;br/&gt;QuickBooks · Xero · Zoho (R3)"]
+  cashier -->|"sells, receives, returns"| sys
+  manager -->|"configures, reports, approves"| sys
+  support -->|"monitors, onboards"| sys
+  sys -->|"receipts, offers"| customer
+  sys -.->|"invoices, credit notes"| ird
+  sys -.->|"messages"| sms
+  sys -.->|"payment status"| pay
+  sys -.->|"journals"| acc
+</pre>
+<figcaption>Dashed lines are external integrations behind adapters. They are optional and released later.</figcaption>
+</figure>
+
+<h2 id="containers">Level 2: containers</h2>
+<figure class="diagram">
+<pre class="mermaid">
+flowchart LR
+  subgraph Shop["In the shop"]
+    direction TB
+    REG["Register app&lt;br/&gt;React + TS&lt;br/&gt;Electron (Win) / Capacitor (Android)"]
+    LDB[("Local SQLite&lt;br/&gt;encrypted")]
+    DEV["Device bridge&lt;br/&gt;ESC/POS printer · drawer&lt;br/&gt;scanner · scale"]
+    REG --> LDB
+    REG --> DEV
+  end
+  subgraph Office["Anywhere"]
+    ADM["Admin web app&lt;br/&gt;React SPA"]
+  end
+  subgraph Cloud["Cloud (any provider)"]
+    direction TB
+    EDGE["Reverse proxy / CDN&lt;br/&gt;TLS, rate limits"]
+    APP["RetailOS backend&lt;br/&gt;Spring Boot modular monolith&lt;br/&gt;REST + Sync API"]
+    WRK["Same image, worker profile&lt;br/&gt;outbox, reports, exports"]
+    PG[("PostgreSQL&lt;br/&gt;primary + replica later")]
+    S3[("Object storage&lt;br/&gt;images · snapshots · backups")]
+    OBS["Logs · metrics · traces&lt;br/&gt;error tracking"]
+    EDGE --> APP
+    APP --> PG
+    WRK --> PG
+    APP --> S3
+    WRK --> S3
+    APP -.-> OBS
+    WRK -.-> OBS
+  end
+  REG -->|"HTTPS: /sync/v1, /api/v1"| EDGE
+  ADM -->|"HTTPS: /api/v1"| EDGE
+  REG -->|"catalog snapshot download"| S3
+</pre>
+<figcaption>Backend and worker run the same container image with different Spring profiles. In the MVP they can run as one process.</figcaption>
+</figure>
+
+<table>
+<thead><tr><th>Container</th><th>Responsibility</th><th>Technology</th><th>Scales by</th></tr></thead>
+<tbody>
+<tr><td>Register app</td><td>Checkout, returns, shift, receiving at the counter. Offline store and sync engine.</td><td>React, TypeScript, SQLite, Electron/Capacitor</td><td>One per counter. Load is on the device, not the cloud.</td></tr>
+<tr><td>Admin web app</td><td>Catalog, pricing, stock, users, reports, settings</td><td>React SPA served as static files from a CDN or bucket</td><td>Static files, practically free</td></tr>
+<tr><td>Backend (api profile)</td><td>REST API, sync API, auth, business modules</td><td>Spring Boot 4, Java 25, virtual threads</td><td>Stateless: add instances behind the proxy</td></tr>
+<tr><td>Backend (worker profile)</td><td>Outbox dispatch, report refresh, exports, alerts, e-invoice submission</td><td>Same image; scheduled jobs with ShedLock</td><td>One active instance per job (lock)</td></tr>
+<tr><td>PostgreSQL</td><td>System of record for every tenant</td><td>PostgreSQL 18, RLS, partitioned fact tables</td><td>Vertical, then read replica, then partitioning</td></tr>
+<tr><td>Object storage</td><td>Product images, catalog snapshots, exports, encrypted backups</td><td>Any S3-compatible service</td><td>Unlimited</td></tr>
+</tbody>
+</table>
+
+<h2 id="register">Inside the register app</h2>
+<p>The register is where most of the complexity sits, because it must behave correctly with no server. It is built in layers so the business logic is shared by both shells and can be tested in plain Node.</p>
+<figure class="diagram">
+<pre class="mermaid">
+flowchart TB
+  subgraph UI["apps/register (React UI)"]
+    SCR["Screens: Checkout · Returns · Shift · Receiving · Settings"]
+    EXTUI["Extension UI slots&lt;br/&gt;pharmacy · grocery"]
+  end
+  subgraph CORE["packages/register-core (pure TypeScript, no DOM)"]
+    CART["Cart engine&lt;br/&gt;lines, batches, discounts"]
+    PRICE["Pricing + promotions"]
+    TAX["Tax calculator&lt;br/&gt;shared test vectors"]
+    SALE["Sale completion&lt;br/&gt;receipt numbering"]
+    SHIFT["Shift / cash session"]
+  end
+  subgraph INFRA["Infrastructure ports"]
+    STORE["LocalStore port&lt;br/&gt;SQL repositories"]
+    SYNC["Sync engine&lt;br/&gt;pull cursor · push queue"]
+    BRIDGE["DeviceBridge port&lt;br/&gt;print · drawer · scan · scale"]
+    AUTH["Session + PIN auth"]
+  end
+  subgraph SHELL["Platform shells (adapters)"]
+    EL["Electron main process&lt;br/&gt;better-sqlite3 + SQLCipher&lt;br/&gt;node-usb / net printer"]
+    CAP["Capacitor plugins&lt;br/&gt;community sqlite (encrypted)&lt;br/&gt;USB / BT printer plugin"]
+  end
+  SCR --> CART
+  EXTUI --> CART
+  CART --> PRICE
+  CART --> TAX
+  SCR --> SALE
+  SALE --> STORE
+  SALE --> BRIDGE
+  SHIFT --> STORE
+  SYNC --> STORE
+  STORE --> EL
+  STORE --> CAP
+  BRIDGE --> EL
+  BRIDGE --> CAP
+</pre>
+<figcaption>Business rules live in register-core and never import a shell. Shells only implement ports.</figcaption>
+</figure>
+
+<h3 id="register-rules">Register design rules</h3>
+<ul>
+<li><code>register-core</code> has no React, DOM, Electron or Capacitor imports. It runs under Vitest in Node.</li>
+<li>Ports are TypeScript interfaces: <code>LocalStore</code>, <code>DeviceBridge</code>, <code>Clock</code>, <code>IdGenerator</code>, <code>SyncTransport</code>. Each shell provides adapters. Tests use fakes.</li>
+<li>Electron security: <code>contextIsolation: true</code>, <code>nodeIntegration: false</code>, <code>sandbox: true</code>. The renderer reaches native code only through a typed IPC allowlist exposed by <code>preload.ts</code>.</li>
+<li>All money math uses <code>decimal.js</code> (<span class="inv">INV-03</span>). Tax and price calculations are tested against <code>shared/test-vectors/*.json</code>, the same files the Java tests use, so the register and server can't disagree.</li>
+<li>The UI never writes SQL. Screens call core use cases, and use cases call the store.</li>
+</ul>
+
+<h2 id="backend">Inside the backend</h2>
+<p>One Spring Boot application, split into modules under <code>com.devcity.retailos.&lt;module&gt;</code>. Spring Modulith checks in CI that no module reaches into another's internals (<span class="inv">INV-08</span>).</p>
+<figure class="diagram">
+<pre class="mermaid">
+flowchart TB
+  subgraph Platform["Platform (shared kernel)"]
+    TEN["tenancy"]
+    IAM["identity &amp; access"]
+    AUD["audit"]
+    SHR["shared: Money, IDs, errors"]
+  end
+  subgraph Core["Core business modules"]
+    CAT["catalog"]
+    PRC["pricing"]
+    INV["inventory"]
+    SAL["sales"]
+    PAY["payments"]
+    CSH["cash (shifts)"]
+    CUS["customers"]
+    PUR["purchasing"]
+    TAXM["tax"]
+  end
+  subgraph Edge["Edge modules"]
+    SYN["sync"]
+    REP["reporting"]
+    NOT["notifications"]
+    DEVM["devices"]
+  end
+  subgraph Ext["Industry extensions"]
+    PH["ext-pharmacy"]
+    GR["ext-grocery"]
+  end
+  SAL --> CAT
+  SAL --> PRC
+  SAL --> TAXM
+  SAL -. "SaleCompleted event" .-> INV
+  SAL -. "event" .-> CUS
+  SAL -. "event" .-> CSH
+  PUR -. "GoodsReceived event" .-> INV
+  SYN --> SAL
+  SYN --> CAT
+  REP -. "reads views" .-> SAL
+  PH --> CAT
+  PH -. "implements SPI" .-> SAL
+  GR -. "implements SPI" .-> CAT
+  Core --> Platform
+</pre>
+<figcaption>Solid arrows are synchronous calls to a module's public API. Dashed arrows are domain events or SPI implementations.</figcaption>
+</figure>
+
+<h3 id="layers">Layers inside a module</h3>
+<p>Complex modules (sales, inventory, pricing, tax, sync) use a light hexagonal layout. Simple CRUD modules use controller → service → repository. Don't force four layers on a categories table.</p>
+<pre><code>sales/
+├─ SalesApi.java            ← public interface other modules may call
+├─ events/                  ← public events (SaleCompleted, SaleReturned)
+├─ spi/                     ← extension points industry modules implement
+└─ internal/                ← NOT visible to other modules
+   ├─ web/                  ← REST controllers, DTOs, mappers
+   ├─ application/          ← use cases (RecordSale, ReturnItems), transactions
+   ├─ domain/               ← Sale, SaleLine, policies; no Spring imports
+   └─ persistence/          ← JPA entities / JdbcClient repositories</code></pre>
+
+<h2 id="quality">Quality attribute strategies</h2>
+<table>
+<thead><tr><th>Quality</th><th>Strategy</th><th>Where</th></tr></thead>
+<tbody>
+<tr><td><strong>Scalability</strong></td><td>Registers do the CPU work, so the server only ingests facts. The backend is stateless and scales horizontally. Large fact tables are partitioned by month, reports run on a read replica, and catalog snapshots are served from object storage or a CDN.</td><td><a href="cost.html#scaling">Scaling path</a></td></tr>
+<tr><td><strong>Maintainability</strong></td><td>Module boundaries are tested, there are invariants with IDs, ADRs, shared test vectors and one repo. CRUD modules stay simple.</td><td><a href="dev-guide.html">Developer guide</a></td></tr>
+<tr><td><strong>Extensibility</strong></td><td>Named SPIs on the server, UI slots on the register, per-tenant module switches, and extension-owned tables.</td><td><a href="extensions.html">Extensions</a></td></tr>
+<tr><td><strong>Reliability</strong></td><td>Local-first register, idempotent sync, transactional outbox, point-in-time recovery, a nightly ledger check.</td><td><a href="offline-sync.html">Offline & sync</a></td></tr>
+<tr><td><strong>Security</strong></td><td>RLS, device enrollment, short-lived tokens, encrypted local DB, hash-chained audit, out of PCI scope.</td><td><a href="security.html">Security</a></td></tr>
+<tr><td><strong>Cost</strong></td><td>One image, no brokers or caches, managed PostgreSQL only where it pays off, static admin hosting, compressed delta sync.</td><td><a href="cost.html">Cost</a></td></tr>
+<tr><td><strong>Upgradability</strong></td><td>Expand/contract migrations, an N-1 register API contract, staged register rollouts, feature flags.</td><td><a href="deployment.html#releases">Releases</a></td></tr>
+</tbody>
+</table>
+
+<h2 id="evolution">How the architecture evolves</h2>
+<figure class="diagram">
+<pre class="mermaid">
+flowchart LR
+  A["Stage 1: pilot&lt;br/&gt;1 VM, 1 app process&lt;br/&gt;Postgres + backups"] --> B["Stage 2: growth&lt;br/&gt;2 app instances + worker&lt;br/&gt;managed Postgres HA"]
+  B --> C["Stage 3: scale&lt;br/&gt;read replica for reports&lt;br/&gt;partitioned facts, CDN snapshots"]
+  C --> D["Stage 4: only if measured&lt;br/&gt;split sync ingestion or reporting&lt;br/&gt;into its own service"]
+</pre>
+<figcaption>Each step has a trigger metric. See <a href="cost.html#scaling">Cost & scaling</a>.</figcaption>
+</figure>
+
+<h2 id="repo">Repository layout</h2>
+<p>One monorepo, so one developer (or an AI agent) can change the API, the register and the docs in a single commit.</p>
+<pre><code>retailos/
+├─ backend/                     Spring Boot app (Gradle)
+│  ├─ src/main/java/com/devcity/retailos/{platform,catalog,pricing,inventory,sales,...}
+│  ├─ src/main/resources/db/migration/   Flyway V001__*.sql
+│  └─ src/test/…                 unit, Modulith, Testcontainers tests
+├─ apps/
+│  ├─ admin/                    React admin web (Vite)
+│  ├─ register/                 React register UI
+│  ├─ register-electron/        Windows shell (main, preload, device adapters)
+│  └─ register-android/         Capacitor shell + native plugins
+├─ packages/
+│  ├─ register-core/            pure TS domain: cart, pricing, tax, sale, shift
+│  ├─ api-client/               generated from backend OpenAPI
+│  ├─ ui/                       shared React components, design tokens
+│  └─ i18n/                     en / si / ta message catalogs
+├─ shared/test-vectors/         JSON cases for tax, pricing, rounding, GS1 parsing
+├─ infra/                       docker-compose, Caddyfile, deploy scripts
+├─ docs/                        this site (Doc/) + ADRs
+└─ AGENTS.md                    rules for AI coding agents (copy from Doc/ai/AGENTS.md)</code></pre>
+
+</article></main>
+<aside id="toc"></aside>
+</div>
+<script src="assets/search-index.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js"></script>
+<script src="assets/site.js"></script>
+</body>
+</html>

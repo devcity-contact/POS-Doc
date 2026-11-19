@@ -1,0 +1,470 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Data model · RetailOS</title>
+<meta name="description" content="RetailOS PostgreSQL data model: ER diagrams by area, key table definitions, conventions, row-level security, partitioning, indexing and the register's local SQLite schema.">
+<link rel="stylesheet" href="assets/site.css">
+<script>try{var t=localStorage.getItem("retailos-theme");if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
+</head>
+<body>
+<header id="topbar"></header>
+<div class="layout">
+<nav id="sidebar"></nav>
+<main class="content"><article>
+
+<h1>Data model</h1>
+<p class="lead">PostgreSQL is the system of record for every tenant. The model has four areas: organisation, catalog and pricing, inventory and purchasing, and sales and money. Fact tables are append-only. Balances are projections that can be rebuilt.</p>
+
+<h2 id="conventions">Conventions</h2>
+<table>
+<thead><tr><th>Topic</th><th>Rule</th></tr></thead>
+<tbody>
+<tr><td>Primary keys</td><td><code>uuid</code>, version 7 (time-ordered, so indexes stay compact). Created by the server with <code>uuidv7()</code>, or by the register for facts it creates (<span class="inv">INV-05</span>).</td></tr>
+<tr><td>Tenant</td><td>Every tenant-owned table has <code>tenant_id uuid not null</code> as the first column of its composite indexes, plus an RLS policy (<span class="inv">INV-01</span>).</td></tr>
+<tr><td>Money</td><td><code>numeric(19,4)</code>. Currency is the tenant's (LKR) and is stored on documents for the future (<span class="inv">INV-03</span>).</td></tr>
+<tr><td>Quantity</td><td><code>numeric(14,3)</code>, which allows weights in kg to 3 decimal places.</td></tr>
+<tr><td>Time</td><td><code>timestamptz</code> in UTC. <code>business_date date</code> is calculated in the branch's time zone for daily reports (<span class="inv">INV-15</span>).</td></tr>
+<tr><td>Audit columns</td><td><code>created_at, created_by, updated_at, updated_by, version</code> on mutable tables (optimistic locking). Facts have only <code>created_*</code>.</td></tr>
+<tr><td>Soft delete</td><td>Master data uses <code>archived_at</code>. Facts are never deleted.</td></tr>
+<tr><td>Naming</td><td><code>snake_case</code>, singular table names, extension prefixes <code>ph_</code>, <code>gr_</code>.</td></tr>
+<tr><td>Enums</td><td><code>text</code> with a <code>CHECK</code> constraint. They are easier to evolve than PostgreSQL enum types.</td></tr>
+<tr><td>Flexible extras</td><td>One <code>attributes jsonb</code> on product and customer, for display-only data.</td></tr>
+</tbody>
+</table>
+
+<h2 id="erd-org">Organisation, identity and devices</h2>
+<figure class="diagram">
+<pre class="mermaid">
+erDiagram
+  TENANT ||--o{ BRANCH : has
+  TENANT ||--o{ TENANT_MODULE : enables
+  TENANT ||--o{ APP_USER : employs
+  BRANCH ||--o{ REGISTER : has
+  BRANCH ||--o{ STOCK_LOCATION : has
+  REGISTER ||--o| DEVICE : "runs on"
+  APP_USER ||--o{ USER_ROLE : has
+  ROLE ||--o{ USER_ROLE : grants
+  ROLE ||--o{ ROLE_PERMISSION : includes
+  APP_USER ||--o{ AUDIT_LOG : writes
+  TENANT {
+    uuid id PK
+    text name
+    text vat_number
+    text status
+    text plan
+    text timezone
+  }
+  BRANCH {
+    uuid id PK
+    uuid tenant_id FK
+    text code "e.g. CMB01"
+    text name
+    text address
+  }
+  REGISTER {
+    uuid id PK
+    uuid branch_id FK
+    text code "e.g. R02"
+    bigint last_receipt_seq
+    text status
+  }
+  DEVICE {
+    uuid id PK
+    uuid register_id FK
+    text platform "WINDOWS or ANDROID"
+    text public_key
+    text app_version
+    timestamptz last_seen_at
+  }
+  APP_USER {
+    uuid id PK
+    uuid tenant_id FK
+    text email
+    text password_hash
+    text pin_hash
+    boolean mfa_enabled
+  }
+  AUDIT_LOG {
+    bigint seq PK
+    uuid tenant_id
+    text action
+    text entity
+    uuid entity_id
+    bytea prev_hash
+    bytea hash
+  }
+</pre>
+<figcaption>Tenant → branch → register is in the schema from day one, even for single-shop customers.</figcaption>
+</figure>
+
+<h2 id="erd-catalog">Catalog and pricing</h2>
+<figure class="diagram">
+<pre class="mermaid">
+erDiagram
+  CATEGORY ||--o{ PRODUCT : groups
+  BRAND ||--o{ PRODUCT : makes
+  PRODUCT ||--|{ SKU : "has variants"
+  SKU ||--o{ BARCODE : "scanned by"
+  SKU ||--o{ UNIT_CONVERSION : "sold in"
+  UNIT ||--o{ UNIT_CONVERSION : defines
+  TAX_RATE ||--o{ PRODUCT : "taxed at"
+  PRICE_LIST ||--o{ PRICE_LIST_ITEM : contains
+  SKU ||--o{ PRICE_LIST_ITEM : priced
+  PRODUCT {
+    uuid id PK
+    uuid tenant_id
+    text name
+    text name_si
+    text name_ta
+    text item_type "STOCKED SERVICE WEIGHED"
+    boolean batch_tracked
+    uuid tax_rate_id FK
+    jsonb attributes
+  }
+  SKU {
+    uuid id PK
+    uuid product_id FK
+    text sku_code
+    text variant_label "500ml, Red, L"
+    uuid base_unit_id FK
+    numeric reorder_level
+  }
+  BARCODE {
+    uuid id PK
+    uuid sku_id FK
+    text code
+    text type "EAN13 GS1_DM PLU INTERNAL"
+    uuid unit_id "box barcode vs piece"
+  }
+  UNIT_CONVERSION {
+    uuid sku_id FK
+    uuid unit_id FK
+    numeric factor "1 box = 12"
+  }
+  PRICE_LIST {
+    uuid id PK
+    text name "RETAIL WHOLESALE"
+    uuid branch_id "null means all"
+  }
+  PRICE_LIST_ITEM {
+    uuid price_list_id FK
+    uuid sku_id FK
+    uuid unit_id FK
+    numeric price
+    timestamptz valid_from
+  }
+</pre>
+</figure>
+
+<h2 id="erd-inventory">Inventory and purchasing</h2>
+<figure class="diagram">
+<pre class="mermaid">
+erDiagram
+  STOCK_LOCATION ||--o{ BATCH : stores
+  SKU ||--o{ BATCH : "stocked as"
+  BATCH ||--o{ STOCK_MOVEMENT : "changed by"
+  BATCH ||--|| STOCK_BALANCE : "projected to"
+  SUPPLIER ||--o{ GOODS_RECEIPT : delivers
+  GOODS_RECEIPT ||--|{ GOODS_RECEIPT_LINE : contains
+  GOODS_RECEIPT_LINE ||--|| BATCH : creates
+  STOCK_COUNT ||--|{ STOCK_COUNT_LINE : contains
+  STOCK_MOVEMENT }o--o| STOCK_EXCEPTION : raises
+  BATCH {
+    uuid id PK
+    uuid tenant_id
+    uuid sku_id FK
+    uuid location_id FK
+    text batch_no
+    date expiry_date
+    numeric unit_cost
+    numeric selling_price "null uses price list"
+    text status "OPEN BLOCKED DEPLETED"
+  }
+  STOCK_MOVEMENT {
+    uuid id PK
+    uuid tenant_id
+    uuid batch_id FK
+    text type
+    numeric qty "signed, base unit"
+    numeric unit_cost
+    text ref_type "SALE GRN ADJUST"
+    uuid ref_id
+    timestamptz occurred_at
+  }
+  STOCK_BALANCE {
+    uuid batch_id PK
+    numeric on_hand
+    bigint last_movement_seq
+  }
+  GOODS_RECEIPT {
+    uuid id PK
+    uuid supplier_id FK
+    text supplier_invoice_no
+    date received_on
+    text status
+  }
+  GOODS_RECEIPT_LINE {
+    uuid id PK
+    uuid sku_id
+    text batch_no
+    date expiry_date
+    numeric qty
+    uuid unit_id
+    numeric unit_cost
+  }
+</pre>
+<figcaption>stock_movement is the ledger. stock_balance is the projection, rebuilt nightly to detect drift (<span class="inv">INV-04</span>).</figcaption>
+</figure>
+
+<h2 id="erd-sales">Sales, payments, cash, customers and tax</h2>
+<figure class="diagram">
+<pre class="mermaid">
+erDiagram
+  CASH_SESSION ||--o{ SALE : "rung during"
+  REGISTER ||--o{ CASH_SESSION : opens
+  CUSTOMER |o--o{ SALE : buys
+  SALE ||--|{ SALE_LINE : contains
+  SALE_LINE ||--|{ SALE_LINE_ALLOCATION : "drawn from"
+  SALE_LINE ||--o{ SALE_LINE_OPTION : "modified by"
+  SALE_LINE_ALLOCATION }o--|| BATCH : uses
+  SALE ||--|{ PAYMENT : "paid by"
+  SALE ||--o{ SALE_RETURN : "returned via"
+  SALE_RETURN ||--|{ SALE_RETURN_LINE : contains
+  SALE_RETURN_LINE }o--|| SALE_LINE : reverses
+  SALE ||--o| TAX_DOCUMENT : "invoiced by"
+  SALE_RETURN ||--o| TAX_DOCUMENT : "credit note"
+  CUSTOMER ||--o| CREDIT_ACCOUNT : has
+  CREDIT_ACCOUNT ||--o{ CREDIT_LEDGER : records
+  CASH_SESSION ||--o{ CASH_MOVEMENT : records
+  SALE {
+    uuid id PK "register generated"
+    uuid tenant_id
+    uuid branch_id
+    uuid register_id
+    uuid cash_session_id FK
+    text receipt_no "CMB01-R02-000154"
+    text status "OPEN COMPLETED VOIDED"
+    numeric subtotal
+    numeric discount_total
+    numeric tax_total
+    numeric grand_total
+    timestamptz completed_at "device time"
+    timestamptz received_at "server time"
+    date business_date
+  }
+  SALE_LINE {
+    uuid id PK
+    uuid sale_id FK
+    uuid sku_id
+    numeric qty
+    uuid unit_id
+    numeric unit_price "snapshot"
+    numeric discount
+    numeric tax_rate "snapshot"
+    numeric tax_amount
+    numeric line_total
+    uuid staff_id "performed by"
+  }
+  SALE_LINE_ALLOCATION {
+    uuid sale_line_id FK
+    uuid batch_id FK
+    numeric qty
+    numeric unit_cost "snapshot"
+  }
+  PAYMENT {
+    uuid id PK
+    uuid sale_id FK
+    text tender "CASH CARD LANKAQR CREDIT"
+    numeric amount
+    text reference "slip no, last4"
+  }
+  CASH_SESSION {
+    uuid id PK
+    uuid register_id
+    uuid opened_by
+    numeric opening_float
+    numeric counted_cash
+    numeric expected_cash
+    text status "OPEN CLOSED"
+  }
+  TAX_DOCUMENT {
+    uuid id PK
+    text type "TAX_INVOICE CREDIT_NOTE DEBIT_NOTE"
+    text number
+    text buyer_vat_no
+    text fiscal_status "NA PENDING SENT FAILED"
+  }
+</pre>
+</figure>
+
+<h2 id="key-tables">Key table definitions</h2>
+<p>These are the authoritative shapes. Flyway migrations must match them. Abbreviated: indexes and audit columns are omitted where obvious.</p>
+<details open><summary><code>sale</code> and <code>sale_line</code></summary>
+<pre><code>create table sale (
+  id               uuid not null,                 -- generated on the register (INV-05)
+  tenant_id        uuid not null,
+  branch_id        uuid not null references branch(id),
+  register_id      uuid not null references register(id),
+  cash_session_id  uuid not null references cash_session(id),
+  customer_id      uuid references customer(id),
+  receipt_no       text not null,                 -- {branch}-{register}-{seq} (INV-06)
+  receipt_seq      bigint not null,
+  status           text not null check (status in ('OPEN','COMPLETED','VOIDED')),
+  price_list_id    uuid not null,
+  subtotal         numeric(19,4) not null,
+  discount_total   numeric(19,4) not null default 0,
+  tax_total        numeric(19,4) not null,
+  rounding         numeric(19,4) not null default 0,
+  grand_total      numeric(19,4) not null,
+  currency         char(3) not null default 'LKR',
+  completed_at     timestamptz,                   -- register clock
+  received_at      timestamptz not null default now(),  -- server clock
+  business_date    date not null,
+  cashier_id       uuid not null,
+  register_app_ver text not null,
+  attributes       jsonb not null default '{}',
+  primary key (id, business_date)                 -- partition key must be part of the PK
+) partition by range (business_date);
+-- Receipt numbers must be unique across partitions, so uniqueness is enforced in a small
+-- non-partitioned table written in the same transaction:
+create table receipt_registry (
+  tenant_id uuid not null, register_id uuid not null, receipt_seq bigint not null,
+  sale_id uuid not null, business_date date not null,
+  primary key (tenant_id, register_id, receipt_seq)
+);
+
+create table sale_line (
+  id           uuid not null,
+  tenant_id    uuid not null,
+  sale_id      uuid not null,                   -- FK (sale_id, business_date) -&gt; sale
+  line_no      int  not null,
+  sku_id       uuid not null,
+  qty          numeric(14,3) not null check (qty &gt; 0),
+  unit_id      uuid not null,
+  base_qty     numeric(14,3) not null,          -- qty converted to base unit
+  unit_price   numeric(19,4) not null,          -- snapshot (INV-10)
+  discount     numeric(19,4) not null default 0,
+  tax_rate_id  uuid not null,
+  tax_rate     numeric(7,4)  not null,          -- snapshot, e.g. 18.0000
+  tax_amount   numeric(19,4) not null,
+  line_total   numeric(19,4) not null,
+  staff_id     uuid,                            -- performed by (services/commission)
+  batch_hint   uuid,                            -- batch chosen by cashier / GS1 scan
+  business_date date not null,
+  primary key (id, business_date),
+  foreign key (sale_id, business_date) references sale (id, business_date)
+) partition by range (business_date);</code></pre>
+</details>
+
+<details><summary><code>stock_movement</code> and <code>stock_balance</code></summary>
+<pre><code>create table stock_movement (
+  id           uuid primary key default uuidv7(),
+  seq          bigint generated always as identity,
+  tenant_id    uuid not null,
+  batch_id     uuid not null references batch(id),
+  location_id  uuid not null,
+  sku_id       uuid not null,
+  type         text not null,                    -- RECEIPT, SALE, RETURN, ADJUST_IN, ...
+  qty          numeric(14,3) not null,           -- signed, base unit
+  unit_cost    numeric(19,4) not null,
+  ref_type     text not null,
+  ref_id       uuid not null,
+  reason_code  text,
+  occurred_at  timestamptz not null,
+  created_by   uuid not null
+);
+-- never UPDATE or DELETE: app role has INSERT/SELECT only on this table
+
+create table stock_balance (
+  tenant_id    uuid not null,
+  batch_id     uuid primary key,
+  sku_id       uuid not null,
+  location_id  uuid not null,
+  on_hand      numeric(14,3) not null,
+  updated_at   timestamptz not null
+);</code></pre>
+</details>
+
+<details><summary><code>sync_change_log</code> and <code>sync_inbox</code></summary>
+<pre><code>-- Ordered change feed that registers pull from (see Offline &amp; sync)
+create table sync_change_log (
+  seq          bigint generated always as identity primary key,
+  tenant_id    uuid not null,
+  branch_id    uuid,                -- null = all branches of tenant
+  scope        text not null,       -- catalog, prices, batches, staff, taxes, settings, ext:pharmacy
+  entity       text not null,
+  entity_id    uuid not null,
+  op           text not null check (op in ('UPSERT','DELETE')),
+  payload      jsonb,               -- null for DELETE (tombstone)
+  created_at   timestamptz not null default now()
+);
+create index on sync_change_log (tenant_id, scope, seq);
+
+-- Idempotency: one row per client-generated id (INV-05)
+create table sync_inbox (
+  tenant_id    uuid not null,
+  client_id    uuid not null,       -- sale id, return id, cash event id
+  kind         text not null,
+  register_id  uuid not null,
+  result       jsonb not null,      -- stored response returned on replay
+  received_at  timestamptz not null default now(),
+  primary key (tenant_id, client_id)
+);</code></pre>
+</details>
+
+<h2 id="rls">Row-level security</h2>
+<p>Tenant isolation is enforced twice. Every repository filters by <code>tenant_id</code>, and PostgreSQL RLS blocks any row of another tenant even when a query forgets the filter.</p>
+<pre><code>alter table sale enable row level security;
+alter table sale force row level security;
+
+create policy tenant_isolation on sale
+  using (tenant_id = current_setting('app.tenant_id')::uuid)
+  with check (tenant_id = current_setting('app.tenant_id')::uuid);
+
+-- The backend sets the tenant at the start of EVERY transaction (pooled connections):
+select set_config('app.tenant_id', :tenantId, true);   -- true = local to transaction</code></pre>
+<ul>
+<li>The application connects as <code>retailos_app</code>, which is not the table owner and has no <code>BYPASSRLS</code>.</li>
+<li>Migrations run as <code>retailos_migrator</code> (the owner). Platform jobs that must see every tenant use <code>retailos_platform</code>, only inside the worker, with every use logged.</li>
+<li>If <code>app.tenant_id</code> is not set, <code>current_setting</code> raises an error, so the query fails closed.</li>
+<li>CI test <code>TenantIsolationIT</code> creates two tenants and asserts that every repository returns zero rows across tenants (NFR-09).</li>
+</ul>
+
+<h2 id="partitioning">Partitioning, indexing, retention</h2>
+<table>
+<thead><tr><th>Table</th><th>Partitioning</th><th>Key indexes</th></tr></thead>
+<tbody>
+<tr><td><code>sale</code>, <code>sale_line</code>, <code>payment</code></td><td>Range by <code>business_date</code>, monthly. Partitions created 3 months ahead by a job.</td><td><code>(tenant_id, branch_id, business_date)</code>, <code>(tenant_id, receipt_no)</code>, <code>(tenant_id, customer_id)</code></td></tr>
+<tr><td><code>stock_movement</code></td><td>Range by <code>occurred_at</code>, monthly (from Stage 3)</td><td><code>(tenant_id, batch_id, seq)</code>, <code>(tenant_id, ref_type, ref_id)</code></td></tr>
+<tr><td><code>audit_log</code></td><td>Range by month</td><td><code>(tenant_id, entity, entity_id)</code>, <code>(tenant_id, created_at)</code></td></tr>
+<tr><td><code>sync_change_log</code></td><td>None. Rows older than 30 days are compacted (registers further behind do a full snapshot).</td><td><code>(tenant_id, scope, seq)</code></td></tr>
+<tr><td><code>batch</code></td><td>None</td><td><code>(tenant_id, sku_id, location_id, status, expiry_date)</code> for FEFO</td></tr>
+<tr><td><code>barcode</code></td><td>None</td><td>unique <code>(tenant_id, code)</code></td></tr>
+</tbody>
+</table>
+<p><strong>Retention.</strong> Sales, tax and audit partitions are kept online for 2 years, then detached and exported to compressed files in cold object storage. They are kept for the statutory period (NFR-14) and can be restored on request.</p>
+
+<h2 id="local-schema">Register local schema (SQLite)</h2>
+<p>The register keeps a <em>subset</em> scoped to its branch, plus its own outbox. Table names match the server, so code and people only learn one vocabulary.</p>
+<table>
+<thead><tr><th>Group</th><th>Tables</th><th>Source</th></tr></thead>
+<tbody>
+<tr><td>Reference data (pulled)</td><td>product, sku, barcode, unit_conversion, price_list_item, batch (open, this branch), tax_rate, customer (credit-enabled + recent), app_user (PIN hashes, roles), settings, tenant_module, ext tables</td><td>Server, read-only on the register</td></tr>
+<tr><td>Facts (created locally)</td><td>sale, sale_line, payment, sale_return(+lines), cash_session, cash_movement, audit_local</td><td>Register. Immutable after completion.</td></tr>
+<tr><td>Working state</td><td>held_bill, cart_draft</td><td>Local only, never synced</td></tr>
+<tr><td>Sync</td><td>outbox(id, kind, payload, status, attempts, last_error), sync_state(scope, cursor), receipt_sequence(register_id, next_seq)</td><td>Local</td></tr>
+<tr><td>Search</td><td>FTS5 virtual table over product names (en/si/ta), generic names, SKU codes</td><td>Built locally from pulled data</td></tr>
+</tbody>
+</table>
+<p>The local database is encrypted (SQLCipher). The key is protected by Windows DPAPI or the Android Keystore. See <a href="security.html#register-security">Register security</a>.</p>
+
+</article></main>
+<aside id="toc"></aside>
+</div>
+<script src="assets/search-index.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js"></script>
+<script src="assets/site.js"></script>
+</body>
+</html>
