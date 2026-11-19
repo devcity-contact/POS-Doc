@@ -146,6 +146,166 @@ Show the same Sell screen as a 1280x800 Android tablet: sidebar collapsed to a 7
 Show the keyboard-focus state of the Sell screen: the second product card focused with a 2px #3772FF focus ring, a small floating shortcut hint bar at the bottom ("↑↓←→ move · Enter add · Space quick view · F10 pay · ? all shortcuts"), and a cart line selected with ± and Del hints.
 ```
 
+## Detailed UI prompts (v2, full specification)
+
+These prompts describe the v2 look in full detail: exact sizes, type scale, spacing, shadows, every component state, and what each region of each screen contains. Send them **in order, one per message**, in a new Stitch project (Web mode). Part 1 sets the design system, and each later part designs one screen. Every part is under 5,000 characters.
+
+| Part | Designs | Send |
+|---|---|---|
+| 1 | Design system foundation (no screen) | First |
+| 2 | Sell screen: shell, product grid, order panel | After Stitch confirms part 1 |
+| 3 | Payment modal | After the Sell screen looks right |
+| 4 | Sale complete + receipt preview | Next |
+| 5 | Overview dashboard | Next |
+| 6 | Tablet / touch layout | Next |
+| 7 | System states (offline, empty, errors) | Last, then the [dark variant prompt](#dark-variant-prompt-after-each-screen) for each screen |
+
+### Part 1 · Design system foundation
+
+```text
+We are designing "RetailOS by DevCity", a world-class point-of-sale for retail shops, pharmacies and supermarkets in Sri Lanka, used with mouse + keyboard on PCs, on 15" touch screens and on 10" tablets, with a barcode scanner. Do not draw a screen yet. Learn this design system and apply it to every screen I send next.
+
+CANVAS: desktop frames 1440x900 (also must work at 1366x768 and 1920x1080); tablet 1280x800 landscape. Page background #FDFFFC with a very soft, blurred pastel gradient (light blue to off-white) behind a white app window with 24px corner radius and a subtle shadow.
+
+COLOUR TOKENS:
+- Surface #FFFFFF; subtle fill #F3F5F9; hover fill #EEF1F6; border #E4E7EC; divider #EDF0F4
+- Text primary #272932; secondary #6B7080; disabled #A3A8B8
+- Primary #3772FF; primary hover #2A5BD9; primary pressed #2149B8; primary tint #EBF1FF; focus ring 2px #3772FF with 2px white offset
+- Success #22C55E (fills, icons, badges with #272932 text); success text #15803D; success tint #E8F9EE
+- Warning #FF7F11 (fills/icons with #272932 text); warning text #C2410C; warning tint #FFF1E5
+- Error #FF1B1C (icons); error text and destructive buttons #D91415; error tint #FFE8E8
+- Never white text on green or orange.
+
+TYPE (Inter; Noto Sans Sinhala/Tamil for local text; tabular figures for every number):
+Display 40/48 bold (amount due, change) · H1 24/32 semibold (page title) · H2 18/26 semibold (panel titles) · H3 16/24 semibold (card titles, product names) · Body 15/22 regular · Small 13/18 medium (labels, meta) · Caption 12/16 medium uppercase letter-spacing 0.06em (sidebar group labels, category labels) · Key cap 11/14 monospace.
+
+SPACING: 4-8-12-16-24-32 scale. Panel padding 24. Card padding 16. Grid gaps 16. Section gaps 24.
+RADII: badges 6, inputs 10, buttons 12, cards 16, modals and drawers 20, chips and avatars fully round.
+ELEVATION: card = 0 1 2 rgba(39,41,50,0.04) + 0 2 8 rgba(39,41,50,0.04); hover = 0 8 24 rgba(39,41,50,0.08); modal = 0 24 64 rgba(39,41,50,0.18); overlay #272932 at 40% with 4px background blur.
+ICONS: Lucide outline, 20px, stroke 1.75, colour #6B7080 (active #3772FF).
+
+COMPONENTS (show all states: default, hover, pressed, keyboard focus, disabled, loading):
+- Buttons: primary (filled #3772FF, white semibold label), secondary (white, 1px #E4E7EC border, #272932 label), ghost (no border), destructive (#D91415). Heights: 40 compact, 48 standard, 56 register actions. A key-cap hint (e.g. "F10") sits inside the button on the right as a small rounded tag with a 1px border.
+- Icon button 40x40, round hover fill #EEF1F6, tooltip shows name + shortcut.
+- Text input 44px tall, label above (Small), placeholder #A3A8B8, focus ring, inline error text #D91415 under the field.
+- Search/scan field 48px, leading search icon, trailing scanner icon and "Ctrl K" key cap.
+- Chips 36px, fully round; inactive white with border; active filled #3772FF with white text; count bubble optional.
+- Segmented control 40px on #F3F5F9 track; selected segment white with card shadow.
+- Quantity stepper: − value + with 32px round buttons (40px in touch mode), value in tabular semibold.
+- Badges 22px: icon + text, tinted background + coloured text (e.g. success tint + #15803D "In stock").
+- Toggle switch, dropdown select with chevron, checkbox, radio.
+- Product card, list row (64px), avatar 32/40, toast (bottom centre, dark #272932 with white text, action "Undo"), tooltip (dark, 12px), empty state (icon in a soft circle, title, one line, one button), skeleton loaders (shimmering #F3F5F9 blocks).
+MOTION: 150ms ease-out; buttons scale 0.98 on press; a newly added cart line flashes the primary tint for 600ms; no animation longer than 200ms on the register.
+
+ACCESSIBILITY: WCAG AA contrast; every icon-only control has a tooltip/label; status is never colour-only (icon + text); touch targets 48px minimum.
+
+Reply "Design system ready" and wait for the first screen.
+```
+
+### Part 2 · Sell screen
+
+```text
+Design the "Sell" screen of RetailOS, 1440x900, using the design system. Light theme. Show realistic content and these exact regions:
+
+1) SIDEBAR (left, 248px, white, right border #E4E7EC, padding 16): top row = logo (32px rounded square #3772FF with a white "R" mark) + "RetailOS" H3 + collapse icon. Group label "MAIN" (Caption, #6B7080): Overview, Sell (active: tint #EBF1FF background, #3772FF icon and text, 3px left indicator), Orders, Returns, Customers. Group "INVENTORY": Products, Stock, Receiving, Expiry (with an orange count bubble "23"). Group "FINANCE": Cash & shifts, Reports, Tax. Group "MANAGEMENT": Suppliers, Promotions, Staff, Activity log. Each item 40px tall, icon 20px + label Body. Bottom: Help center, Settings, Logout (red text #D91415), then a user card: 40px avatar, "Sachini Kumari", "Cashier · CMB01", chevron.
+
+2) TOP BAR (64px, white, bottom border): H1 "Sell", then a chip "CMB01 · Register 2"; right side: green success badge "Synced 10:41" with a cloud-check icon, a printer badge "Printer ready", bell icon with red dot, language switch "EN | සිං | தமி", shift timer "Shift 3h 12m".
+
+3) PRODUCT AREA (centre, padding 24): Row 1 = search/scan field (fills width) "Scan barcode or search name, generic or SKU…" with "Ctrl K" key cap; then dropdown "In stock only"; then a grid/list view toggle. Row 2 = horizontally scrollable chips: All (active, count 1,248), Pharmacy, Grocery, Dairy, Beverages, Household, Personal care, Offers. Row 3 = product grid, 4 columns, cards 16 radius, 16 gap. CARD: top row = category label (Caption) left and a quick-view expand icon right; a 140px-tall product image (realistic cut-out photo on #F7F9FC with a soft shadow below the item); name (H3, max 2 lines); a meta line (Small, #6B7080: "400 g · SKU MP-400"); bottom row = price "Rs 1,150.00" (16 semibold) left and a round 36px "+" button (white with border; hover fills #3772FF). Badges in the image corner where relevant.
+Products (12): Milk powder 400g Rs 1,150.00 (badge "Offer −10%" orange); Basmati rice 5kg Rs 3,250.00; Paracetamol 500mg strip Rs 32.00 (badge "Batch"); Amoxicillin 500mg caps Rs 450.00 (badge "Rx" blue); Toothpaste 120g Rs 380.00; Shampoo 340ml Rs 1,090.00 (badge "Low · 3" orange); Cream crackers 500g Rs 520.00; Eggs 10-pack Rs 650.00; Bottled water 1.5L Rs 140.00; Ceylon black tea 200g Rs 760.00; Coconut oil 1L Rs 980.00 (state: Out of stock, image greyed, red badge, "+" disabled); Carrots per kg Rs 320.00 (badge "kg").
+Show states: Shampoo card hovered (lifted shadow); Eggs card keyboard-focused (2px #3772FF focus ring).
+
+4) ORDER PANEL (right, 400px, white, left border, full height):
+Header (padding 24): H2 "Current sale" + caption "#CMB01-R02-000155", kebab menu. Segmented control "Sale | Return" (Sale selected).
+Customer row: 40px avatar "PS", "Perera Stores", Small "Credit available Rs 10,000", "Change (F3)" link; or "Add customer (F3)" button when empty.
+Items list (scrollable; each row 72px, divider between): 48px rounded thumbnail; name (Body semibold); meta (Small: "Batch B2 · exp 09/27" or "1.250 kg × Rs 640.00"); edit pencil icon; price right (semibold); stepper below right; trash icon on hover. Items: Paracetamol 500mg ×2 Rs 64.00; Basmati rice 5kg ×1 Rs 3,250.00; Milk powder 400g ×1 Rs 1,035.00 (Small green "−Rs 115.00 offer"); Carrots 1.250 kg Rs 400.00 (selected row tint #EBF1FF).
+"+ Add note" ghost button.
+Summary card (#F3F5F9, radius 16, padding 16): Subtotal (4 items) Rs 4,864.00; Discount −Rs 115.00 (#15803D); VAT (incl.) Rs 724.42; divider; Total (H2) Rs 4,749.00.
+Payment row: select "Cash" with wallet icon; voucher input "Voucher code" + "Apply" secondary button.
+Footer (sticky, padding 24, top border): primary button 56px full width "Charge Rs 4,749.00 →" with key cap "F10"; below it two secondary buttons side by side "Hold (F6)" and "Discount (F5)".
+
+5) TOAST bottom-centre: "Added Carrots 1.250 kg · Undo".
+Keep the product area and the order items list as the only scrolling regions.
+```
+
+### Part 3 · Payment modal
+
+```text
+Design the "Payment" modal opened from the Sell screen (F10). Show it over the Sell screen with the overlay (#272932 at 40%, 4px blur). Modal 960x620, radius 20, padding 32, modal shadow.
+
+Header: H1 "Payment", Small "Receipt #CMB01-R02-000155 · 19 Nov 2026, 10:46", close icon button with key cap "Esc" at top right.
+
+LEFT COLUMN (400px) "Order summary": customer chip (avatar "PS", "Perera Stores", Small "Credit customer"); a receipt card on #F3F5F9 with a zig-zag torn bottom edge listing 4 items (name, qty, amount, right aligned, Body), then divider, "Items (4)" Rs 4,864.00, "Discount" −Rs 115.00 in #15803D, "VAT incl." Rs 724.42, and a bold "Total Rs 4,749.00" (H2). Below the card: a checkbox "Issue VAT tax invoice" with a "Buyer VAT no." input (disabled until checked).
+
+RIGHT COLUMN "Payment method":
+- Five method tiles in a row (88x72, radius 12, icon + label): Cash (selected: #3772FF border 2px, tint background, check icon), Card, LankaQR, Credit, Split.
+- Amount display: label "Amount received" (Small), value "Rs 5,000.00" in Display 40 bold, right aligned in a 64px field with a blinking caret.
+- Quick-cash chips (40px): Exact Rs 4,749, Rs 5,000 (selected), Rs 10,000, Rs 20,000.
+- Keypad 3x4 (keys 64px tall, radius 12, white with border, numbers H2): 1 2 3 / 4 5 6 / 7 8 9 / 00 0 ⌫. Caption under keypad: "You can also type with the number keys".
+- Change row on a success tint card: "Change due" and "Rs 251.00" in Display 40 bold #15803D.
+- Primary button 56px full width "Complete payment" with key cap "Enter" and a check icon.
+For Card mode (show as a second small variant): an "Approval code from terminal slip" input and a note with an info icon "Card numbers are never entered in RetailOS".
+```
+
+### Part 4 · Sale complete
+
+```text
+Design the "Sale complete" screen shown after payment, 1440x900, same app shell (sidebar + top bar visible; the order panel replaced by this view in the centre).
+
+Centre column (560px wide, vertically centred): an 88px circle in success green #22C55E with a charcoal check icon and a soft green halo; H1 "Sale complete"; Small "Receipt #CMB01-R02-000155 · Cash"; a large card showing "Change due" (Small, #6B7080) and "Rs 251.00" (Display 48 bold, #15803D).
+Action row: primary 56px "New sale" with key cap "Enter"; secondary "Reprint" (Ctrl P); secondary "Email receipt"; ghost "Gift receipt".
+Right side: a receipt preview card 320px wide styled like an 80mm thermal receipt (monospace 12px, white with dashed separators): shop "City Pharmacy & Mart", address, VAT reg, receipt number, date, cashier, 4 items with qty × price, subtotal, discount, VAT, TOTAL, payments, change, a receipt barcode, and footer "Thank you! / ස්තූතියි / நன்றி".
+Bottom: a small warning badge "Saved offline · will sync automatically" variant and a success badge "Synced" variant.
+Auto-return hint caption: "Returning to Sell in 5 s… (any key to stay)".
+```
+
+### Part 5 · Overview dashboard
+
+```text
+Design the "Overview" dashboard, 1440x900, same sidebar (Overview active) and top bar (H1 "Overview", date "Thursday, 19 Nov 2026", branch selector "All branches", search "Search product, order, customer… Ctrl K").
+
+Row 1: four KPI cards (equal width, radius 16, padding 20): each has a 40px rounded icon tile with a soft tinted background, a label (Small #6B7080), a value (28/36 bold) and a trend chip with arrow and comparison text:
+- Today's sales Rs 486,200 · ▲ 12.5% vs yesterday (green chip #E8F9EE / #15803D)
+- Transactions 612 · ▲ 24 from yesterday (green)
+- Customers 188 · ▲ 12 new (blue tint chip)
+- Credit due Rs 320,500 · ▼ 4.2% vs last week (orange chip #FFF1E5 / #C2410C)
+
+Row 2 (two columns 2:1):
+- "Sales by hour" card: area chart with today's line in #3772FF and a soft gradient fill, last week as a dashed grey line, x-axis 8am–10pm, tooltip on 1pm "Rs 62,400 · 81 sales"; legend; caption "Updated 10:45".
+- "Needs attention" card: list rows 56px each with an icon tile, title, Small description and a count badge, chevron: Sale exceptions 7 (orange), Shift differences to approve 2 (orange), Batches expiring in 30 days 23 (orange), Low stock items 41 (grey), Registers offline over 24 h 1 (red). "View all" link.
+
+Row 3 (three columns):
+- "Top products" with 48px thumbnails, name, units sold and a thin progress bar in #3772FF.
+- "Payment mix" donut chart (Cash, Card, LankaQR, Credit) with legend and percentages.
+- "Branches today": rows with branch name, sales, registers online as green/orange status dots and a mini sparkline.
+Add a small promo card at the sidebar bottom: illustration, "Pharmacy module", "Prescriptions, generic search and recalls", button "Enable".
+```
+
+### Part 6 · Tablet and touch layout
+
+```text
+Redesign the Sell screen for a 1280x800 Android tablet in landscape, touch-first, same design system.
+- Sidebar collapsed into a 72px icon rail (icons only, active icon in a 48px tinted rounded square; tooltip labels on long-press). A hamburger at the top expands it as an overlay.
+- Top bar 64px: "Sell", register chip, sync badge, avatar.
+- Product grid 3 columns with larger cards (image 160px), all buttons 48px, the "+" button 44px round; category chips scroll horizontally with momentum and fade edges.
+- The order panel becomes a bottom sheet: collapsed state is a sticky 88px bar at the bottom showing "4 items", a stack of 3 thumbnails, "Rs 4,749.00" and a 56px primary button "Charge"; expanded state (show it as a second frame) slides up to 85% height with a drag handle, the full items list with 40px steppers, swipe-left on a line reveals "Delete" (red) and "Discount" (blue), summary and the Charge button.
+- A floating round 56px scan button (camera icon) at bottom-right above the sheet for camera scanning when no hardware scanner is present.
+Show one pressed state (Charge button darker #2149B8, scale 0.98).
+```
+
+### Part 7 · System states
+
+```text
+Using the Sell screen, design these state variants as separate frames, same layout:
+1) OFFLINE: a 40px banner under the top bar on warning tint #FFF1E5 with an orange wifi-off icon and text #C2410C "You're offline. Sales are saved on this register and will sync automatically · 12 waiting"; the top-bar badge turns orange "Offline". Everything else stays fully usable.
+2) EMPTY CART: order panel shows an empty state: soft circle with a scanner icon, H3 "Scan an item to start", Small "or tap a product, or press F2 to search", and the Charge button disabled ("Charge Rs 0.00").
+3) UNKNOWN BARCODE: the scan field gets a red border and an inline message #D91415 "No product found for 4791234567890" with buttons "Search by name" and "Add new product (manager)"; a short shake is implied by a small motion note.
+4) PRINTER PROBLEM: a toast-style alert at the top right on error tint #FFE8E8: "Printer is out of paper. Load paper, then press Reprint" with buttons "Reprint" and "Continue without receipt"; the top-bar printer badge turns red.
+5) MANAGER APPROVAL: a 420px modal "Manager approval needed" for a 25% discount (limit 10%): approver select, a 6-dot PIN field, a 3x4 PIN keypad (64px keys), reason select, buttons "Cancel (Esc)" and primary "Approve".
+6) LOADING: product grid shows 8 skeleton cards with shimmer while the order panel stays interactive.
+Label each frame with its state name.
+```
+
 ## Dark variant prompt (after each screen)
 
 ```text
