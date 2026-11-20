@@ -3885,6 +3885,7 @@ Yesterday 09:15  SYNC-003 Catalog cursor too old · catalog snapshot downloaded<
       <footer class="signin-foot">Step ${s + 1} of ${OB_STEPS.length} · onboarding (A-05)</footer></div>`;
   }
   function fullEnter(e) {
+    if (S.view === "console") { if (!S.con.signed) { const b = app.querySelector('[data-act="con-key"]'); if (b && !b.disabled) b.click(); } return; }
     if (S.view === "device") { if (S.ds.step === 1) dsSubmitCode(); else if (S.ds.step === 0 && !S.offline) { S.ds.step = 1; render(); focusId("dscode"); } return; }
     if (S.view === "onboard") { if (S.ob.step < 5) obNext(); return; }
     const L = S.lg;
@@ -4057,6 +4058,161 @@ Yesterday 09:15  SYNC-003 Catalog cursor too old · catalog snapshot downloaded<
       <div class="doc-acts"><button class="btn secondary" data-act="close">Close</button><button class="btn secondary" data-act="toast" data-msg="${g.no}.pdf downloaded">${ic("upload", 18)}PDF</button><button class="btn primary" data-act="toast" data-msg="${g.no} sent to the A4 printer">${ic("printer", 18)}Print</button></div></div>`;
   }
 
+  // ---------- DevCity platform console (P-01 … P-05) ----------
+  FULL_VIEWS.push("console");
+  AU_KINDS.push("Support");
+  const SUPPORT = { name: "Nuwan Perera", short: "Nuwan P.", email: "nuwan@devcity.lk" };
+  const SUPPORT2 = { name: "Ayesha Rahman", short: "Ayesha R." };
+  const TENANTS = [
+    { id: "city", name: "City Pharmacy & Mart (Pvt) Ltd", owner: "Dilan Wickrama", plan: "Growth", mods: ["Pharmacy", "Grocery"], status: "active", created: "2024-03-01", live: true },
+    { id: "lmart", name: "Lanka Mart Supermarket", owner: "Ruwan Senanayake", plan: "Growth", mods: ["Grocery"], status: "active", created: "2025-01-12", br: 4, regs: [["COL01-R01", "1.6.0", 0, 0, 0], ["COL01-R02", "1.6.0", 0, 0, 0], ["COL01-R03", "1.6.0", 1, 0, 0], ["MAH01-R01", "1.6.0", 0, 0, 0], ["MAH01-R02", "1.5.9", 0, 0, 0], ["NUG01-R01", "1.6.0", 0, 0, 0], ["NUG01-R02", "1.6.0", 0, 0, 0], ["NUG01-R07", "1.4.8", 40, 2, 0, 45], ["WAT01-R01", "1.6.0", 0, 0, 0], ["WAT01-R02", "1.6.0", 0, 0, 0], ["WAT01-R03", "1.6.0", 0, 0, 0]], exc: 9, imp: 1 },
+    { id: "green", name: "Green Leaf Pharmacy", owner: "Dr. Shalini Fonseka", plan: "Starter", mods: ["Pharmacy"], status: "active", created: "2025-06-03", br: 1, regs: [["MAT01-R01", "1.6.0", 0, 0, 7], ["MAT01-R02", "1.6.0", 0, 0, 0]], exc: 1, imp: 0 },
+    { id: "island", name: "Island Hardware", owner: "Mohamed Rizan", plan: "Starter", mods: [], status: "active", created: "2025-08-21", br: 2, regs: [["KUR01-R01", "1.6.0", 0, 0, 0], ["KUR01-R02", "1.6.0", 14, 0, 0, 4300], ["PUT01-R01", "1.5.9", 0, 0, 0]], exc: 0, imp: 3 },
+    { id: "kfresh", name: "Kandy Fresh Grocers", owner: "Nirosha Bandara", plan: "Trial", mods: ["Grocery"], status: "trial", trialLeft: 9, created: "2026-11-11", br: 1, regs: [["KAN01-R01", "1.6.0", 0, 0, 0]], exc: 0, imp: 2 },
+    { id: "medi", name: "MediPlus Pharmacies", owner: "Kamal Jayasinghe", plan: "Growth", mods: ["Pharmacy"], status: "suspended", suspendedDays: 21, created: "2024-10-05", br: 3, regs: [["NEG01-R01", "1.5.9", 0, 0, 0], ["NEG01-R02", "1.5.9", 0, 0, 0], ["CHI01-R01", "1.5.9", 3, 0, 0], ["CHI01-R02", "1.5.9", 0, 0, 0], ["JAE01-R01", "1.5.2", 0, 0, 0], ["JAE01-R02", "1.5.9", 0, 0, 0]], exc: 4, imp: 0 }
+  ];
+  S.con = { signed: false, tapping: false, email: SUPPORT.email, tab: "tenants", tenant: null, reg: null, q: "", tf: "all", ff: "help", seqReq: null, requeued: {}, acts: [],
+    access: [
+      { id: "SA-0192", tenant: "lmart", by: SUPPORT.short, reason: "Prices not updating on register NUG01-R07", ticket: "DC-4471", hours: 2, status: "active", decidedBy: "Ruwan Senanayake (owner)", at: minsAgo(55), start: minsAgo(50) },
+      { id: "SA-0191", tenant: "green", by: SUPPORT2.short, reason: "Help setting up the batch recall for a supplier notice", ticket: "DC-4466", hours: 1, status: "expired", decidedBy: "Dr. Shalini Fonseka (owner)", at: minsAgo(60 * 27), start: minsAgo(60 * 27) },
+      { id: "SA-0190", tenant: "medi", by: SUPPORT.short, reason: "Check why registers show the suspension notice", ticket: "DC-4459", hours: 1, status: "refused", decidedBy: "Kamal Jayasinghe (owner)", at: minsAgo(60 * 50) },
+      { id: "SA-0188", tenant: "island", by: SUPPORT2.short, reason: "Import of 2,400 products failing at row 913", ticket: "DC-4431", hours: 4, status: "expired", decidedBy: "Mohamed Rizan (owner)", at: daysAgo(6, 10, 5), start: daysAgo(6, 10, 9) }
+    ] };
+  const accSeq = { n: 193 };
+  const accEnd = a => new Date(a.start.getTime() + a.hours * 3600000);
+  function accTick() { for (const a of S.con.access) if (a.status === "active" && accEnd(a) <= new Date()) a.status = "expired"; }
+  const accFor = tid => { accTick(); return S.con.access.find(a => a.tenant === tid && (a.status === "active" || a.status === "pending")); };
+  const tenantRegs = t => t.live ? devAll().map(d => ({ id: d.id, ver: d.r.status === "locked" ? d.r.ver : d.ver, queue: d.queue, blocked: d.id === "CMB01-R02" ? S.history.filter(s => s.sync === "error").length : 0, skew: d.skew, status: d.r.status, seen: d.r.seen, device: d.r.device, os: d.os, live: true, d }))
+    : t.regs.map(([id, ver, queue, blocked, skew, offMin]) => ({ id, ver, queue, blocked, skew, status: offMin ? "offline" : "online", seen: offMin ? minsAgo(offMin) : minsAgo(1 + hashOf(id) % 3), device: (id.includes("R0") && hashOf(id) % 3 === 0 ? "AND-" : "WIN-") + id, os: hashOf(id) % 3 === 0 ? "Android 14" : "Windows 11 Pro" }));
+  const regHelp = r => r.status === "locked" || (r.status !== "online" && Date.now() - r.seen > 86400000) || r.blocked > 0 || r.skew > 5 || r.ver < "1.5.9" || (r.status !== "online" && r.queue > 0);
+  function tenantHealth(t) {
+    const regs = tenantRegs(t);
+    return { regs, online: regs.filter(r => r.status === "online").length, help: regs.filter(regHelp).length, exc: t.live ? excOpen() : t.exc, imp: t.live ? 0 : t.imp, blocked: regs.reduce((a, r) => a + r.blocked, 0), branches: t.live ? S.br.list.length : t.br };
+  }
+  const tName = id => TENANTS.find(t => t.id === id).name;
+  function supportAct(tid, what, extra = {}) {
+    S.con.acts.unshift({ when: new Date(), tenant: tid, what, by: S.con.second ? SUPPORT2.short : SUPPORT.short });
+    if (tid === "city") S.audit.unshift({ id: "AU-" + (auditSeq++), when: new Date(), who: "DevCity · " + SUPPORT.short, kind: "Support", entity: extra.entity || "Support access", what, ...extra });
+  }
+  const conRail = () => `<nav class="con-rail" aria-label="Console">${[["tenants", "Tenants", "store"], ["fleet", "Register fleet", "monitor"], ["access", "Support access", "lock"]].map(([v, l, i]) => `<button data-act="con-tab" data-v="${v}" aria-current="${S.con.tab === v || (v === "tenants" && S.con.tab === "tenant") || (v === "fleet" && S.con.tab === "register") ? "page" : "false"}">${ic(i, 18)}<span>${l}</span>${v === "access" && S.con.access.some(a => a.status === "pending") ? `<i class="dot"></i>` : ""}</button>`).join("")}
+    <div class="con-who"><span class="avatar s">NP</span><span><b>${SUPPORT.name}</b><small>PLATFORM_SUPPORT</small></span></div><button class="btn ghost s" data-act="con-out">Sign out</button></nav>`;
+  function consoleView() {
+    const C = S.con;
+    const top = `<header class="con-top"><span class="mark">D</span><b>DevCity console</b><span class="sub">Internal · every action is logged</span><div class="spacer"></div>${C.signed ? badge("", "Production", null) : ""}</header>`;
+    if (!C.signed) return `<div class="signin full con">${top}<main class="full-body"><div class="full-card"><h1>Staff sign-in</h1><p class="lead">For DevCity support and engineering only. Shop staff use the back office or the register.</p>
+      <label class="field">DevCity e-mail<input data-con="email" data-fid="con-email" id="conemail" value="${esc(C.email)}" autocomplete="username"></label>
+      <div class="key-tap ${C.tapping ? "on" : ""}">${ic("lock", 28)}<b>${C.tapping ? "Touch your security key now…" : "Security key required"}</b><small>Single sign-on with a FIDO2 hardware key. Passwords alone are not accepted.</small></div>
+      <button class="btn primary l block" data-act="con-key" ${C.tapping || !/@devcity\.lk$/.test(C.email.trim()) ? "disabled" : ""}>${C.tapping ? "Waiting for the key…" : "Sign in with security key"} <kbd>Enter</kbd></button>
+      ${C.email && !/@devcity\.lk$/.test(C.email.trim()) ? `<div class="scan-error">${ic("alert", 16)}Only @devcity.lk accounts can use the console.</div>` : ""}
+      <button class="btn ghost block" data-act="goto" data-view="signin">Back to the shop register</button></div></main><footer class="signin-foot">Console access is reviewed every quarter · see Security › Platform support</footer></div>`;
+    let body = "";
+    if (C.tab === "tenants") body = conTenants(); else if (C.tab === "tenant") body = conTenant(); else if (C.tab === "fleet") body = conFleet(); else if (C.tab === "register") body = conRegister(); else body = conAccess();
+    return `<div class="signin full con">${top}<div class="con-body">${conRail()}<main class="con-main">${body}</main></div></div>`;
+  }
+  function conTenants() {
+    const C = S.con, q = C.q.trim().toLowerCase();
+    const list = TENANTS.filter(t => (C.tf === "all" || (C.tf === "help" && tenantHealth(t).help) || t.status === C.tf) && (!q || (t.name + " " + t.owner).toLowerCase().includes(q)));
+    const chip = (v, l) => `<button class="chip" data-act="con-tf" data-v="${v}" aria-pressed="${C.tf === v}">${l}</button>`;
+    const tot = TENANTS.reduce((a, t) => { const h = tenantHealth(t); a.r += h.regs.length; a.o += h.online; return a; }, { r: 0, o: 0 });
+    return `<h1 class="con-h">Tenants</h1>
+      <div class="stats4"><div class="stat"><span>Shops</span><b>${TENANTS.length}</b></div><div class="stat"><span>Registers online</span><b>${tot.o} of ${tot.r}</b></div><div class="stat"><span>On trial</span><b>${TENANTS.filter(t => t.status === "trial").length}</b></div><div class="stat"><span>Suspended</span><b style="color:var(--error-text)">${TENANTS.filter(t => t.status === "suspended").length}</b></div></div>
+      <div class="filters"><label class="search" style="flex:1;min-width:240px">${ic("search")}<span class="sr">Search shops</span><input id="consearch" data-con="q" data-fid="con-q" autocomplete="off" placeholder="Shop or owner…" value="${esc(C.q)}"></label><div class="chips">${chip("all", "All")}${chip("help", "Needs help")}${chip("trial", "Trial")}${chip("suspended", "Suspended")}</div></div>
+      <div class="ctable" role="table" aria-label="Tenants"><div class="tnrow head" role="row"><span>Shop</span><span>Plan</span><span>Modules</span><span class="r">Branches</span><span class="r">Registers</span><span>Health</span><span>Status</span></div>
+        ${list.map(t => { const h = tenantHealth(t); return `<div class="tnrow" role="row" tabindex="0" data-act="con-tenant" data-v="${t.id}"><span class="no"><b>${esc(t.name)}</b><small>${esc(t.owner)} · since ${fmtExpIso(t.created)}</small></span><span>${t.plan}</span><span class="muted">${t.mods.join(", ") || "General"}</span><span class="r">${h.branches}</span><span class="r">${h.online}/${h.regs.length}</span>
+          <span>${h.help ? badge("error", `${h.help} need${h.help === 1 ? "s" : ""} help`, "alert") : badge("success", "Healthy", "check")}</span><span>${t.status === "active" ? badge("success", "Active", null) : t.status === "trial" ? badge("info", `Trial · ${t.trialLeft} days left`, "clock") : badge("error", `Suspended · ${t.suspendedDays} days`, "lock")}</span></div>`; }).join("")}</div>
+      <div class="note">${ic("lock", 16)}This list shows health and plan only. A shop's sales, customers and prices are visible only during approved support access.</div>`;
+  }
+  function conTenant() {
+    const C = S.con, t = TENANTS.find(x => x.id === C.tenant), h = tenantHealth(t), acc = accFor(t.id), on = acc && acc.status === "active";
+    return `<div class="cust-head"><button class="btn ghost" data-act="con-tab" data-v="tenants">${ic("arrowRight", 18)}Tenants</button><div class="grow"><h2>${esc(t.name)}</h2><span class="sub">${esc(t.owner)} (owner) · ${t.plan} plan · ${t.mods.join(", ") || "General retail"} · tenant ${t.id}</span></div>
+        ${on ? badge("warning", `Access open · until ${hm(accEnd(acc))}`, "lock") : acc ? badge("info", "Waiting for the owner", "clock") : badge("", "No data access", "lock")}</div>
+      ${t.status === "suspended" ? `<div class="banner error">${ic("lock")}<span>Suspended for unpaid invoices (${t.suspendedDays} days). Registers kept selling for 14 days and are now read-only. Finance must lift it.</span></div>` : ""}
+      <div class="stats4"><div class="stat"><span>Registers online</span><b>${h.online} of ${h.regs.length}</b></div><div class="stat"><span>Need help</span><b style="color:${h.help ? "var(--error-text)" : "var(--text)"}">${h.help}</b></div><div class="stat"><span>Open sale exceptions</span><b>${h.exc}</b></div><div class="stat"><span>Blocked sales in outboxes</span><b style="color:${h.blocked ? "var(--error-text)" : "var(--text)"}">${h.blocked}</b></div></div>
+      <div class="bd-grid">
+        <section class="card"><h2>Registers</h2><div class="dlines">${h.regs.map(r => `<button class="dline linkrow" data-act="con-reg" data-t="${t.id}" data-v="${r.id}"><span class="grow"><b>${r.id}</b><small>${r.os} · v${r.ver} · ${r.status === "online" ? "online" : r.status === "locked" ? "locked" : "last seen " + ageOf(r.seen) + " ago"}${r.queue ? ` · ${r.queue} waiting` : ""}${r.blocked ? ` · ${r.blocked} blocked` : ""}</small></span>${regHelp(r) ? badge("error", "Needs help", "alert") : badge("success", "OK", null)}</button>`).join("")}</div></section>
+        <div class="bd-side">
+          <section class="card"><h2>Other checks</h2><dl class="kv exc-kv"><dt>Import errors (7 days)</dt><dd>${h.imp}</dd><dt>Fiscal (IRD RAMIS)</dt><dd>Not required yet · release 3</dd><dt>Data region</dt><dd>Mumbai (ap-south-1)</dd><dt>Last backup check</dt><dd>Today 03:10 · restored OK</dd></dl></section>
+          <section class="card"><h2>Support access</h2>
+            ${on ? `<div class="banner" style="background:var(--warning-tint);color:var(--warning-text)">${ic("lock")}<span>Approved by ${esc(acc.decidedBy)} · ${esc(acc.reason)} · ends ${hm(accEnd(acc))}</span></div>
+              <dl class="kv exc-kv"><dt>Sales today</dt><dd>${t.live ? S.history.filter(s => dayDiff(s.date) === 0).length + " receipts" : 96 + hashOf(t.id) % 80 + " receipts"}</dd><dt>Products</dt><dd>${t.live ? "1,248" : (900 + hashOf(t.id) % 4000).toLocaleString("en-US")}</dd><dt>Last price change</dt><dd>${t.live ? "Today" : "2 days ago"}</dd></dl>
+              <button class="btn secondary block" data-act="con-end" data-v="${acc.id}">End access now</button>`
+            : acc ? `<div class="note">${ic("clock", 16)}Request ${acc.id} sent ${hm(acc.at)}. ${t.live ? "Dilan sees it in the shop and can approve or refuse." : "The owner gets an e-mail and an in-app notice."}</div>${t.live ? "" : `<button class="btn ghost block" data-act="con-sim" data-v="${acc.id}">Simulate the owner approving (demo)</button>`}<button class="btn ghost block" data-act="con-cancel" data-v="${acc.id}">Withdraw request</button>`
+            : `<div class="note">${ic("lock", 16)}You see health only. To look at sales, products or settings, ask the owner. Access lasts at most 4 hours and the owner sees everything you do.</div><button class="btn primary block" data-act="con-req" data-v="${t.id}" ${t.status === "suspended" ? "disabled" : ""}>${ic("lock", 18)}Request support access</button>`}</section>
+        </div></div>`;
+  }
+  function conFleet() {
+    const C = S.con, all = TENANTS.flatMap(t => tenantRegs(t).map(r => ({ ...r, t }))), list = all.filter(r => C.ff === "all" || (C.ff === "help" && regHelp(r)) || (C.ff === "old" && r.ver < "1.6.0") || (C.ff === "blocked" && r.blocked));
+    const chip = (v, l) => `<button class="chip" data-act="con-ff" data-v="${v}" aria-pressed="${C.ff === v}">${l}</button>`;
+    return `<h1 class="con-h">Register fleet</h1>
+      <div class="stats4"><div class="stat"><span>Registers</span><b>${all.length}</b></div><div class="stat"><span>Online</span><b>${all.filter(r => r.status === "online").length}</b></div><div class="stat"><span>Need help</span><b style="color:var(--error-text)">${all.filter(regHelp).length}</b></div><div class="stat"><span>On ${"1.6.0"}</span><b>${Math.round(all.filter(r => r.ver === "1.6.0").length / all.length * 100)}%</b></div></div>
+      <div class="chips">${chip("help", `Needs help · ${all.filter(regHelp).length}`)}${chip("blocked", `Blocked sales · ${all.filter(r => r.blocked).length}`)}${chip("old", `Old version · ${all.filter(r => r.ver < "1.6.0").length}`)}${chip("all", `All · ${all.length}`)}</div>
+      <div class="ctable" role="table" aria-label="Fleet"><div class="flrow head" role="row"><span>Register</span><span>Shop</span><span>Version</span><span>Last heartbeat</span><span class="r">Queue</span><span class="r">Blocked</span><span class="r">Clock</span><span>Status</span></div>
+        ${list.map(r => `<div class="flrow" role="row" tabindex="0" data-act="con-reg" data-t="${r.t.id}" data-v="${r.id}"><span><b>${r.id}</b><small>${r.os}</small></span><span class="muted nm">${esc(r.t.name)}</span><span class="${r.ver < "1.6.0" ? "warn-t" : ""}">${r.ver}</span><span class="muted">${r.status === "online" ? ageOf(r.seen) + " ago" : r.status === "locked" ? "Locked" : ageOf(r.seen) + " ago"}</span>
+          <span class="r">${r.queue}</span><span class="r ${r.blocked ? "neg" : ""}">${r.blocked}</span><span class="r ${r.skew > 5 ? "neg" : ""}">${r.skew ? r.skew + " min" : "OK"}</span><span>${regHelp(r) ? badge("error", "Needs help", "alert") : badge("success", r.status === "online" ? "Online" : "Offline", null)}</span></div>`).join("") || `<div class="empty"><span class="circle">${ic("check", 28)}</span><h3>Nothing here</h3></div>`}</div>
+      <div class="note">${ic("help", 16)}Needs help: blocked sales, offline over a day, a clock more than 5 minutes off, a version older than 1.5.9, or locked. Heartbeats come every minute while online.</div>`;
+  }
+  function conOutbox(t, r) {
+    if (t.live && r.id === "CMB01-R02") return S.history.filter(s => s.sync && s.sync !== "synced").map(s => ({ id: s.no, kind: "SALE", state: s.sync === "error" ? "BLOCKED" : "PENDING", err: s.syncError || "", tries: s.sync === "error" ? 6 : 1, at: s.date, amount: saleTotal(s), sale: s }));
+    const out = []; for (let i = 0; i < r.blocked; i++) out.push({ id: `${r.id}-${String(4000 + hashOf(r.id) % 900 + i).padStart(6, "0")}`, kind: "SALE", state: S.con.requeued[r.id + i] ? "SENT" : "BLOCKED", err: i ? "SALE-011 · Product not found (deleted on the server)" : "SALE-005 · Price list version not found", tries: 6, at: minsAgo(90 + i * 7), amount: 120000 + hashOf(r.id + i) % 900000, k: r.id + i });
+    for (let i = 0; i < Math.min(r.queue, 4); i++) out.push({ id: `${r.id}-${String(5000 + i).padStart(6, "0")}`, kind: i % 3 ? "SALE" : "CASH_MOVE", state: "PENDING", err: "", tries: 1, at: minsAgo(30 + i * 5), amount: 50000 + hashOf(r.id + "q" + i) % 400000 });
+    return out;
+  }
+  function conRegister() {
+    const C = S.con, t = TENANTS.find(x => x.id === C.reg.t), r = tenantRegs(t).find(x => x.id === C.reg.id), acc = accFor(t.id), on = acc && acc.status === "active", ob = conOutbox(t, r), req = C.seqReq && C.seqReq.reg === r.id ? C.seqReq : null;
+    return `<div class="cust-head"><button class="btn ghost" data-act="con-tab" data-v="fleet">${ic("arrowRight", 18)}Fleet</button><div class="grow"><h2>${r.id}</h2><span class="sub">${esc(t.name)} · ${r.device} · ${r.os} · v${r.ver}</span></div>${regHelp(r) ? badge("error", "Needs help", "alert") : badge("success", "OK", null)}</div>
+      <div class="stats4"><div class="stat"><span>Last heartbeat</span><b>${r.status === "locked" ? "Locked" : ageOf(r.seen) + " ago"}</b></div><div class="stat"><span>Waiting to send</span><b>${ob.filter(o => o.state === "PENDING").length}</b></div><div class="stat"><span>Blocked</span><b style="color:${ob.some(o => o.state === "BLOCKED") ? "var(--error-text)" : "var(--text)"}">${ob.filter(o => o.state === "BLOCKED").length}</b></div><div class="stat"><span>Clock</span><b style="color:${r.skew > 5 ? "var(--error-text)" : "var(--text)"}">${r.skew ? r.skew + " min slow" : "Correct"}</b></div></div>
+      <div class="bd-grid">
+        <section class="card"><div class="card-head"><h2>Outbox</h2><span class="sub">Facts waiting to reach the server (offline-sync)</span></div>
+          ${ob.length ? `<div class="ledger" role="table"><div class="obrow head" role="row"><span>Item</span><span>State</span><span>Last error</span><span class="r">Amount</span><span></span></div>
+            ${ob.map(o => `<div class="obrow" role="row"><span><b class="mono">${o.id}</b><small>${o.kind} · ${hm(o.at)} · ${o.tries} tr${o.tries === 1 ? "y" : "ies"}</small></span><span>${o.state === "BLOCKED" ? badge("error", "Blocked", "alert") : o.state === "SENT" ? badge("success", "Sent", "check") : badge("warning", "Pending", "clock")}</span><span class="muted err-t">${esc(o.err || "—")}</span>
+              <span class="r">${on ? fmt(o.amount) : `<span class="muted" title="Needs support access">Rs ••••</span>`}</span><span class="r">${o.state === "BLOCKED" ? `<button class="btn secondary s" data-act="con-requeue" data-v="${o.id}" data-k="${o.k || ""}">Retry</button>` : ""}</span></div>`).join("")}</div>`
+            : `<div class="note">${ic("check", 16)}Empty. Everything from this register has reached the server.</div>`}
+          <div class="note">${ic("lock", 16)}Retrying sends the same sale with the same ID, so it can never be counted twice (INV-05). Amounts are hidden without support access.</div></section>
+        <div class="bd-side">
+          <section class="card"><h2>Actions</h2>
+            <button class="btn secondary block" data-act="con-act" data-v="logs" ${r.status === "online" ? "" : "disabled"}>Request logs</button>
+            <button class="btn secondary block" data-act="con-act" data-v="resync" ${r.status === "online" ? "" : "disabled"}>Force full re-sync</button>
+            <button class="btn ${r.status === "locked" ? "secondary" : "danger-outline"} block" data-act="con-act" data-v="lock" ${t.live ? "" : "disabled title=\"Demo: only City Pharmacy registers can be locked here\""}>${r.status === "locked" ? "Unlock register" : "Lock register"}</button>
+            <button class="btn secondary block" data-act="con-seq" ${req ? "disabled" : ""}>Reset receipt sequence…</button>
+            ${req ? `<div class="two-person"><b>${req.state === "pending" ? "Waiting for a second person" : "Done"}</b><small>${esc(req.by)} asked to set ${r.id} to the next free number on the server, ${req.to} · reason: ${esc(req.reason)}</small>
+              ${req.state === "pending" ? `<button class="btn ghost s" disabled title="You cannot approve your own request">Approve (not you)</button><button class="btn primary s" data-act="con-seq-ok">Approve as ${SUPPORT2.name} (demo)</button>` : `<small>Approved by ${esc(req.approver)} at ${hm(req.doneAt)}</small>`}</div>` : `<div class="note">${ic("users", 16)}Resetting receipt numbers needs two people: you ask, another support engineer approves. Numbers stay gap-free (INV-06).</div>`}</section>
+          ${r.skew > 5 ? `<section class="card"><h2>Clock</h2><div class="note">${ic("clock", 16)}${r.skew} minutes slow. Sales keep their recorded time and are flagged (CLOCK_SKEW). Ask the shop to turn on automatic time.</div></section>` : ""}
+        </div></div>`;
+  }
+  function conAccess() {
+    accTick();
+    const list = S.con.access.slice().sort((a, b) => (b.start || b.at) - (a.start || a.at));
+    const st = a => a.status === "active" ? badge("warning", `Open · ${Math.max(1, Math.round((accEnd(a) - new Date()) / 60000))} min left`, "lock") : a.status === "pending" ? badge("info", "Waiting for owner", "clock") : a.status === "refused" ? badge("error", "Refused", "x") : a.status === "ended" ? badge("", "Ended early", null) : a.status === "withdrawn" ? badge("", "Withdrawn", null) : badge("", "Expired", null);
+    return `<h1 class="con-h">Support access</h1>
+      <div class="stats4"><div class="stat"><span>Open now</span><b>${list.filter(a => a.status === "active").length}</b></div><div class="stat"><span>Waiting for owners</span><b>${list.filter(a => a.status === "pending").length}</b></div><div class="stat"><span>Refused (30 days)</span><b>${list.filter(a => a.status === "refused").length}</b></div><div class="stat"><span>Longest allowed</span><b>4 hours</b></div></div>
+      <div class="ctable" role="table" aria-label="Access requests"><div class="acrow head" role="row"><span>Request</span><span>Shop</span><span>Reason</span><span>Owner's decision</span><span>Status</span><span></span></div>
+        ${list.map(a => `<div class="acrow" role="row"><span><b class="mono">${a.id}</b><small>${esc(a.by)} · ${a.ticket} · ${a.hours} h</small></span><span class="nm">${esc(tName(a.tenant))}</span><span class="muted">${esc(a.reason)}</span><span class="muted">${a.decidedBy ? esc(a.decidedBy) + " · " + (a.at ? (dayDiff(a.at) === 0 ? hm(a.at) : a.at.toLocaleDateString("en-GB", { day: "numeric", month: "short" })) : "") : "—"}</span><span>${st(a)}</span>
+          <span class="r">${a.status === "active" ? `<button class="btn ghost s" data-act="con-end" data-v="${a.id}">End</button>` : a.status === "pending" && a.tenant !== "city" ? `<button class="btn ghost s" data-act="con-sim" data-v="${a.id}">Simulate approval</button>` : ""}</span></div>`).join("")}</div>
+      <div class="note">${ic("lock", 16)}Shop owners decide. Every request, decision and action is in the shop's own audit log, and access ends by itself.</div>
+      ${S.con.acts.length ? `<section class="card"><h2>Your actions this session</h2><div class="dlines">${S.con.acts.slice(0, 8).map(x => `<div class="dline"><span class="grow"><b>${esc(x.what)}</b><small>${esc(tName(x.tenant))} · ${hm(x.when)} · ${esc(x.by)}</small></span></div>`).join("")}</div></section>` : ""}`;
+  }
+  function accessModal(m, head) {
+    const t = TENANTS.find(x => x.id === m.tenant), ok = m.reason.trim().length >= 10 && /^DC-\d{4}$/.test(m.ticket.trim());
+    return `<div class="modal" role="dialog" aria-modal="true" aria-labelledby="mt" style="width:min(520px,100%)">${head("Request support access", t.name)}
+      <label class="field">Why do you need access? (the owner sees this)<textarea data-acc="reason" data-fid="acc-reason" id="accreason" placeholder="e.g. Sale CMB01-R02-000147 is stuck: price list version not found">${esc(m.reason)}</textarea></label>
+      <div class="form-2"><label class="field">Ticket<input data-acc="ticket" data-fid="acc-ticket" value="${esc(m.ticket)}" placeholder="DC-4480"></label>
+        <div class="field">How long<div class="seg" role="group">${[1, 2, 4].map(h => `<button data-act="acc-h" data-v="${h}" aria-pressed="${+m.hours === h}">${h} h</button>`).join("")}</div></div></div>
+      <div class="note">${ic("lock", 16)}Read-only by default. Changes you make are labelled “DevCity support” in the shop's audit log.</div>
+      <button class="btn primary l block" data-act="acc-send" ${ok ? "" : "disabled"}>${ic("mail")}Send request to ${esc(t.owner)} <kbd>Ctrl Enter</kbd></button></div>`;
+  }
+  // Shown inside the shop to its owner
+  function supportBar() {
+    accTick();
+    const a = S.con.access.find(x => x.tenant === "city" && (x.status === "pending" || x.status === "active")); if (!a) return "";
+    if (a.status === "active") return `<div class="support-bar on" role="status">${ic("lock", 16)}<span>DevCity support (${esc(a.by)}) has access until ${hm(accEnd(a))} · ${esc(a.reason)}</span>${isOwner() ? `<button class="btn ghost s" data-act="sup-end" data-v="${a.id}">End now</button>` : ""}</div>`;
+    return isOwner() ? `<div class="support-bar" role="alert">${ic("lock", 16)}<span><b>DevCity support asks for ${a.hours} h access</b> · ${esc(a.reason)} · ticket ${a.ticket}</span><button class="btn secondary s" data-act="sup-no" data-v="${a.id}">Refuse</button><button class="btn primary s" data-act="sup-yes" data-v="${a.id}">Allow ${a.hours} h</button></div>` : "";
+  }
+  function accDecide(id, yes, who) {
+    const a = S.con.access.find(x => x.id === id); if (!a || a.status !== "pending") return;
+    a.status = yes ? "active" : "refused"; a.decidedBy = who; a.at = new Date(); if (yes) a.start = new Date();
+    if (a.tenant === "city") S.audit.unshift({ id: "AU-" + (auditSeq++), when: new Date(), who: who.replace(/ \(owner\)/, ""), kind: "Support", entity: a.id, what: `Support access ${yes ? `allowed for ${a.hours} h` : "refused"} · ${a.reason}` });
+  }
+
   // ---------- Render: main ----------
   function render() {
     const fid = document.activeElement && document.activeElement.dataset ? document.activeElement.dataset.fid : null;
@@ -4064,7 +4220,7 @@ Yesterday 09:15  SYNC-003 Catalog cursor too old · catalog snapshot downloaded<
     const caret = ae && ((ae.tagName === "INPUT" && ae.type !== "checkbox") || ae.tagName === "TEXTAREA") ? ae.selectionStart : null;
     if (FULL_VIEWS.includes(S.view)) {
       document.body.classList.remove("sheet-mode");
-      app.innerHTML = (S.view === "device" ? deviceView() : S.view === "login" ? loginView() : onboardView()) + protoControls();
+      app.innerHTML = (S.view === "device" ? deviceView() : S.view === "login" ? loginView() : S.view === "console" ? consoleView() : onboardView()) + protoControls();
       if (fid) { const el = app.querySelector(`[data-fid="${fid}"]`); if (el) { el.focus({ preventScroll: true }); if (caret != null && el.setSelectionRange) try { el.setSelectionRange(caret, caret); } catch (er) {} } }
       return;
     }
@@ -4124,7 +4280,7 @@ Yesterday 09:15  SYNC-003 Catalog cursor too old · catalog snapshot downloaded<
     else if (S.view === "dashboard") main = topbar(t("overview"), "Thursday, 19 Nov 2026", `<span class="badge hide-t">${ic("store", 14)}All branches</span>`) + dashboard();
     else main = topbar(t(S.view) || "Settings", null) + `<div class="placeholder"><div class="empty"><span class="circle">${ic("package", 28)}</span><h3>${esc(t(S.view))} is not part of this prototype</h3><span>The prototype covers Sell, payment, sale complete and the Overview dashboard.</span><button class="btn primary s" data-act="nav" data-view="sell">Go to Sell</button></div></div>`;
     const trainBar = S.dev.training ? `<div class="training-bar" role="status">${ic("school", 16)}TRAINING MODE · sales are not real and are not counted · turn off in Settings</div>` : "";
-    app.innerHTML = `<div class="app ${S.collapsed ? "collapsed" : ""} ${S.tablet ? "tablet" : ""} ${!S.tablet && window.innerWidth > 1180 ? "desk" : ""}">${sidebar()}<main class="main">${trainBar}${main}</main></div>${protoControls()}`;
+    app.innerHTML = `<div class="app ${S.collapsed ? "collapsed" : ""} ${S.tablet ? "tablet" : ""} ${!S.tablet && window.innerWidth > 1180 ? "desk" : ""}">${sidebar()}<main class="main">${trainBar}${supportBar()}${main}</main></div>${protoControls()}`;
     S.flash = null;
     if (fid) { const el = app.querySelector(`[data-fid="${fid}"]`); if (el) { el.focus({ preventScroll: true }); if (caret != null && el.setSelectionRange) el.setSelectionRange(caret, caret); } }
     const selLine = app.querySelector(".line.sel"); if (selLine && selLine.scrollIntoView) selLine.scrollIntoView({ block: "nearest" });
@@ -4142,6 +4298,7 @@ Yesterday 09:15  SYNC-003 Catalog cursor too old · catalog snapshot downloaded<
       <button class="btn secondary" data-act="goto" data-view="device">Register setup (R-01)</button>
       <button class="btn secondary" data-act="goto" data-view="login">Back-office login (A-01)</button>
       <button class="btn secondary" data-act="goto" data-view="onboard">New shop onboarding (A-05)</button>
+      <button class="btn secondary" data-act="goto" data-view="console">DevCity console (P-01)</button>
       <small>Staff PINs: ${USERS.filter(u => u.active !== false).map(u => `${u.short} ${u.pin}${u.role === "Manager" ? " (manager)" : ""}`).join(" · ")}. Try barcodes 4791111000011, 2012340012507 (1.250 kg carrots), 9999999999999 (unknown).</small></div>` : ""}
       <button class="proto-btn" data-act="proto">${ic("sliders", 16)}Prototype</button></div>`;
   }
@@ -4209,6 +4366,8 @@ Yesterday 09:15  SYNC-003 Catalog cursor too old · catalog snapshot downloaded<
       return;
     } else if (m.type === "cash") {
       h = cashModal(m, head);
+    } else if (m.type === "access") {
+      h = accessModal(m, head);
     } else if (m.type === "unit") {
       h = unitModal(m, head);
     } else if (m.type === "adjpick") {
@@ -4295,6 +4454,26 @@ Yesterday 09:15  SYNC-003 Catalog cursor too old · catalog snapshot downloaded<
       case "pc-pick": S.pc.pid = el.dataset.pid; S.pc.error = ""; render(); break;
       case "pc-clear": S.pc.pid = null; S.pc.error = ""; S.pc.query = ""; render(); focusId("pcsearch"); break;
       case "pc-add": { const p = byId(S.pc.pid); if (!p) break; if (!S.shifts[S.user.id]) { S.view = "openshift"; render(); toast("Open a shift first", { error: true }); break; } S.view = "sell"; render(); addProduct(p); break; }
+      case "con-key": { const C = S.con; C.tapping = true; render(); setTimeout(() => { C.tapping = false; C.signed = true; C.tab = "tenants"; if (S.view === "console") render(); toast(`Signed in as ${SUPPORT.name} · security key verified`); }, 1200); break; }
+      case "con-out": S.con.signed = false; render(); break;
+      case "con-tab": S.con.tab = el.dataset.v; render(); break;
+      case "con-tf": S.con.tf = el.dataset.v; render(); break;
+      case "con-ff": S.con.ff = el.dataset.v; render(); break;
+      case "con-tenant": S.con.tenant = el.dataset.v; S.con.tab = "tenant"; render(); break;
+      case "con-reg": S.con.reg = { t: el.dataset.t, id: el.dataset.v }; S.con.tab = "register"; render(); break;
+      case "con-req": openModal({ type: "access", tenant: el.dataset.v, reason: el.dataset.v === "city" ? "Sale CMB01-R02-000147 is stuck: price list version not found" : "", ticket: "DC-" + (4480 + accSeq.n % 20), hours: 2 }); focusId("accreason"); break;
+      case "acc-h": S.modal.hours = +el.dataset.v; renderModal(); break;
+      case "acc-send": { const m = S.modal; if (m.reason.trim().length < 10 || !/^DC-\d{4}$/.test(m.ticket.trim())) break; const a = { id: "SA-0" + accSeq.n++, tenant: m.tenant, by: SUPPORT.short, reason: m.reason.trim(), ticket: m.ticket.trim(), hours: m.hours, status: "pending", at: new Date() }; S.con.access.push(a); supportAct(m.tenant, `Support access requested for ${m.hours} h · ${a.reason}`, { entity: a.id }); closeModal(); render(); toast(`${a.id} sent to ${TENANTS.find(t => t.id === m.tenant).owner}`); break; }
+      case "con-sim": { const a = S.con.access.find(x => x.id === el.dataset.v), t = TENANTS.find(x => x.id === a.tenant); accDecide(a.id, true, `${t.owner} (owner)`); render(); toast(`${t.owner} allowed access for ${a.hours} h`); break; }
+      case "con-cancel": { const a = S.con.access.find(x => x.id === el.dataset.v); a.status = "withdrawn"; supportAct(a.tenant, "Support access request withdrawn", { entity: a.id }); render(); break; }
+      case "con-end": { const a = S.con.access.find(x => x.id === el.dataset.v); a.status = "ended"; supportAct(a.tenant, "Support access ended early by DevCity", { entity: a.id }); render(); toast("Access ended"); break; }
+      case "con-requeue": { const id = el.dataset.v, sl = S.history.find(x => x.no === id); if (sl) { sl.sync = "synced"; sl.syncError = null; supportAct("city", `Retried ${id} · accepted by the server`, { entity: id }); } else { S.con.requeued[el.dataset.k] = true; supportAct(S.con.reg.t, `Retried ${id}`); } render(); toast(`${id} retried · accepted by the server`); break; }
+      case "con-act": { const C = S.con, t = TENANTS.find(x => x.id === C.reg.t), v = el.dataset.v; if (v === "logs") { supportAct(t.id, `Logs requested from ${C.reg.id}`, { entity: C.reg.id }); toast(`Logs from ${C.reg.id} arrive in about a minute`); } else if (v === "resync") { supportAct(t.id, `Full re-sync forced on ${C.reg.id}`, { entity: C.reg.id }); toast(`${C.reg.id} downloads a fresh snapshot at its next pull`); } else if (v === "lock" && t.live) { const d = devAll().find(x => x.id === C.reg.id), r = d.r; if (r.status === "locked") { r.status = r.prev || "online"; supportAct("city", `${d.id} unlocked by DevCity`, { entity: d.id }); } else { r.prev = r.status; r.status = "locked"; supportAct("city", `${d.id} locked by DevCity`, { entity: d.id }); } toast(`${d.id} ${r.status === "locked" ? "locked" : "unlocked"}`); } render(); break; }
+      case "con-seq": { const C = S.con, t = TENANTS.find(x => x.id === C.reg.t); C.seqReq = { reg: C.reg.id, t: t.id, by: SUPPORT.name, to: `${C.reg.id}-${String(C.reg.id === "CMB01-R02" ? S.seq : 158 + hashOf(C.reg.id) % 40).padStart(6, "0")}`, reason: "Device was restored from an old backup", state: "pending" }; supportAct(t.id, `Receipt sequence reset requested for ${C.reg.id}`, { entity: C.reg.id }); render(); break; }
+      case "con-seq-ok": { const q2 = S.con.seqReq; q2.state = "done"; q2.approver = SUPPORT2.name; q2.doneAt = new Date(); S.con.second = true; supportAct(q2.t, `Receipt sequence of ${q2.reg} set to ${q2.to} · approved by ${SUPPORT2.short} (two-person)`, { entity: q2.reg }); S.con.second = false; render(); toast("Approved by a second person · sequence reset"); break; }
+      case "sup-yes": accDecide(el.dataset.v, true, `${S.user.name} (owner)`); render(); toast("DevCity support can help now · it ends by itself"); break;
+      case "sup-no": accDecide(el.dataset.v, false, `${S.user.name} (owner)`); render(); toast("Request refused · DevCity support is told"); break;
+      case "sup-end": { const a = S.con.access.find(x => x.id === el.dataset.v); a.status = "ended"; S.audit.unshift({ id: "AU-" + (auditSeq++), when: new Date(), who: meShort(), kind: "Support", entity: a.id, what: "Support access ended by the owner" }); render(); toast("Support access ended"); break; }
       case "unit-new": openModal({ type: "unit", name: "", sym: "", utype: "Count", dec: 0, f: "6", of: "pc" }); focusId("unname"); break;
       case "un-type": S.modal.utype = el.dataset.v; renderModal(); break;
       case "un-save": { const m = S.modal; if (!m.name.trim() || !m.sym.trim() || S.units.some(u => u.name.toLowerCase() === m.name.trim().toLowerCase())) break; const id = m.sym.trim().toLowerCase().replace(/[^a-z0-9]/g, "") + Date.now() % 1000; const u = m.utype === "Pack" ? { id, name: m.name.trim(), sym: m.sym.trim(), type: "Pack", of: m.of, f: Math.max(2, parseInt(m.f, 10) || 2), for: "Any product" } : { id, name: m.name.trim(), sym: m.sym.trim(), type: m.utype, dec: +m.dec }; S.units.push(u); if (u.type === "Pack") S.uconv[id] = u.f; S.uLog.unshift({ when: new Date(), who: meShort(), what: `Unit added: ${u.name}${u.type === "Pack" ? ` = ${u.f} ${unitName(u.of).toLowerCase()}s` : ""}` }); auditAdd("Settings", "Units", `Unit added: ${u.name}`); S.uDraft = null; closeModal(); render(); toast(`${u.name} added`); break; }
@@ -4664,6 +4843,8 @@ Yesterday 09:15  SYNC-003 Catalog cursor too old · catalog snapshot downloaded<
     if (e.target.id === "tdsearch") { S.tax.q = e.target.value; render(); }
     if (e.target.id === "bpsearch") { S.bp.q = e.target.value; render(); }
     if (e.target.id === "catname") { S.cat2.rename = e.target.value; }
+    if (e.target.dataset && e.target.dataset.con) { S.con[e.target.dataset.con] = e.target.value; render(); }
+    if (e.target.dataset && e.target.dataset.acc && S.modal) { const k = e.target.dataset.acc; S.modal[k] = e.target.value; const pos = e.target.selectionStart; renderModal(); setTimeout(() => { const x = document.querySelector(`[data-acc="${k}"]`); if (x) { x.focus(); try { x.setSelectionRange(pos, pos); } catch (er) {} } }); }
     if (e.target.dataset && e.target.dataset.uc && S.uDraft) { S.uDraft[e.target.dataset.uc] = Math.max(0, parseInt(e.target.value.replace(/\D/g, ""), 10) || 0); render(); }
     if (e.target.id === "ajsearch") { S.aj.q = e.target.value; render(); }
     if (e.target.dataset && e.target.dataset.aj) { S.aj[e.target.dataset.aj] = e.target.value; render(); }
@@ -4814,6 +4995,7 @@ Yesterday 09:15  SYNC-003 Catalog cursor too old · catalog snapshot downloaded<
       if (m.type === "batch") { if (k === "ArrowDown" || k === "ArrowUp") { e.preventDefault(); const n = byId(m.pid).batches.length; m.choice = (m.choice + (k === "ArrowDown" ? 1 : -1) + n) % n; renderModal(); return; } if (k === "Enter") { e.preventDefault(); const p = byId(m.pid); S.modal = null; renderModal(); addProduct(p, { batch: p.batches[m.choice].id }); } return; }
       if (m.type === "weight" || m.type === "qty") { if (/^[0-9.]$/.test(k)) { modalKey(k); return; } if (k === "Backspace") { modalKey("⌫"); return; } if (k === "Enter") { e.preventDefault(); confirmQty(); } return; }
       if (m.type === "discount") { if (/^[0-9]$/.test(k) && discNeeds(S.cart[S.sel], m.pct) && !discBlock(S.cart[S.sel], m.pct)) { pinKey(k); return; } if (k === "Backspace") { pinKey("⌫"); return; } if (k === "Enter") { e.preventDefault(); confirmDiscount(); } return; }
+      if (m.type === "access") { if ((e.ctrlKey || e.metaKey) && k === "Enter") { e.preventDefault(); modalRoot.querySelector('[data-act="acc-send"]').click(); } return; }
       if (m.type === "unit") { if (k === "Enter" && e.target.tagName !== "SELECT") { e.preventDefault(); modalRoot.querySelector('[data-act="un-save"]').click(); } return; }
       if (m.type === "adjpick") { if (k === "Enter") { e.preventDefault(); const b = modalRoot.querySelector('[data-act="aj-pick"]'); if (b) b.click(); } return; }
       if (m.type === "statement" || m.type === "grndoc") return;
@@ -5109,7 +5291,7 @@ Yesterday 09:15  SYNC-003 Catalog cursor too old · catalog snapshot downloaded<
   let rz; window.addEventListener("resize", () => { clearTimeout(rz); rz = setTimeout(render, 120); });
   if (S.theme) document.documentElement.dataset.theme = S.theme;
   const hash = location.hash.replace("#", "");
-  if (["sell", "dashboard", "signin", "openshift", "returns", "cash", "orders", "receiving", "pricecheck", "status", "settings", "products", "stock", "expiry", "counts", "import", "exceptions", "suppliers", "customers", "shifts", "tax", "vat", "batch", "pricing", "discounts", "taxrates", "categories", "pricelists", "staff", "reports", "business", "branches", "receipts", "audit", "sales", "returnslist", "grns", "profile", "device", "login", "onboard", "units", "adjustments", "devices"].includes(hash)) S.view = hash;
+  if (["sell", "dashboard", "signin", "openshift", "returns", "cash", "orders", "receiving", "pricecheck", "status", "settings", "products", "stock", "expiry", "counts", "import", "exceptions", "suppliers", "customers", "shifts", "tax", "vat", "batch", "pricing", "discounts", "taxrates", "categories", "pricelists", "staff", "reports", "business", "branches", "receipts", "audit", "sales", "returnslist", "grns", "profile", "device", "login", "onboard", "units", "adjustments", "devices", "console"].includes(hash)) S.view = hash;
   if (hash === "stock" || hash === "expiry" || hash === "counts") S.user = USERS[4]; // Kasun, stock keeper
   if (hash === "import" || hash === "exceptions" || hash === "suppliers" || hash === "customers" || hash === "shifts" || hash === "tax" || hash === "vat" || hash === "batch" || hash === "pricing" || hash === "discounts" || hash === "taxrates" || hash === "categories" || hash === "pricelists" || hash === "staff" || hash === "reports" || hash === "sales" || hash === "returnslist" || hash === "grns" || hash === "profile" || hash === "units" || hash === "adjustments") S.user = USERS[3];
   if (["business", "branches", "receipts", "audit", "devices"].includes(hash)) S.user = USERS.find(u => u.id === "dw"); // Dilan, owner // Malini, manager
