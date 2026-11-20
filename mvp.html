@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MVP build list · RetailOS</title>
+<meta name="description" content="The exact list of what to build for the RetailOS MVP: 15 backend modules, about 45 API endpoints, business rules, infrastructure, 20 register screens, 38 admin screens, the DevCity console, printed documents, hardware, and what is out of scope.">
+<link rel="stylesheet" href="assets/site.css">
+<script>try{var t=localStorage.getItem("retailos-theme");if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
+</head>
+<body>
+<header id="topbar"></header>
+<div class="layout">
+<nav id="sidebar"></nav>
+<main class="content"><article>
+
+<h1>MVP build list</h1>
+<p class="lead">Everything the first release must contain, in one place: backend modules, API, rules and infrastructure, then every screen and document on the front end. It is a summary of the <a href="requirements.html">requirements</a>, <a href="modules.html">backend modules</a>, <a href="api.html">API design</a> and <a href="ui-screens.html">screens</a>; when they disagree, those pages win and this one is fixed.</p>
+
+<div class="callout tip"><span class="ct">How to use it</span>Treat each line as a work item. Screen IDs link to the <a href="prototype/index.html">clickable prototype</a>, which shows the intended behaviour. Build in the phase order at the end of this page.</div>
+
+<h2 id="at-a-glance">At a glance</h2>
+<table>
+<thead><tr><th>Part</th><th>Count</th><th>Where it runs</th></tr></thead>
+<tbody>
+<tr><td>Backend modules</td><td>15 + platform support</td><td>Spring Boot 4 modular monolith, PostgreSQL 18 with row-level security</td></tr>
+<tr><td>API endpoints</td><td>About 45</td><td>REST under <code>/api/v1</code>, sync under <code>/sync/v1</code></td></tr>
+<tr><td>Register screens</td><td>20 (R-01 to R-20)</td><td>Windows, Electron + React + encrypted SQLite</td></tr>
+<tr><td>Admin web screens</td><td>38</td><td>React in the browser</td></tr>
+<tr><td>Platform console</td><td>5 (P-01 to P-05)</td><td>Admin web, DevCity staff only</td></tr>
+<tr><td>Printed documents</td><td>6 (D-01 to D-06)</td><td>Thermal printer and A4 PDF</td></tr>
+</tbody>
+</table>
+
+<h2 id="backend">Backend</h2>
+
+<h3 id="backend-modules">Modules</h3>
+<table>
+<thead><tr><th>#</th><th>Module</th><th>What it must do in the MVP</th><th>Main tables</th></tr></thead>
+<tbody>
+<tr><td>1</td><td>Tenancy</td><td>Tenant → branch → register model, settings, enabled modules</td><td>tenant, branch, register, tenant_module, settings</td></tr>
+<tr><td>2</td><td>Identity &amp; access</td><td>E-mail + password login, two-step sign-in (TOTP), refresh-token rotation, staff PINs, roles and permissions, manager override</td><td>app_user, role, permission, user_role, refresh_token, staff_pin</td></tr>
+<tr><td>3</td><td>Devices</td><td>One-time enrollment codes, device keys, heartbeat, remote lock</td><td>device, device_enrollment, device_heartbeat</td></tr>
+<tr><td>4</td><td>Audit</td><td>Append-only, hash-chained log of every money, stock, price, staff and settings action (INV-09)</td><td>audit_log</td></tr>
+<tr><td>5</td><td>Catalog</td><td>Products, variants (each its own SKU), barcodes, units and conversions, categories, brands, Excel/CSV import with dry run then commit</td><td>product, product_variant, sku, barcode, unit, unit_conversion, category, brand</td></tr>
+<tr><td>6</td><td>Pricing</td><td>Price lists (retail, wholesale, branch), scheduled prices with valid-from dates, discount limits per role. Promotions are R2.</td><td>price_list, price_list_item, discount_rule</td></tr>
+<tr><td>7</td><td>Inventory</td><td>Movement ledger (INV-04), balances, batches and expiry, FEFO allocation (INV-14), adjustments with reasons, stock counts, batch block, negative-stock exceptions</td><td>stock_location, batch, stock_movement, stock_balance, stock_count, stock_exception</td></tr>
+<tr><td>8</td><td>Purchasing</td><td>Suppliers and goods receipts into batches, including GS1 scan. Purchase orders are R2.</td><td>supplier, goods_receipt, goods_receipt_line</td></tr>
+<tr><td>9</td><td>Sales</td><td>Record register sales as facts (INV-02), returns linked to the original, held bills, sale exceptions</td><td>sale, sale_line, sale_line_allocation, sale_return, sale_return_line, held_bill</td></tr>
+<tr><td>10</td><td>Payments</td><td>Cash, card and LankaQR (reference only, INV-11), customer credit, split payment</td><td>payment, tender_type, refund_payment</td></tr>
+<tr><td>11</td><td>Cash</td><td>Shift open and close, opening float, cash in/out, blind count, difference review</td><td>cash_session, cash_movement, cash_count</td></tr>
+<tr><td>12</td><td>Customers</td><td>Profiles, credit accounts, credit ledger, settlements, consent records. Loyalty is R2.</td><td>customer, credit_account, credit_ledger</td></tr>
+<tr><td>13</td><td>Tax</td><td>Tax rates with valid-from dates, tax invoice series, credit and debit notes, a fiscal adapter port that does nothing until the IRD publishes its specification</td><td>tax_rate, tax_rule, tax_invoice, credit_note, fiscal_submission</td></tr>
+<tr><td>14</td><td>Sync</td><td>Catalog snapshot, change feed (pull), push of facts with idempotency (INV-05), receipt sequence for replacement devices</td><td>sync_change_log, sync_cursor, sync_inbox, catalog_snapshot</td></tr>
+<tr><td>15</td><td>Reporting</td><td>Materialized views for sales, profit, stock valuation, expiry, Z-report, credit ageing and VAT; asynchronous exports</td><td>mv_*, report_job</td></tr>
+</tbody>
+</table>
+<p><strong>Platform support</strong> (behind P-01 to P-05): support-access grants with owner consent (at most 4 hours, logged in the shop), the register fleet view, requeue of outbox items, and two-person approval for a receipt-sequence reset.</p>
+
+<h3 id="backend-api">API</h3>
+<table>
+<thead><tr><th>Area</th><th>Endpoints</th></tr></thead>
+<tbody>
+<tr><td>Auth</td><td><code>auth/login</code>, <code>auth/refresh</code>, <code>auth/logout</code>, <code>auth/pin</code></td></tr>
+<tr><td>Devices</td><td><code>devices/enroll</code>, <code>devices/{id}/lock</code></td></tr>
+<tr><td>Sync</td><td><code>heartbeat</code>, <code>snapshot</code>, <code>changes</code>, <code>push</code>, <code>receipt-sequence</code></td></tr>
+<tr><td>Catalog and pricing</td><td>products, SKUs, barcodes, imports (dry run and commit), price-list items</td></tr>
+<tr><td>Stock</td><td>balances, adjustments, counts, batch block, suppliers, goods receipts</td></tr>
+<tr><td>Sales</td><td>sales, sale by receipt number, exceptions (list and resolve)</td></tr>
+<tr><td>Cash and customers</td><td>cash sessions and review, customers, credit payments</td></tr>
+<tr><td>Tax, reports, exports</td><td>tax documents, <code>reports/{key}</code>, exports</td></tr>
+<tr><td>Setup</td><td>tenant and settings, branches and registers, users and roles, tenant modules, audit</td></tr>
+</tbody>
+</table>
+<p>Full list with methods, headers, errors and rate limits: <a href="api.html">API design</a>.</p>
+
+<h3 id="backend-rules">Business rules to enforce</h3>
+<table>
+<thead><tr><th>Rule</th><th>What it enforces</th></tr></thead>
+<tbody>
+<tr><td>BR-01</td><td>Discount limit per role, with a recorded manager override</td></tr>
+<tr><td>BR-02</td><td>Price, discount, tax and batch cost snapshot on every sale line</td></tr>
+<tr><td>BR-03</td><td>Calculate to 4 decimals, round HALF_UP to 2</td></tr>
+<tr><td>BR-04</td><td>Chosen or scanned batch, else FEFO</td></tr>
+<tr><td>BR-05</td><td>Short stock never blocks an offline sale; the server raises an exception</td></tr>
+<tr><td>BR-06</td><td>Returns limited to what was bought, within the return window (14 days by default)</td></tr>
+<tr><td>BR-07</td><td>Credit sales need a credit customer; over the limit needs a manager</td></tr>
+<tr><td>BR-08</td><td>No sale without an open shift</td></tr>
+<tr><td>BR-09</td><td>Expired batches cannot be sold</td></tr>
+<tr><td>BR-10</td><td>Gap-free receipt and tax invoice numbers per register</td></tr>
+<tr><td>BR-11</td><td>Tax from rules with valid-from dates, never hard-coded</td></tr>
+</tbody>
+</table>
+
+<h3 id="backend-infra">Infrastructure and operations</h3>
+<ul>
+<li><strong>Database and storage:</strong> PostgreSQL 18 with row-level security on every tenant table (INV-01); point-in-time backups and a daily off-site copy; object storage (MinIO or S3) for snapshots, imports and exports; transactional e-mail for invitations and password resets only.</li>
+<li><strong>Delivery:</strong> Docker containers, a CI/CD pipeline, a module-boundary test and a tenant-isolation test in CI.</li>
+<li><strong>Run-time:</strong> monitoring and alerts, runbooks, and a quarterly restore drill. Details: <a href="deployment.html">Deployment</a> and <a href="operations.html">Monitoring &amp; runbooks</a>.</li>
+</ul>
+
+<h2 id="frontend">Front end</h2>
+
+<h3 id="frontend-register">Register app: 20 screens</h3>
+<p>Windows first: Electron + React + encrypted SQLite.</p>
+<table>
+<thead><tr><th>Group</th><th>Screens</th></tr></thead>
+<tbody>
+<tr><td>Setup</td><td><a href="prototype/index.html#device">R-01 Device setup</a> · <a href="prototype/index.html#signin">R-02 PIN sign-in</a> · <a href="prototype/index.html#openshift">R-03 Open shift</a></td></tr>
+<tr><td>Selling</td><td><a href="prototype/index.html#sell">R-04 Checkout</a> · R-05 Product lookup · R-06 Batch picker · R-07 Line editor · R-08 Manager override · R-09 Customer · R-10 Payment · R-11 Sale complete · R-12 Held bills (all on the <a href="prototype/index.html#sell">Sell screen</a>)</td></tr>
+<tr><td>After the sale</td><td><a href="prototype/index.html#returns">R-13 Returns</a> · <a href="prototype/index.html#orders">R-14 Sales history</a></td></tr>
+<tr><td>Cash</td><td><a href="prototype/index.html#cash">R-15 Cash in/out</a> · <a href="prototype/index.html#cash">R-16 Close shift</a></td></tr>
+<tr><td>Stock</td><td><a href="prototype/index.html#receiving">R-17 Goods receiving</a> · <a href="prototype/index.html#pricecheck">R-18 Price &amp; stock check</a></td></tr>
+<tr><td>Device</td><td><a href="prototype/index.html#status">R-19 Status &amp; diagnostics</a> · <a href="prototype/index.html#settings">R-20 Device settings</a></td></tr>
+</tbody>
+</table>
+<p><strong>The register app itself must also handle:</strong></p>
+<ul>
+<li><strong>Offline:</strong> at least 72 hours of selling with no connection, at least 10,000 queued sales, and an outbox with retry (NFR-03).</li>
+<li><strong>Search:</strong> local search over 50,000 products in under 100 ms (NFR-01).</li>
+<li><strong>Barcodes:</strong> GS1 2D codes, plus scale barcodes with the weight or price inside.</li>
+<li><strong>Printing:</strong> ESC/POS receipts in English, Sinhala and Tamil, and the drawer kick.</li>
+<li><strong>Input:</strong> keyboard F-keys and touch.</li>
+</ul>
+
+<h3 id="frontend-admin">Admin web: 38 screens</h3>
+<table>
+<thead><tr><th>Area</th><th>Screens</th></tr></thead>
+<tbody>
+<tr><td>Access</td><td><a href="prototype/index.html#login">A-01 Login · A-02 Two-step sign-in · A-03 Reset password / accept invite</a> · <a href="prototype/index.html#onboard">A-05 Onboarding wizard</a> · <a href="prototype/index.html#profile">A-90 My profile</a></td></tr>
+<tr><td>Overview</td><td><a href="prototype/index.html#dashboard">A-10 Dashboard</a></td></tr>
+<tr><td>Catalog</td><td><a href="prototype/index.html#products">A-20 Products list · A-21 Product editor</a> · <a href="prototype/index.html#categories">A-22 Categories &amp; brands</a> · <a href="prototype/index.html#import">A-23 Import wizard</a> · <a href="prototype/index.html#units">A-24 Units</a></td></tr>
+<tr><td>Pricing</td><td><a href="prototype/index.html#pricelists">A-30 Price lists</a> · <a href="prototype/index.html#pricing">A-31 Bulk price change</a> · <a href="prototype/index.html#discounts">A-32 Discount limits</a></td></tr>
+<tr><td>Stock</td><td><a href="prototype/index.html#stock">A-40 Stock on hand</a> · <a href="prototype/index.html#batch">A-41 Batch detail &amp; block</a> · <a href="prototype/index.html#grns">A-42 Goods receipts</a> · <a href="prototype/index.html#adjustments">A-43 Stock adjustments</a> · <a href="prototype/index.html#counts">A-44 Stock counts</a> · <a href="prototype/index.html#expiry">A-45 Expiry board</a> · <a href="prototype/index.html#suppliers">A-48 Suppliers</a></td></tr>
+<tr><td>Sales &amp; cash</td><td><a href="prototype/index.html#sales">A-50 Sales history · A-51 Sale detail</a> · <a href="prototype/index.html#returnslist">A-52 Returns</a> · <a href="prototype/index.html#exceptions">A-53 Exceptions queue</a> · <a href="prototype/index.html#shifts">A-55 Shifts &amp; cash</a></td></tr>
+<tr><td>Customers</td><td><a href="prototype/index.html#customers">A-60 Customers · A-61 Customer detail</a> (credit ledger, settlement)</td></tr>
+<tr><td>Tax &amp; reports</td><td><a href="prototype/index.html#tax">A-65 Tax documents</a> · <a href="prototype/index.html#taxrates">A-66 Tax rates</a> · <a href="prototype/index.html#vat">A-67 VAT report</a> · <a href="prototype/index.html#reports">A-70 Report centre</a></td></tr>
+<tr><td>Setup</td><td><a href="prototype/index.html#business">A-80 Business profile</a> · <a href="prototype/index.html#branches">A-81 Branches &amp; registers</a> · <a href="prototype/index.html#staff">A-82 Users &amp; roles</a> · <a href="prototype/index.html#devices">A-83 Devices</a> · <a href="prototype/index.html#receipts">A-84 Receipts &amp; templates</a> · <a href="prototype/index.html#audit">A-87 Audit log</a></td></tr>
+</tbody>
+</table>
+
+<h3 id="frontend-console">Platform console: 5 screens</h3>
+<p><a href="prototype/index.html#console">P-01 Tenants · P-02 Tenant detail · P-03 Register fleet · P-04 Register detail · P-05 Support access</a>. DevCity staff only; shop data is visible only during access the owner has allowed.</p>
+
+<h3 id="frontend-documents">Printed documents: 6</h3>
+<p>D-01 Sales receipt (80/58 mm) · D-02 Tax invoice · D-03 Credit note / return slip · D-04 Z-report · D-05 Customer statement · D-06 Goods received note.</p>
+
+<h3 id="frontend-shared">Shared front-end pieces</h3>
+<ul>
+<li>A UI component library shared by the register and admin apps.</li>
+<li>English, Sinhala and Tamil for every string (NFR-11).</li>
+<li>Light and dark themes, and WCAG 2.2 AA accessibility.</li>
+</ul>
+
+<h2 id="hardware">Hardware supported</h2>
+<table>
+<thead><tr><th>Device</th><th>MVP support</th></tr></thead>
+<tbody>
+<tr><td>Barcode scanner</td><td>1D/2D scanner working as a keyboard (HID). Must read GS1 DataMatrix (F-701).</td></tr>
+<tr><td>Receipt printer</td><td>ESC/POS thermal, 80 or 58 mm, over USB, LAN or Bluetooth (F-702).</td></tr>
+<tr><td>Cash drawer</td><td>Opened by the printer's drawer-kick command (F-703).</td></tr>
+<tr><td>Scale</td><td>Label-printing scale; its barcodes carry the weight or price (F-704).</td></tr>
+</tbody>
+</table>
+
+<h2 id="out-of-scope">Not in the MVP</h2>
+<table>
+<thead><tr><th>Release</th><th>Items</th></tr></thead>
+<tbody>
+<tr><td><span class="badge b-r2">R2</span></td><td>Promotions engine · exchanges as one flow · e-mail receipts · purchase orders · stock transfers · supplier returns · loyalty · best/slow sellers and peak hours · <strong>Android tablet app</strong> · scale connected to the PC · label printer · notifications (SMS/e-mail) · pharmacy and grocery extension modules</td></tr>
+<tr><td><span class="badge b-r3">R3</span></td><td>Gift cards · SMS/WhatsApp receipts · IRD RAMIS e-invoicing · Secured POS · accounting connectors · integrated card terminal and LankaQR gateway</td></tr>
+<tr><td><span class="badge b-later">Later</span></td><td>AI insights · e-commerce · food delivery · fingerprint login</td></tr>
+</tbody>
+</table>
+
+<h2 id="watch">Points to watch</h2>
+<div class="callout warn"><span class="ct">Read before planning</span>
+<ol>
+<li><strong>The Android tablet app is R2 (F-708).</strong> The plan ships Windows first; the same React UI then goes into the Android shell.</li>
+<li><strong>The prototype shows a few R2 extras</strong> that are not part of the MVP: e-mailing receipts and statements, SMS to buyers during a recall, and loyalty points.</li>
+<li><strong>Pharmacy and grocery modules are R2, but their basics are core MVP:</strong> batches, expiry, FEFO, generic-name search and scale barcodes.</li>
+</ol></div>
+
+<h2 id="build-order">Build order</h2>
+<p>From the <a href="roadmap.html">roadmap</a>. The phases add up to about 49 weeks: roughly 10–12 months for one engineer, or 7–8 months with a second engineer from phase 4.</p>
+<table>
+<thead><tr><th>Phase</th><th>Length</th><th>What it builds</th></tr></thead>
+<tbody>
+<tr><td>P0 Setup</td><td>2 weeks</td><td>Repo, CI, empty modules, admin and register shells</td></tr>
+<tr><td>P1 Foundation</td><td>6 weeks</td><td>Tenancy, users, login and two-step sign-in, row-level security, audit, device enrollment, onboarding</td></tr>
+<tr><td>P2 Catalog &amp; local register</td><td>8 weeks</td><td>Catalog, pricing, tax rates, import, offline register shell with local search and barcode parsing</td></tr>
+<tr><td>P3 Receiving &amp; stock</td><td>5 weeks</td><td>Suppliers, goods receipts, ledger, adjustments, counts, expiry and low-stock alerts</td></tr>
+<tr><td>P4 Checkout &amp; sync</td><td>10 weeks</td><td>Cart, discounts, batch picker, payment, receipt numbers, printing, push sync, FEFO, sale exceptions</td></tr>
+<tr><td>P5 Cash, credit, returns, tax</td><td>7 weeks</td><td>Shifts, customer credit, returns, tax documents, VAT report, core reports</td></tr>
+<tr><td>P6 Pilot</td><td>7 weeks</td><td>Three real shops (general retail, pharmacy, grocery), support console, fixes</td></tr>
+<tr><td>P7 Hardening &amp; launch</td><td>4 weeks</td><td>Load tests, restore drill, external pen test, monitoring and alerts</td></tr>
+</tbody>
+</table>
+
+</article></main>
+<aside id="toc"></aside>
+</div>
+<script src="assets/search-index.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js"></script>
+<script src="assets/site.js"></script>
+</body>
+</html>
