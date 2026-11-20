@@ -132,7 +132,8 @@
   const unitsFor = p => p.weighed ? [{ k: "kg", l: "kg", f: 1 }, { k: "sack", l: "Sack (25 kg)", f: 25 }]
     : p.cat === "Pharmacy" ? [{ k: "strip", l: "Strip", f: 1 }, { k: "box", l: "Box (10 strips)", f: 10 }]
     : [{ k: "pc", l: "Piece", f: 1 }, { k: "case", l: "Case (12)", f: 12 }];
-  const baseCost = p => Math.round(p.price * 0.72 / 100) * 100;                     // demo supplier cost per base unit
+  const COST_RATIO = { Pharmacy: 0.78, Grocery: 0.86, Dairy: 0.82, Beverages: 0.73, "Personal care": 0.70, Vegetables: 0.75, Household: 0.72 };
+  const baseCost = p => Math.round(p.price * (COST_RATIO[p.cat] || 0.72) / 100) * 100;                     // demo supplier cost per base unit
   const gtinOf = p => "0" + p.code;
   const pad2 = n => String(n).padStart(2, "0");
   const isoDate = d => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
@@ -397,7 +398,7 @@
     ["management", [["suppliers", "store"], ["pricing", "tag"], ["promotions", "percent"], ["staff", "userCog"]]]
   ];
   function sidebar() {
-    const cur = S.view === "complete" ? "sell" : S.view === "product" || S.view === "import" ? "products" : S.view === "counts" ? "stock" : S.view === "customer" ? "customers" : S.view === "shifts" ? "cash" : S.view === "vat" || S.view === "taxrates" ? "tax" : S.view === "batch" ? "stock" : S.view === "discounts" ? "pricing" : S.view;
+    const cur = S.view === "complete" ? "sell" : S.view === "product" || S.view === "import" ? "products" : S.view === "counts" ? "stock" : S.view === "customer" ? "customers" : S.view === "shifts" ? "cash" : S.view === "vat" || S.view === "taxrates" ? "tax" : S.view === "batch" ? "stock" : S.view === "discounts" || S.view === "pricelists" ? "pricing" : S.view === "categories" ? "products" : S.view;
     let h = `<aside class="sidebar" aria-label="Main navigation"><div class="brand"><span class="mark">R</span><span class="brand-name">RetailOS</span><button class="icon-btn" data-act="collapse" title="Collapse sidebar">${ic("panel")}</button></div><nav>`;
     for (const [g, items] of NAV) {
       h += `<div class="nav-label">${t(g)}</div>`;
@@ -453,7 +454,7 @@
         <div class="seg view-seg" role="group" aria-label="View"><button data-act="view-grid" aria-pressed="${!S.list}" title="Grid view">${ic("grid")}</button><button data-act="view-list" aria-pressed="${S.list}" title="List view">${ic("list")}</button></div>
       </div>
       ${S.scanError ? `<div class="scan-error" role="alert">${ic("alert", 18)}No product found for ${esc(S.scanError)}<button class="btn secondary" data-act="clear-scan">Search by name</button><button class="btn ghost" data-act="add-new">Add new product (manager)</button></div>` : `<span id="scan-help" class="sr">Type or scan; press Enter to add. Arrow keys move between products.</span>`}
-      <div class="chips" role="group" aria-label="Categories">${CATS.map(c => `<button class="chip" data-act="cat" data-cat="${esc(c)}" aria-pressed="${S.cat === c}">${esc(c === "All" ? "All · 1,248" : c)}</button>`).join("")}</div>
+      <div class="chips" role="group" aria-label="Categories">${sellCats().map(c => `<button class="chip" data-act="cat" data-cat="${esc(c)}" aria-pressed="${S.cat === c}">${c !== "All" && c !== "Offers" ? `<i class="qk tile-${catColor(c)}"></i>` : ""}${esc(c === "All" ? "All · 1,248" : c)}</button>`).join("")}</div>
       <div class="grid ${S.list ? "list" : ""}" id="grid">${grid}</div>
     </section>`;
   }
@@ -587,7 +588,7 @@
           <div class="greet">${greeting()} · ${now.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" })} · ${now.toTimeString().slice(0, 5)}</div>
           <h1 id="who">${esc(t("whoWorking"))}</h1>
           <div class="users" role="listbox" aria-label="Staff on this branch">${USERS.map((x, i) => `<button class="user-tile" role="option" aria-selected="${i === S.su.sel}" data-act="su-pick" data-i="${i}" data-fid="user-${x.id}">
-            ${S.shifts[x.id] ? badge("success", "Shift open", null) : lockLeft(x) ? badge("error", "Locked", "lock") : ""}<span class="avatar">${x.initials}</span><b>${esc(x.name)}</b><span>${esc(x.role)}</span></button>`).join("")}</div>
+            ${x.active === false ? badge("", "Turned off", null) : S.shifts[x.id] ? badge("success", "Shift open", null) : lockLeft(x) ? badge("error", "Locked", "lock") : x.invited ? badge("info", "New", null) : ""}<span class="avatar">${x.initials}</span><b>${esc(x.name)}</b><span>${esc(x.role)}</span></button>`).join("")}</div>
         </section>
         <section class="pin-card ${S.su.err ? "shake" : ""}" aria-label="PIN entry">
           <div class="pin-head"><span class="avatar">${u.initials}</span><div><b>${esc(t("enterPin"))}</b><span>${esc(u.name)} · ${esc(u.role)}</span></div></div>
@@ -611,8 +612,9 @@
   }
   function suSubmit() {
     const u = USERS[S.su.sel]; if (lockLeft(u) || S.su.pin.length < 4 || S.view !== "signin") return;
+    if (u.active === false) { S.su.pin = ""; render(); toast(`${u.short}'s account is turned off. Ask a manager.`, { error: true }); return; }
     if (S.su.pin === u.pin) {
-      S.su.tries[u.id] = 0; S.su.pin = ""; S.su.err = false; S.user = u;
+      S.su.tries[u.id] = 0; S.su.pin = ""; S.su.err = false; S.user = u; u.last = new Date(); if (u.invited) { u.invited = false; toast(`First sign-in: ${u.short} will choose a personal PIN (next release)`); }
       S.view = S.shifts[u.id] ? "sell" : "openshift";
       render(); toast(`Welcome, ${u.short}${S.shifts[u.id] ? " · your shift is open" : ""}`);
       if (S.view === "sell") focusSearch();
@@ -1276,6 +1278,7 @@ Yesterday 09:15  SYNC-003 Catalog cursor too old · catalog snapshot downloaded<
         <button class="toggle-btn" data-act="pf-low" aria-pressed="${f.low}">${ic("alert", 16)}Low stock · ${lowCount}</button>
         <button class="toggle-btn" data-act="pf-missing" aria-pressed="${f.missing}">සිං/தமி missing · ${missingCount}</button>
         <span class="spacer"></span>
+        <button class="btn secondary" data-act="nav" data-view="categories">${ic("grid", 18)}Categories</button>
         <button class="btn secondary" data-act="nav" data-view="pricing">${ic("tag", 18)}Change prices</button>
         <button class="btn secondary" data-act="nav" data-view="import">${ic("upload", 18)}Import</button>
         <button class="btn secondary" data-act="toast" data-msg="products.xlsx exported (${list.length} rows)">Export</button>
@@ -2774,7 +2777,7 @@ Yesterday 09:15  SYNC-003 Catalog cursor too old · catalog snapshot downloaded<
   S.bp = { cat: "All", brand: "All", sup: "All", q: "", off: {}, kind: "pct", dir: "up", value: "5", round: "10", when: "now", date: "" };
   S.bpJobs = [{ id: "PC-0014", desc: "Beverages +3%, rounded to Rs 10", count: 3, date: "", status: "applied", by: "Malini J.", at: daysAgo(12, 17, 20), items: [] }];
   S.bpSeq = 15;
-  const pricingTabs = cur => `<div class="seg tabs big" role="tablist">${[["pricing", "Bulk price change"], ["discounts", "Discount limits"]].map(([v, l]) => `<button role="tab" data-act="nav" data-view="${v}" aria-pressed="${cur === v}" aria-selected="${cur === v}">${l}</button>`).join("")}</div>`;
+  const pricingTabs = cur => `<div class="seg tabs big" role="tablist">${[["pricing", "Bulk price change"], ["discounts", "Discount limits"], ["pricelists", "Price lists"]].map(([v, l]) => `<button role="tab" data-act="nav" data-view="${v}" aria-pressed="${cur === v}" aria-selected="${cur === v}">${l}</button>`).join("")}</div>`;
   function bpProducts() {
     const f = S.bp, q = f.q.trim().toLowerCase();
     return PRODUCTS.filter(p => p.active !== false && (f.cat === "All" || p.cat === f.cat) && (f.brand === "All" || p.brand === f.brand)
@@ -2942,6 +2945,296 @@ Yesterday 09:15  SYNC-003 Catalog cursor too old · catalog snapshot downloaded<
     </div>`;
   }
 
+  // ---------- Categories & brands (A-22) ----------
+  const QK = ["blue", "green", "orange", "purple", "pink", "teal", "yellow"];
+  S.catTree = [
+    { name: "Pharmacy", color: "teal", show: true, subs: ["Pain relief", "Antibiotics", "Vitamins"] },
+    { name: "Grocery", color: "yellow", show: true, subs: ["Rice & grains", "Oils", "Biscuits"] },
+    { name: "Dairy", color: "blue", show: true, subs: ["Milk powder", "Fresh milk", "Yoghurt"] },
+    { name: "Beverages", color: "green", show: true, subs: ["Tea", "Water"] },
+    { name: "Personal care", color: "pink", show: true, subs: ["Oral care", "Hair care"] },
+    { name: "Vegetables", color: "orange", show: true, subs: [] },
+    { name: "Household", color: "purple", show: false, subs: ["Cleaning"] }
+  ];
+  S.cat2 = { tab: "cats", sel: "Pharmacy", drag: null, newSub: "", bq: "", rename: null };
+  const catColor = n => (S.catTree.find(c => c.name === n) || { color: "blue" }).color;
+  const sellCats = () => ["All", ...S.catTree.filter(c => c.show).map(c => c.name), "Offers"];
+  const catCount = n => PRODUCTS.filter(p => p.active !== false && p.cat === n).length;
+  const brandCount = b => PRODUCTS.filter(p => p.brand === b).length;
+  const productsTabs = cur => `<div class="seg tabs big" role="tablist">${[["categories", "Categories"], ["brands", "Brands"]].map(([v, l]) => `<button role="tab" data-act="cat2-tab" data-v="${v}" aria-pressed="${cur === v}" aria-selected="${cur === v}">${l}</button>`).join("")}</div>`;
+  function catRename(oldN, newN) {
+    newN = newN.trim();
+    if (!newN || newN === oldN) return true;
+    if (S.catTree.some(c => c.name.toLowerCase() === newN.toLowerCase())) { toast("A category with this name exists", { error: true }); return false; }
+    const c = S.catTree.find(x => x.name === oldN); c.name = newN;
+    for (const p of PRODUCTS) if (p.cat === oldN) p.cat = newN;
+    const i = CATS_ADMIN.indexOf(oldN); if (i >= 0) CATS_ADMIN[i] = newN;
+    if (TONES[oldN]) TONES[newN] = TONES[oldN];
+    if (S.tr.defaults[oldN]) S.tr.defaults[newN] = S.tr.defaults[oldN];
+    if (S.cat === oldN) S.cat = newN;
+    S.cat2.sel = newN; return true;
+  }
+  function catMove(name, d) {
+    const a = S.catTree, i = a.findIndex(c => c.name === name), j = i + d;
+    if (i < 0 || j < 0 || j >= a.length) return;
+    [a[i], a[j]] = [a[j], a[i]]; render(); setTimeout(() => { const b = app.querySelector(`[data-act="cat-move"][data-n="${CSS.escape(name)}"][data-d="${d}"]`); if (b && !b.disabled) b.focus(); });
+  }
+  function categoriesView() {
+    if (!["Manager", "Stock keeper"].includes(S.user.role)) return `<div class="placeholder"><div class="empty"><span class="circle">${ic("lock", 28)}</span><h3>Categories are edited by managers and stock keepers</h3><button class="btn primary s" data-act="logout">Switch user</button></div></div>`;
+    const C = S.cat2;
+    if (C.tab === "brands") return brandsView();
+    const c = S.catTree.find(x => x.name === C.sel) || S.catTree[0];
+    return `<div class="page cats">${productsTabs("categories")}
+      <div class="cat-grid">
+        <section class="card"><div class="card-head"><h2>Categories</h2><button class="btn secondary s" data-act="cat-new">${ic("plus", 16)}Add</button></div>
+          <div class="cat-list" role="listbox" aria-label="Categories · drag or use the arrows to reorder">${S.catTree.map((x, i) => `<div class="cat-item ${x.name === c.name ? "on" : ""} ${C.drag === x.name ? "dragging" : ""}" role="option" aria-selected="${x.name === c.name}" draggable="true" data-drag="${esc(x.name)}">
+            <span class="grip" aria-hidden="true">⋮⋮</span><button class="cat-pick" data-act="cat-sel" data-n="${esc(x.name)}"><i class="qk tile-${x.color}"></i><b>${esc(x.name)}</b><small>${catCount(x.name)} products${x.subs.length ? ` · ${x.subs.length} sub` : ""}${x.show ? "" : " · hidden on register"}</small></button>
+            <span class="moves"><button class="icon-btn" data-act="cat-move" data-n="${esc(x.name)}" data-d="-1" ${i === 0 ? "disabled" : ""} aria-label="Move ${esc(x.name)} up">${ic("chevDown", 16)}</button><button class="icon-btn" data-act="cat-move" data-n="${esc(x.name)}" data-d="1" ${i === S.catTree.length - 1 ? "disabled" : ""} aria-label="Move ${esc(x.name)} down">${ic("chevDown", 16)}</button></span></div>`).join("")}</div>
+          <div class="note">${ic("help", 16)}The order here is the order of the category buttons on every register.</div></section>
+        <div class="cat-side">
+          <section class="card"><h2>${esc(c.name)}</h2>
+            <label class="field">Name<input id="catname" data-fid="catname" value="${esc(C.rename != null ? C.rename : c.name)}" data-cname="1"><span class="hint">Renaming moves its ${catCount(c.name)} products too. Press Enter to save.</span></label>
+            <div class="field">Quick-key colour<div class="swatches" role="radiogroup" aria-label="Colour">${QK.map(k => `<button class="sw tile-${k}" role="radio" data-act="cat-color" data-v="${k}" aria-checked="${c.color === k}" aria-label="${k}">${c.color === k ? ic("check", 16) : ""}</button>`).join("")}</div></div>
+            <label class="check-row"><input type="checkbox" data-act="cat-show" ${c.show ? "checked" : ""}><span><b>Show on the register</b><small>Hidden categories can still be searched and scanned.</small></span></label>
+            <div class="field">Subcategories<div class="chips wrap">${c.subs.map(s => `<span class="chip sub">${esc(s)}<button data-act="cat-subdel" data-v="${esc(s)}" aria-label="Remove ${esc(s)}">${ic("x", 14)}</button></span>`).join("") || `<span class="muted">None</span>`}</div>
+              <div class="sub-add"><input id="catsub" data-fid="catsub" placeholder="Add a subcategory" value="${esc(C.newSub)}"><button class="btn secondary s" data-act="cat-subadd">Add</button></div></div>
+            <label class="field">New products are<select data-catdef="1" data-fid="catdef"><option value="std" ${S.tr.defaults[c.name] === "std" ? "selected" : ""}>Standard-rated VAT</option><option value="exempt" ${S.tr.defaults[c.name] === "exempt" ? "selected" : ""}>VAT exempt</option></select></label>
+            <div class="card-actions" style="justify-content:space-between"><button class="btn ghost" data-act="cat-products">${ic("package", 18)}View ${catCount(c.name)} products</button><button class="btn danger-outline" data-act="cat-del" ${catCount(c.name) ? "disabled" : ""}>Delete</button></div>
+            ${catCount(c.name) ? `<div class="note">${ic("lock", 16)}Move its products to another category before deleting.</div>` : ""}</section>
+          <section class="card"><h2>Register preview</h2><div class="qk-preview">${sellCats().map(n => `<span class="chip">${n !== "All" && n !== "Offers" ? `<i class="qk tile-${catColor(n)}"></i>` : ""}${esc(n)}</span>`).join("")}</div></section>
+        </div>
+      </div></div>`;
+  }
+  function brandsView() {
+    const C = S.cat2, q = C.bq.trim().toLowerCase(), list = BRANDS.filter(b => !q || b.toLowerCase().includes(q));
+    return `<div class="page cats">${productsTabs("brands")}
+      <section class="card"><div class="card-head"><h2>Brands · ${BRANDS.length}</h2><label class="search" style="max-width:320px">${ic("search")}<span class="sr">Search brands</span><input id="bsearch" data-fid="bsearch" value="${esc(C.bq)}" placeholder="Search brands…"></label><button class="btn primary" data-act="brand-new">${ic("plus", 18)}Add brand</button></div>
+        <div class="ctable" role="table" aria-label="Brands"><div class="brow head" role="row"><span>Brand</span><span class="r">Products</span><span></span></div>
+          ${list.map(b => `<div class="brow" role="row">${C.rename && C.rename.brand === b ? `<input id="brname" data-fid="brname" value="${esc(C.rename.v)}" data-bname="1" aria-label="New name for ${esc(b)}">` : `<b>${esc(b)}</b>`}<span class="r">${brandCount(b)}</span>
+            <span class="r">${C.rename && C.rename.brand === b ? `<button class="btn primary s" data-act="brand-save">Save</button><button class="btn ghost s" data-act="brand-cancel">Cancel</button>` : `<button class="btn ghost s" data-act="brand-rename" data-v="${esc(b)}">Rename</button><button class="btn ghost s" data-act="brand-del" data-v="${esc(b)}" ${brandCount(b) ? "disabled title=\"Has products\"" : ""}>Delete</button>`}</span></div>`).join("")}</div>
+        <div class="note">${ic("help", 16)}Renaming a brand updates its products. A brand with products cannot be deleted.</div></section></div>`;
+  }
+
+  // ---------- Price lists (A-30) ----------
+  S.pl = { sel: "wholesale", q: "", cat: "All", draft: {}, raw: {}, lists: [
+    { id: "retail", name: "Retail", desc: "The default price on every register", applies: "Everyone", kind: "base" },
+    { id: "wholesale", name: "Wholesale", desc: "Rule: retail −7%, rounded down to Rs 5", applies: "Business customers", kind: "field", rule: { pct: -7, round: 5 } },
+    { id: "gal01", name: "Galle branch", desc: "Prices that differ in Galle", applies: "Branch GAL01", kind: "override", rule: { pct: 0, round: 0 }, over: { ct: 78000, bw: 15000, eg: 66000 } }
+  ] };
+  const plOf = id => S.pl.lists.find(l => l.id === id);
+  function plPrice(l, p) {
+    if (l.kind === "base") return p.price;
+    if (S.pl.draft[p.id] != null) return S.pl.draft[p.id];
+    if (l.kind === "field") return p.wholesale;
+    return l.over[p.id] != null ? l.over[p.id] : p.price;
+  }
+  const plRule = (l, p) => { const r = l.rule || { pct: 0, round: 0 }, n = p.price * (1 + r.pct / 100), st = (r.round || 0) * 100; return st ? Math.floor(n / st) * st : Math.round(n); };
+  for (const p of PRODUCTS) p.wholesale = plRule(plOf("wholesale"), p);   // wholesale follows its rule…
+  byId("br").wholesale = 300000; byId("mp").wholesale = 105000;           // …except two agreed prices
+  const plDirty = () => Object.keys(S.pl.draft).length > 0;
+  function plSave() {
+    const l = plOf(S.pl.sel), by = meShort(); let n = 0;
+    for (const [pid, v] of Object.entries(S.pl.draft)) {
+      const p = byId(pid), old = plPrice({ ...l }, p) ;
+      if (l.kind === "field") { if (p.wholesale !== v) { p.log.unshift({ when: new Date(), who: by, what: `Wholesale ${fmt(p.wholesale)} → ${fmt(v)}` }); p.wholesale = v; n++; } }
+      else if (l.kind === "override") { if (v === p.price) delete l.over[pid]; else l.over[pid] = v; p.log.unshift({ when: new Date(), who: by, what: `${l.name} price ${fmt(v)}` }); n++; }
+    }
+    S.pl.draft = {}; S.pl.raw = {}; render(); toast(`${l.name}: ${n} price${n === 1 ? "" : "s"} saved · registers update within a minute`);
+  }
+  function priceListsView() {
+    if (S.user.role !== "Manager") return pricingView();
+    const P = S.pl, l = plOf(P.sel), q = P.q.trim().toLowerCase();
+    const prods = PRODUCTS.filter(p => p.active !== false && (P.cat === "All" || p.cat === P.cat) && (!q || (p.name + " " + p.sku).toLowerCase().includes(q)));
+    const nOver = l.kind === "override" ? Object.keys(l.over).length : l.kind === "field" ? PRODUCTS.filter(p => p.wholesale !== plRule(l, p)).length : 0;
+    return `<div class="page pricing">${pricingTabs("pricelists")}
+      <div class="pl-grid">
+        <section class="card pl-lists"><h2>Price lists</h2><div class="opt-list">${P.lists.map(x => `<button class="opt" data-act="pl-sel" data-id="${x.id}" aria-selected="${x.id === P.sel}"><span class="grow"><b>${esc(x.name)}</b><small>${esc(x.applies)}</small></span>${x.kind === "base" ? badge("", "Default", null) : ""}</button>`).join("")}</div>
+          <div class="note">${ic("help", 16)}A sale uses the customer's list (e.g. Wholesale for business customers), then the branch list, then Retail.</div></section>
+        <section class="card"><div class="card-head"><div style="flex:1;min-width:0"><h2>${esc(l.name)}</h2><span class="sub">${esc(l.desc)} · applies to ${esc(l.applies)}${l.kind !== "base" ? ` · ${nOver} price${nOver === 1 ? "" : "s"} differ from the rule` : ""}</span></div>
+            ${l.kind !== "base" ? `<button class="btn secondary" data-act="pl-rule">${l.kind === "field" ? "Apply the rule to all" : "Clear all overrides"}</button>` : `<button class="btn secondary" data-act="nav" data-view="pricing">${ic("tag", 18)}Bulk price change</button>`}</div>
+          <div class="filters"><label class="search" style="flex:1;min-width:220px">${ic("search")}<span class="sr">Search</span><input id="plsearch" data-fid="plsearch" autocomplete="off" placeholder="Product or SKU…" value="${esc(P.q)}"></label>
+            <select data-plf="cat" data-fid="plf-cat" aria-label="Category"><option value="All">All categories</option>${CATS_ADMIN.map(c => `<option ${P.cat === c ? "selected" : ""}>${c}</option>`).join("")}</select></div>
+          <div class="ctable" role="table" aria-label="${esc(l.name)} prices"><div class="plrow head" role="row"><span>Product</span><span class="r">Cost</span><span class="r">Retail</span><span class="r">${esc(l.name)}</span><span class="r">vs retail</span><span>Check</span></div>
+            ${prods.map(p => { const v = plPrice(l, p), d = p.price ? Math.round((v - p.price) / p.price * 1000) / 10 : 0, changed = P.draft[p.id] != null, rule = l.kind === "field" ? plRule(l, p) : null; return `<div class="plrow ${changed ? "chg" : ""}" role="row">
+              <span class="pname"><span class="thumb tile-${p.tone}">${ic(p.icon, 18)}</span><span style="min-width:0"><b>${esc(p.name)}</b><small>${esc(p.sku)}${rule != null && v !== rule ? ` · rule says ${fmt(rule)}` : ""}${l.kind === "override" && l.over[p.id] == null && !changed ? " · same as retail" : ""}</small></span></span>
+              <span class="r muted">${fmt(p.cost)}</span><span class="r">${fmt(p.price)}</span>
+              <span class="r">${l.kind === "base" ? `<b>${fmt(v)}</b>` : `<input class="plin" data-pl="${p.id}" data-fid="pl-${p.id}" inputmode="decimal" value="${P.raw[p.id] != null ? esc(P.raw[p.id]) : (v / 100).toFixed(2)}" aria-label="${esc(l.name)} price for ${esc(p.name)}">`}</span>
+              <span class="r ${d < 0 ? "neg" : d > 0 ? "pos" : "muted"}">${d > 0 ? "+" : d < 0 ? "−" : ""}${Math.abs(d)}%</span>
+              <span>${v <= p.cost ? badge("error", "Below cost", "alert") : changed ? badge("warning", "Unsaved", "pencil") : badge("success", "OK", "check")}</span></div>`; }).join("")}</div>
+          ${l.kind !== "base" ? `<div class="card-actions"><span class="sub" style="margin-right:auto">${plDirty() ? `${Object.keys(P.draft).length} unsaved change${Object.keys(P.draft).length === 1 ? "" : "s"}` : "Edit a price, then save."}</span><button class="btn secondary" data-act="pl-discard" ${plDirty() ? "" : "disabled"}>Discard</button><button class="btn primary" data-act="pl-save" ${plDirty() && !Object.entries(P.draft).some(([id, v]) => v <= byId(id).cost) ? "" : "disabled"}>${ic("check", 18)}Save prices <kbd>Ctrl S</kbd></button></div>` : ""}
+        </section>
+      </div></div>`;
+  }
+
+  // ---------- Users & roles (A-82) ----------
+  const PERMS = [
+    ["sale.create", "Make sales", "OMC_P_"], ["sale.discount.within_limit", "Discount within the role limit", "OMC_P_"], ["sale.discount.override", "Approve discounts above the limit", "OM____"],
+    ["sale.void_open", "Void an open sale", "OMC_P_"], ["refund.create.within_limit", "Refund within the limit", "OMC_P_"], ["refund.create.above_limit", "Approve bigger refunds", "OM____"],
+    ["price.override_at_till", "Change a price at the till", "OM____"], ["cash.drawer.no_sale", "Open the drawer without a sale", "OM____"], ["shift.open_close", "Open and close own shift", "OMC_P_"],
+    ["shift.review_variance", "Approve shift differences", "OM____"], ["stock.receive", "Receive goods", "OM_SP_"], ["stock.adjust", "Adjust stock", "OM_S__"], ["batch.block", "Block batches and start recalls", "OM__P_"],
+    ["catalog.edit", "Edit products and categories", "OM_S__"], ["price.edit", "Change prices and price lists", "OM____"], ["customer.credit.manage", "Manage customer credit", "OM___A"],
+    ["report.view_profit", "See profit and margin", "OM___A"], ["tax.documents.view", "See tax documents", "OM___A"], ["user.manage", "Manage users", "OM____"], ["device.manage", "Manage devices", "OM____"],
+    ["tenant.settings", "Business settings and modules", "O_____"], ["audit.view", "See the audit log", "OM___A"]
+  ];
+  const BUILTIN = [["Owner", "O"], ["Manager", "M"], ["Cashier", "C"], ["Stock keeper", "S"], ["Pharmacist", "P"], ["Accountant", "A"]];
+  S.roles = BUILTIN.map(([name, k], i) => ({ name, builtin: true, perms: PERMS.filter(p => p[2][i] !== "_").map(p => p[0]) }));
+  const STAFF_OTHER = [
+    { id: "dw", name: "Dilan Wickrama", short: "Dilan", role: "Owner", initials: "DW", branches: ["All branches"], other: true },
+    { id: "cw", name: "Chamari Wijesinghe", short: "Chamari", role: "Manager", initials: "CW", branches: ["KDY01"], other: true },
+    { id: "rf2", name: "Roshan Fernando", short: "Roshan", role: "Cashier", initials: "RF", branches: ["GAL01"], other: true },
+    { id: "ac", name: "Priyanka Ratnayake", short: "Priyanka", role: "Accountant", initials: "PR", branches: ["All branches"], other: true }
+  ];
+  USERS.forEach((u, i) => Object.assign(u, { branches: ["CMB01"], active: true, last: daysAgo(i === 0 || i === 3 ? 0 : i, 8 + i, 5 * i), phone: "07" + (1 + i) + "*****" + (100 + i * 7) }));
+  STAFF_OTHER.forEach((u, i) => Object.assign(u, { active: true, last: daysAgo(i + 1, 9, 0), phone: "07" + (5 + i) + "*****" + (210 + i * 9) }));
+  S.st = { tab: "users", sel: "np", q: "", tempPin: null, roleSel: "Cashier" };
+  const allStaff = () => [...USERS, ...STAFF_OTHER];
+  const canEditUser = u => S.user.role === "Manager" && !u.other && u.role !== "Manager" && u.role !== "Owner" && u.id !== S.user.id;
+  const ASSIGNABLE = () => S.roles.filter(r => !["Owner", "Manager", "Accountant"].includes(r.name)).map(r => r.name);
+  function staffView() {
+    if (S.user.role !== "Manager") return `<div class="placeholder"><div class="empty"><span class="circle">${ic("lock", 28)}</span><h3>Staff are managed by managers and the owner</h3><button class="btn primary s" data-act="logout">Switch user</button></div></div>`;
+    const T3 = S.st, tabs = `<div class="seg tabs big" role="tablist">${[["users", "Users"], ["roles", "Roles & permissions"]].map(([v, l]) => `<button role="tab" data-act="st-tab" data-v="${v}" aria-pressed="${T3.tab === v}" aria-selected="${T3.tab === v}">${l}</button>`).join("")}</div>`;
+    if (T3.tab === "roles") return rolesView(tabs);
+    const q = T3.q.trim().toLowerCase(), list = allStaff().filter(u => !q || (u.name + " " + u.role).toLowerCase().includes(q));
+    const left = `<section class="products" aria-label="Users">${tabs}
+      <div class="search-row"><label class="search">${ic("search")}<span class="sr">Search staff</span><input id="stsearch2" data-fid="stsearch2" autocomplete="off" placeholder="Name or role…" value="${esc(T3.q)}"></label><button class="btn primary" data-act="st-invite">${ic("userPlus", 18)}Add staff</button></div>
+      <div class="htable" role="listbox" aria-label="Staff"><div class="urow head" aria-hidden="true"><span>Name</span><span>Role</span><span>Branch</span><span>Last sign-in</span><span>Status</span></div>
+        ${list.map(u => `<button class="urow" role="option" aria-selected="${u.id === T3.sel}" data-act="st-sel" data-id="${u.id}"><span class="pname"><span class="avatar s">${esc(u.initials)}</span><span style="min-width:0"><b>${esc(u.name)}</b><small>${esc(u.phone || "")}</small></span></span>
+          <span>${esc(u.role)}</span><span class="muted">${esc(u.branches.join(", "))}</span><span class="muted">${u.invited ? "—" : dayDiff(u.last) === 0 ? "Today " + hm(u.last) : dayDiff(u.last) + " days ago"}</span>
+          <span>${u.active === false ? badge("", "Turned off", null) : u.invited ? badge("info", "Invited", "mail") : lockLeft(u) ? badge("error", "Locked", "lock") : badge("success", "Active", "check")}</span></button>`).join("")}</div>
+      <div class="note">${ic("lock", 16)}You manage staff at CMB01. Managers and other branches are managed by the owner.</div></section>`;
+    return `<div class="body">${left}${staffPanel(allStaff().find(u => u.id === T3.sel))}</div>`;
+  }
+  function staffPanel(u) {
+    if (!u) return `<aside class="order st-panel"><div class="empty" style="flex:1"><span class="circle">${ic("users", 28)}</span><h3>Select a person</h3></div></aside>`;
+    const ed = canEditUser(u), role = S.roles.find(r => r.name === u.role), T3 = S.st;
+    return `<aside class="order st-panel" aria-label="Staff details">
+      <div class="order-head"><div class="order-title"><span class="avatar l">${esc(u.initials)}</span><div style="flex:1;min-width:0"><h2>${esc(u.name)}</h2><div class="sub">${esc(u.role)} · ${esc(u.branches.join(", "))}</div></div></div>
+        ${!ed ? `<div class="note">${ic("lock", 16)}${u.id === S.user.id ? "You cannot change your own access." : u.other ? "Managed at another branch or by the owner." : "Only the owner can change managers."}</div>` : ""}</div>
+      <div class="panel-body">
+        ${T3.tempPin && T3.tempPin.id === u.id ? `<div class="banner" style="background:var(--success-tint);color:var(--success-text)">${ic("lock")}<span>Temporary PIN for ${esc(u.short)}: <b class="mono" style="font-size:18px">${T3.tempPin.pin}</b>. Shown once. ${esc(u.short)} chooses a new PIN at the first sign-in.</span></div>` : ""}
+        <label class="field">Role<select data-st="role" data-fid="st-role" ${ed ? "" : "disabled"}>${(ed ? ASSIGNABLE() : [u.role]).map(r => `<option ${u.role === r ? "selected" : ""}>${esc(r)}</option>`).join("")}</select>${ed ? `<span class="hint">Manager, Owner and Accountant are given by the owner.</span>` : ""}</label>
+        <div class="field">What this role can do<div class="perm-chips">${PERMS.filter(p => role && role.perms.includes(p[0])).map(p => `<span class="chip s">${esc(p[1])}</span>`).join("") || `<span class="muted">Nothing yet</span>`}</div></div>
+        <div class="field">Discount limit<span class="sub" style="font-size:14px;color:var(--text)">${S.disc.roles[u.role] ? `Up to ${S.disc.roles[u.role].pct}% or ${fmt(S.disc.roles[u.role].amt)} a line` : u.role === "Owner" ? "No limit" : u.role === "Accountant" ? "Does not sell" : "Cashier limits apply"} · <button class="linkish" data-act="nav" data-view="discounts">change</button></span></div>
+      </div>
+      <div class="order-foot"><div class="two"><button class="btn secondary" data-act="st-pin" ${ed && !u.invited ? "" : "disabled"}>${ic("lock", 18)}Reset PIN</button><button class="btn secondary" data-act="toast" data-msg="${esc(u.short)} signed out on every register" ${ed ? "" : "disabled"}>${ic("logout", 18)}Sign out everywhere</button></div>
+        <button class="btn ${u.active === false ? "primary" : "danger-outline"} block" data-act="st-active" ${ed ? "" : "disabled"}>${u.active === false ? "Turn the account back on" : "Turn off this account"}</button></div>
+    </aside>`;
+  }
+  function rolesView(tabs) {
+    const roles = S.roles;
+    return `<div class="page staff-roles">${tabs}
+      <section class="card"><div class="card-head"><h2>Roles & permissions</h2><span class="sub">Built-in roles are fixed. Duplicate one to make a custom role.</span></div>
+        <div class="perm-wrap"><table class="perm"><thead><tr><th>Permission</th>${roles.map(r => `<th><span>${esc(r.name)}</span>${r.builtin ? `<button class="linkish" data-act="role-dup" data-v="${esc(r.name)}" title="Duplicate ${esc(r.name)}">copy</button>` : `<button class="linkish" data-act="role-del" data-v="${esc(r.name)}" ${allStaff().some(u => u.role === r.name) ? "disabled title=\"In use\"" : ""}>delete</button>`}</th>`).join("")}</tr></thead>
+          <tbody>${PERMS.map(p => `<tr><td><b>${esc(p[1])}</b><small class="mono">${p[0]}</small></td>${roles.map(r => `<td>${r.builtin ? (r.perms.includes(p[0]) ? `<span class="yes" aria-label="Yes">${ic("check", 16)}</span>` : `<span class="no" aria-label="No">—</span>`) : `<input type="checkbox" data-act="perm-toggle" data-role="${esc(r.name)}" data-p="${p[0]}" ${r.perms.includes(p[0]) ? "checked" : ""} aria-label="${esc(r.name)}: ${esc(p[1])}">`}</td>`).join("")}</tr>`).join("")}</tbody></table></div>
+        <div class="note">${ic("lock", 16)}Permissions are checked on the server for every request, and on the register for offline actions.</div></section></div>`;
+  }
+  function inviteModal(m, head) {
+    const digits = m.phone.replace(/\D/g, ""), ok = m.name.trim().length > 1 && digits.length === 10;
+    return `<div class="modal" role="dialog" aria-modal="true" aria-labelledby="mt" style="width:min(480px,100%)">${head("Add staff", "Branch CMB01 · Colombo 03")}
+      <label class="field">Full name<input data-iv="name" data-fid="iv-name" id="ivname" value="${esc(m.name)}" placeholder="e.g. Tharushi Perera"></label>
+      <label class="field">Mobile<input data-iv="phone" data-fid="iv-phone" inputmode="tel" value="${esc(m.phone)}" placeholder="077 123 4567"></label>
+      <label class="field">Role<select data-iv="role" data-fid="iv-role">${ASSIGNABLE().map(r => `<option ${m.role === r ? "selected" : ""}>${esc(r)}</option>`).join("")}</select></label>
+      <div class="note">${ic("lock", 16)}They get a temporary PIN by SMS and choose their own PIN at the first sign-in.</div>
+      <button class="btn primary l block" data-act="iv-save" ${ok ? "" : "disabled"}>${ic("userPlus")}Add and send PIN <kbd>Enter</kbd></button></div>`;
+  }
+  const tempPin = () => String(1000 + Math.floor(Math.random() * 9000));
+  function inviteSave() {
+    const m = S.modal, digits = m.phone.replace(/\D/g, "");
+    if (m.name.trim().length < 2 || digits.length !== 10) { toast("Enter the name and a 10-digit mobile number", { error: true }); return; }
+    const name = m.name.trim(), pin = tempPin(), u = { id: "u" + Date.now().toString(36), name, short: name.split(" ")[0], role: m.role, initials: initialsOf(name), pin, branches: ["CMB01"], active: true, invited: true, last: new Date(), phone: maskPhone(digits) };
+    USERS.push(u); S.st.sel = u.id; S.st.tempPin = { id: u.id, pin }; closeModal(); render(); toast(`${name} added · temporary PIN sent by SMS`);
+  }
+
+  // ---------- Report centre (A-70) ----------
+  const REPORTS = [["daily", "Daily sales", "chart"], ["category", "Sales by category", "grid"], ["cashier", "Sales by cashier", "users"], ["branch", "Sales by branch", "store"], ["margin", "Margin by product", "trendUp"], ["stock", "Stock valuation", "warehouse"]];
+  const BR_BASE = { CMB01: 25000000, KDY01: 12800000, GAL01: 6800000 };
+  const CAT_SHARE = { Pharmacy: [.28, .22], Grocery: [.30, .14], Dairy: [.12, .18], Beverages: [.10, .27], "Personal care": [.12, .30], Vegetables: [.05, .25], Household: [.03, .28] };
+  const CASHIERS = [["Sachini K.", .34, 4], ["Anushka D.", .28, 2], ["Nimal P.", .26, 6], ["Rizwan F.", .12, 1]];
+  S.rep = { id: "daily", period: "7d", branch: "all", sort: "sales" };
+  function dayGross(br, d) {
+    if (d === 0 && br === "CMB01") return S.history.filter(s => !s.training && dayDiff(s.date) === 0).reduce((a, s) => a + saleTotal(s), 0);
+    const dt = daysAgo(d), wd = dt.getDay(), h = hashOf(br + d);
+    const f = (wd === 0 ? 0.78 : wd === 6 ? 1.22 : wd === 5 ? 1.1 : 1) * (0.88 + (h % 25) / 100);
+    return Math.round(BR_BASE[br] * f / 100) * 100 * (d === 0 ? 0.42 : 1);
+  }
+  const repDays = () => S.rep.period === "today" ? [0] : S.rep.period === "7d" ? [6, 5, 4, 3, 2, 1, 0] : Array.from({ length: 30 }, (_, i) => 29 - i);
+  const repBranches = () => S.rep.branch === "all" ? Object.keys(BR_BASE) : [S.rep.branch];
+  const repTotal = () => repDays().reduce((a, d) => a + repBranches().reduce((x, b) => x + dayGross(b, d), 0), 0);
+  function barsV(items, fmtv) {   // vertical bars, single series
+    const max = Math.max(1, ...items.map(i => i.v)), W = 760, H = 220, pad = 28, bw = Math.max(6, Math.min(48, (W - pad) / items.length - 6));
+    const step = (W - pad) / items.length, ticks = [0, .5, 1].map(t => max * t);
+    return `<div class="chart" role="img" aria-label="Bar chart"><svg viewBox="0 0 ${W} ${H + 24}">
+      ${ticks.map(t => { const y = H - (t / max) * (H - 10); return `<line x1="${pad}" x2="${W}" y1="${y}" y2="${y}" class="grid"/><text x="${pad - 6}" y="${y + 4}" class="ax" text-anchor="end">${t >= 100000 ? "Rs " + Math.round(t / 100000) + "k" : "Rs " + Math.round(t / 100)}</text>`; }).join("")}
+      ${items.map((it, i) => { const h = Math.max(2, (it.v / max) * (H - 10)), x = pad + i * step + (step - bw) / 2, y = H - h; return `<g class="bar" data-tip="${esc(it.l)} · ${esc(fmtv(it.v))}"><rect class="hit" x="${pad + i * step}" y="0" width="${step}" height="${H}"/><path d="M${x},${H} V${y + 4} q0,-4 4,-4 h${bw - 8} q4,0 4,4 V${H} Z" class="mark"/></g>${items.length <= 10 || i % 5 === 4 || i === items.length - 1 ? `<text x="${x + bw / 2}" y="${H + 16}" class="ax" text-anchor="middle">${esc(it.s || it.l)}</text>` : ""}`; }).join("")}
+      <line x1="${pad}" x2="${W}" y1="${H}" y2="${H}" class="base"/></svg></div>`;
+  }
+  function barsH(items, fmtv) {   // horizontal bars, single series, direct labels
+    const max = Math.max(1, ...items.map(i => i.v));
+    return `<div class="hbars">${items.map(it => `<div class="hb" data-tip="${esc(it.l)} · ${esc(fmtv(it.v))}${it.extra ? " · " + esc(it.extra) : ""}"><span class="hl">${esc(it.l)}</span><span class="track"><i style="width:${Math.max(1, it.v / max * 100)}%"></i></span><b>${esc(fmtv(it.v))}</b></div>`).join("")}</div>`;
+  }
+  const kRs = c => "Rs " + Math.round(c / 100).toLocaleString("en-US");
+  function reportBody() {
+    const R = S.rep, days = repDays(), brs = repBranches(), total = repTotal(), lbl = d => { const x = daysAgo(d); return d === 0 ? "Today" : x.toLocaleDateString("en-GB", { day: "numeric", month: "short" }); };
+    const tbl = (head, rows, cls = "") => `<div class="rtable ${cls}" role="table"><div class="rrow2 head" role="row">${head.map(h => `<span>${h}</span>`).join("")}</div>${rows.map(r => `<div class="rrow2" role="row">${r.map(c => `<span>${c}</span>`).join("")}</div>`).join("")}</div>`;
+    if (R.id === "daily") {
+      if (R.period === "today") {
+        const hrs = Array.from({ length: 13 }, (_, i) => 8 + i), now = new Date().getHours(), Wt = [2, 6, 9, 11, 10, 8, 7, 7, 9, 12, 10, 6, 3];
+        const sw = hrs.filter(hh => hh <= now).reduce((a, hh) => a + Wt[hh - 8], 0) || 1, T = brs.reduce((a, b) => a + dayGross(b, 0), 0);
+        const items = hrs.map(hh => ({ l: `${hh}:00`, s: String(hh), v: hh > now ? 0 : Math.round(T * Wt[hh - 8] / sw) }));
+        return `${barsV(items, kRs)}${tbl(["Hour", "Sales incl. VAT"], items.filter(i => i.v).map(i => [i.l, `<b>${fmt(i.v)}</b>`]), "c2")}`;
+      }
+      const items = days.map(d => ({ l: lbl(d), s: daysAgo(d).getDate() + "", v: brs.reduce((a, b) => a + dayGross(b, d), 0) }));
+      return `${barsV(items, kRs)}${tbl(["Day", "Receipts", "Sales incl. VAT", "VAT", "Average basket"], items.slice().reverse().map(i => { const n = Math.max(1, Math.round(i.v / 145000)); return [i.l, n.toLocaleString("en-US"), `<b>${fmt(i.v)}</b>`, fmt(Math.round(i.v * 0.62 * 18 / 118)), fmt(Math.round(i.v / n))]; }), "c5")}`;
+    }
+    if (R.id === "category") {
+      const items = Object.entries(CAT_SHARE).map(([c, [sh, m]]) => ({ l: c, v: Math.round(total * sh), m })).sort((a, b) => b.v - a.v);
+      return `${barsH(items, kRs)}${tbl(["Category", "Sales incl. VAT", "Share", "Margin"], items.map(i => [`<i class="qk tile-${catColor(i.l)}"></i>${esc(i.l)}`, `<b>${fmt(i.v)}</b>`, Math.round(i.v / total * 1000) / 10 + "%", Math.round(i.m * 100) + "%"]), "c4")}`;
+    }
+    if (R.id === "cashier") {
+      const cmb = days.reduce((a, d) => a + dayGross("CMB01", d), 0), items = CASHIERS.map(([n, sh, dc]) => ({ l: n, v: Math.round(cmb * sh), dc }));
+      return `${R.branch !== "all" && R.branch !== "CMB01" ? `<div class="note">${ic("help", 16)}Cashier figures in this demo are for CMB01.</div>` : ""}${barsH(items, kRs)}${tbl(["Cashier", "Receipts", "Sales incl. VAT", "Discounts given", "Refunds", "Voids"], items.map(i => { const n = Math.max(1, Math.round(i.v / 145000)); return [esc(i.l), n.toLocaleString("en-US"), `<b>${fmt(i.v)}</b>`, fmt(Math.round(i.v * 0.012)), fmt(Math.round(i.v * 0.004)), String(i.dc * (days.length > 7 ? 3 : 1))]; }), "c6")}`;
+    }
+    if (R.id === "branch") {
+      const items = Object.keys(BR_BASE).map(b => ({ l: BRANCHES.find(x => x[0] === b)[1], v: days.reduce((a, d) => a + dayGross(b, d), 0) }));
+      return `${barsH(items, kRs)}${tbl(["Branch", "Sales incl. VAT", "Share", "Per day"], items.map(i => [esc(i.l), `<b>${fmt(i.v)}</b>`, Math.round(i.v / items.reduce((a, x) => a + x.v, 0) * 1000) / 10 + "%", fmt(Math.round(i.v / days.length))]), "c4")}`;
+    }
+    if (R.id === "margin") {
+      const rows = PRODUCTS.filter(p => p.active !== false).map(p => { const u = Math.round((10 + hashOf(p.id) % 40) * days.length / 7 * brs.length / 3 * 10) / 10, s = Math.round(u * p.price), c = Math.round(u * p.cost); return { p, u, s, c, m: s - c, pct: s ? (s - c) / s * 100 : 0 }; })
+        .sort((a, b) => R.sort === "pct" ? b.pct - a.pct : R.sort === "margin" ? b.m - a.m : b.s - a.s);
+      const sortBtn = (k, l) => `<button class="linkish sorth ${R.sort === k ? "on" : ""}" data-act="rep-sort" data-v="${k}">${l}${R.sort === k ? " ↓" : ""}</button>`;
+      return `${barsH(rows.slice(0, 8).map(r => ({ l: r.p.name, v: r.m, extra: Math.round(r.pct) + "% margin" })), kRs)}<div class="sub" style="font-size:13px">Top 8 by ${R.sort === "pct" ? "margin %" : R.sort === "margin" ? "margin" : "sales"} · margin in rupees</div>
+        ${tbl(["Product", "Units", sortBtn("sales", "Sales"), "Cost", sortBtn("margin", "Margin"), sortBtn("pct", "Margin %")], rows.map(r => [esc(r.p.name), fq(r.p, r.u), fmt(r.s), fmt(r.c), `<b>${fmt(r.m)}</b>`, `<span class="${r.pct < 15 ? "neg" : ""}">${Math.round(r.pct * 10) / 10}%</span>`]), "c6")}`;
+    }
+    const by = {}; for (const p of PRODUCTS.filter(x => x.active !== false)) { const b = by[p.cat] = by[p.cat] || { q: 0, c: 0, r: 0 }; const q = brs.reduce((a, br) => a + qtyAt(p, br), 0); b.q += q; b.c += Math.round(q * p.cost); b.r += Math.round(q * p.price); }
+    const items = Object.entries(by).map(([c, v]) => ({ l: c, v: v.c, ...v })).sort((a, b) => b.v - a.v);
+    return `<div class="note">${ic("help", 16)}Stock valuation is as of now, so the period filter does not apply.</div>${barsH(items, kRs)}${tbl(["Category", "Units", "Value at cost", "Value at retail", "Margin in stock"], items.map(i => [`<i class="qk tile-${catColor(i.l)}"></i>${esc(i.l)}`, Math.round(i.q).toLocaleString("en-US"), `<b>${fmt(i.c)}</b>`, fmt(i.r), fmt(i.r - i.c)]), "c5")}`;
+  }
+  function reportsView() {
+    if (!["Manager", "Accountant"].includes(S.user.role)) return `<div class="placeholder"><div class="empty"><span class="circle">${ic("lock", 28)}</span><h3>Reports are for managers, the owner and the accountant</h3><button class="btn primary s" data-act="logout">Switch user</button></div></div>`;
+    const R = S.rep, rep = REPORTS.find(r => r[0] === R.id), total = repTotal();
+    const seg = `<div class="seg" role="group" aria-label="Period">${[["today", "Today"], ["7d", "Last 7 days"], ["30d", "Last 30 days"]].map(([v, l]) => `<button data-act="rep-period" data-v="${v}" aria-pressed="${R.period === v}">${l}</button>`).join("")}</div>`;
+    return `<div class="page reports"><div class="rep-grid">
+      <nav class="card rep-nav" aria-label="Reports">${REPORTS.map(([id, l, i]) => `<button class="rep-item" data-act="rep-sel" data-v="${id}" aria-current="${R.id === id ? "page" : "false"}">${ic(i, 18)}<span>${l}</span></button>`).join("")}
+        <div class="rep-more"><span>Also</span><button class="linkish" data-act="nav" data-view="shifts">Z-reports</button><button class="linkish" data-act="nav" data-view="customers">Credit ageing</button><button class="linkish" data-act="nav" data-view="expiry">Expiry</button><button class="linkish" data-act="nav" data-view="vat">VAT</button></div></nav>
+      <section class="card rep-main"><div class="rep-head"><div style="flex:1;min-width:200px"><h2>${rep[1]}</h2><span class="sub">${R.id === "stock" ? "Now" : R.period === "today" ? "Today so far" : R.period === "7d" ? "Last 7 days" : "Last 30 days"} · ${R.branch === "all" ? "all branches" : esc(BRANCHES.find(b => b[0] === R.branch)[1])}</span></div>
+          ${seg}<select data-rf="branch" data-fid="rf-branch" aria-label="Branch"><option value="all">All branches</option>${BRANCHES.map(b => `<option value="${b[0]}" ${R.branch === b[0] ? "selected" : ""}>${b[1]}</option>`).join("")}</select>
+          <div class="exp">${["CSV", "XLSX", "PDF"].map(x => `<button class="btn ghost s" data-act="toast" data-msg="${rep[1].toLowerCase().replace(/ /g, "-")}.${x.toLowerCase()} downloaded">${x}</button>`).join("")}</div></div>
+        ${R.id !== "stock" ? `<div class="rep-kpis"><div><span>Sales incl. VAT</span><b>${fmt(total)}</b></div><div><span>Receipts</span><b>${Math.round(total / 145000).toLocaleString("en-US")}</b></div><div><span>Average basket</span><b>${fmt(Math.round(total / Math.max(1, Math.round(total / 145000))))}</b></div></div>` : ""}
+        ${reportBody()}
+        <div class="tip" id="tip" role="status" aria-live="polite"></div></section>
+    </div></div>`;
+  }
+
+  function brandSave() {
+    const r = S.cat2.rename; if (!r) return;
+    const v = r.v.trim();
+    if (!v) { toast("Enter a brand name", { error: true }); return; }
+    if (v !== r.brand && BRANDS.some(b => b.toLowerCase() === v.toLowerCase())) { toast("That brand already exists", { error: true }); return; }
+    BRANDS[BRANDS.indexOf(r.brand)] = v;
+    for (const p of PRODUCTS) if (p.brand === r.brand) p.brand = v;
+    S.cat2.rename = null; render(); toast(`${v} saved`);
+  }
+
   // ---------- Render: main ----------
   function render() {
     const fid = document.activeElement && document.activeElement.dataset ? document.activeElement.dataset.fid : null;
@@ -2962,6 +3255,10 @@ Yesterday 09:15  SYNC-003 Catalog cursor too old · catalog snapshot downloaded<
     else if (S.view === "returns") main = topbar(t("returns"), S.ret.done ? "Refund recorded" : S.ret.sale ? "Choose the items the customer is bringing back" : "Find the original sale") + returnsView();
     else if (S.view === "stock") main = topbar(t("stock"), "Stock on hand by product and batch") + stockView();
     else if (S.view === "expiry") main = topbar(t("expiry"), "Batches expiring in the next 90 days · act before they are lost") + expiryView();
+    else if (S.view === "categories") main = topbar(t("products"), "Catalog › Categories and brands") + categoriesView();
+    else if (S.view === "pricelists") main = topbar(t("pricing"), "Retail, wholesale and branch price lists") + priceListsView();
+    else if (S.view === "staff") main = topbar(t("staff"), "People who sign in at CMB01, their roles and permissions") + staffView();
+    else if (S.view === "reports") main = topbar(t("reports"), "Filters, chart and table for every report · export to CSV, XLSX or PDF") + reportsView();
     else if (S.view === "batch") main = topbar("Batch details", "Stock › Batch · movements, buyers, block and recall") + batchView();
     else if (S.view === "pricing") main = topbar(t("pricing"), "Change many prices at once, now or from a date") + pricingView();
     else if (S.view === "discounts") main = topbar(t("pricing"), "How much each role may discount at the register") + discountsView();
@@ -3002,7 +3299,7 @@ Yesterday 09:15  SYNC-003 Catalog cursor too old · catalog snapshot downloaded<
       <button class="btn secondary" data-act="replay-loading">Replay loading skeleton</button>
       <button class="btn secondary" data-act="reset">Reset demo</button>
       <button class="btn secondary" data-act="logout">Go to sign-in screen</button>
-      <small>Staff PINs: Sachini 1111 (shift open) · Nimal 2222 · Rizwan 3333 · Malini 1234 (manager) · Kasun 4444 · Anushka 5555. Try barcodes 4791111000011, 2012340012507 (1.250 kg carrots), 9999999999999 (unknown).</small></div>` : ""}
+      <small>Staff PINs: ${USERS.filter(u => u.active !== false).map(u => `${u.short} ${u.pin}${u.role === "Manager" ? " (manager)" : ""}`).join(" · ")}. Try barcodes 4791111000011, 2012340012507 (1.250 kg carrots), 9999999999999 (unknown).</small></div>` : ""}
       <button class="proto-btn" data-act="proto">${ic("sliders", 16)}Prototype</button></div>`;
   }
 
@@ -3069,6 +3366,8 @@ Yesterday 09:15  SYNC-003 Catalog cursor too old · catalog snapshot downloaded<
       return;
     } else if (m.type === "cash") {
       h = cashModal(m, head);
+    } else if (m.type === "invite") {
+      h = inviteModal(m, head);
     } else if (m.type === "recall") {
       h = recallModal(m, head);
     } else if (m.type === "rate") {
@@ -3141,6 +3440,37 @@ Yesterday 09:15  SYNC-003 Catalog cursor too old · catalog snapshot downloaded<
       case "pc-pick": S.pc.pid = el.dataset.pid; S.pc.error = ""; render(); break;
       case "pc-clear": S.pc.pid = null; S.pc.error = ""; S.pc.query = ""; render(); focusId("pcsearch"); break;
       case "pc-add": { const p = byId(S.pc.pid); if (!p) break; if (!S.shifts[S.user.id]) { S.view = "openshift"; render(); toast("Open a shift first", { error: true }); break; } S.view = "sell"; render(); addProduct(p); break; }
+      case "cat2-tab": S.cat2.tab = el.dataset.v === "brands" ? "brands" : "cats"; S.cat2.rename = null; render(); break;
+      case "cat-sel": S.cat2.sel = el.dataset.n; S.cat2.rename = null; S.cat2.newSub = ""; render(); break;
+      case "cat-move": catMove(el.dataset.n, +el.dataset.d); break;
+      case "cat-color": S.catTree.find(c => c.name === S.cat2.sel).color = el.dataset.v; render(); toast("Quick-key colour saved · registers update within a minute"); break;
+      case "cat-show": S.catTree.find(c => c.name === S.cat2.sel).show = el.checked; render(); break;
+      case "cat-subdel": { const c = S.catTree.find(x => x.name === S.cat2.sel); c.subs = c.subs.filter(x => x !== el.dataset.v); render(); break; }
+      case "cat-subadd": { const c = S.catTree.find(x => x.name === S.cat2.sel), v = S.cat2.newSub.trim(); if (!v) { focusId("catsub"); break; } if (c.subs.some(x => x.toLowerCase() === v.toLowerCase())) { toast("Already there", { error: true }); break; } c.subs.push(v); S.cat2.newSub = ""; render(); focusId("catsub"); break; }
+      case "cat-products": S.prod.cat = S.cat2.sel; S.prod.q = ""; S.prod.status = "active"; S.view = "products"; render(); break;
+      case "cat-del": { const n = S.cat2.sel; if (catCount(n)) break; S.catTree = S.catTree.filter(c => c.name !== n); const i = CATS_ADMIN.indexOf(n); if (i >= 0) CATS_ADMIN.splice(i, 1); S.cat2.sel = S.catTree[0].name; render(); toast(`${n} deleted`); break; }
+      case "cat-new": { let n = "New category", k = 2; while (S.catTree.some(c => c.name === n)) n = `New category ${k++}`; S.catTree.push({ name: n, color: QK[S.catTree.length % QK.length], show: true, subs: [] }); CATS_ADMIN.push(n); TONES[n] = ["package", "purple"]; S.tr.defaults[n] = "std"; S.cat2.sel = n; S.cat2.rename = ""; render(); focusId("catname"); break; }
+      case "brand-new": { let n = "New brand", k = 2; while (BRANDS.includes(n)) n = `New brand ${k++}`; BRANDS.unshift(n); S.cat2.rename = { brand: n, v: "" }; render(); focusId("brname"); break; }
+      case "brand-rename": S.cat2.rename = { brand: el.dataset.v, v: el.dataset.v }; render(); focusId("brname"); break;
+      case "brand-cancel": { const r = S.cat2.rename; if (r && /^New brand/.test(r.brand) && !brandCount(r.brand)) BRANDS.splice(BRANDS.indexOf(r.brand), 1); S.cat2.rename = null; render(); break; }
+      case "brand-save": brandSave(); break;
+      case "brand-del": { const b = el.dataset.v; if (brandCount(b)) break; BRANDS.splice(BRANDS.indexOf(b), 1); render(); toast(`${b} deleted`); break; }
+      case "pl-sel": if (plDirty()) { toast("Save or discard your price changes first", { error: true }); break; } S.pl.sel = el.dataset.id; render(); break;
+      case "pl-rule": { S.pl.raw = {}; const l = plOf(S.pl.sel); if (l.kind === "field") { for (const p of PRODUCTS) { const v = plRule(l, p); if (v !== p.wholesale) S.pl.draft[p.id] = v; } } else { for (const pid of Object.keys(l.over)) S.pl.draft[pid] = byId(pid).price; } render(); toast(`${Object.keys(S.pl.draft).length} prices updated in the draft · save to apply`); break; }
+      case "pl-discard": S.pl.draft = {}; S.pl.raw = {}; render(); toast("Changes discarded"); break;
+      case "pl-save": plSave(); break;
+      case "st-tab": S.st.tab = el.dataset.v; render(); break;
+      case "st-sel": S.st.sel = el.dataset.id; if (S.st.tempPin && S.st.tempPin.id !== el.dataset.id) S.st.tempPin = null; render(); break;
+      case "st-invite": openModal({ type: "invite", name: "", phone: "", role: "Cashier" }); focusId("ivname"); break;
+      case "iv-save": inviteSave(); break;
+      case "st-pin": { const u = allStaff().find(x => x.id === S.st.sel); if (!canEditUser(u)) break; const pin = tempPin(); u.pin = pin; S.su.locked[u.id] = 0; S.su.tries[u.id] = 0; S.st.tempPin = { id: u.id, pin }; render(); toast(`${u.short}'s PIN reset · old PIN no longer works`); break; }
+      case "st-active": { const u = allStaff().find(x => x.id === S.st.sel); if (!canEditUser(u)) break; u.active = u.active === false; render(); toast(u.active ? `${u.short} can sign in again` : `${u.short} is signed out and cannot sign in`); break; }
+      case "role-dup": { const src = S.roles.find(r => r.name === el.dataset.v); let n = src.name === "Cashier" ? "Senior cashier" : `${src.name} copy`, k = 2; while (S.roles.some(r => r.name === n)) n = `${src.name} copy ${k++}`; S.roles.push({ name: n, builtin: false, perms: [...src.perms] }); render(); toast(`${n} created · tick what it may do`); break; }
+      case "role-del": { const n = el.dataset.v; if (allStaff().some(u => u.role === n)) break; S.roles = S.roles.filter(r => r.name !== n); render(); toast(`${n} deleted`); break; }
+      case "perm-toggle": { const r = S.roles.find(x => x.name === el.dataset.role), p = el.dataset.p; if (el.checked) r.perms.push(p); else r.perms = r.perms.filter(x => x !== p); break; }
+      case "rep-sel": S.rep.id = el.dataset.v; render(); break;
+      case "rep-period": S.rep.period = el.dataset.v; render(); break;
+      case "rep-sort": S.rep.sort = el.dataset.v; render(); break;
       case "bd-open": openBatch(el.dataset.id, el.dataset.lot); break;
       case "bd-block": { const p = byId(S.bd.pid), l = findLot(p.id, S.bd.lot); l.blocked = !l.blocked; p.log.unshift({ when: new Date(), who: meShort(), what: `Batch ${l.id} ${l.blocked ? "blocked" : "unblocked"} at all branches` }); render(); toast(l.blocked ? `Batch ${l.id} blocked · registers stop selling it within a minute` : `Batch ${l.id} unblocked`); break; }
       case "bd-recall": openModal({ type: "recall", reason: "", ref: "", sms: true, quar: true }); break;
@@ -3383,6 +3713,18 @@ Yesterday 09:15  SYNC-003 Catalog cursor too old · catalog snapshot downloaded<
     if (e.target.id === "cusearch") { S.cu.q = e.target.value; render(); }
     if (e.target.id === "tdsearch") { S.tax.q = e.target.value; render(); }
     if (e.target.id === "bpsearch") { S.bp.q = e.target.value; render(); }
+    if (e.target.id === "catname") { S.cat2.rename = e.target.value; }
+    if (e.target.id === "catsub") { S.cat2.newSub = e.target.value; }
+    if (e.target.dataset && e.target.dataset.catdef) { S.tr.defaults[S.cat2.sel] = e.target.value; render(); toast("Default tax class saved"); }
+    if (e.target.id === "bsearch") { S.cat2.bq = e.target.value; render(); }
+    if (e.target.id === "brname" && S.cat2.rename) { S.cat2.rename.v = e.target.value; }
+    if (e.target.id === "plsearch") { S.pl.q = e.target.value; render(); }
+    if (e.target.dataset && e.target.dataset.plf) { S.pl[e.target.dataset.plf] = e.target.value; render(); }
+    if (e.target.dataset && e.target.dataset.pl) { const p = byId(e.target.dataset.pl), l = plOf(S.pl.sel), v = Math.round((parseFloat(e.target.value.replace(/[^0-9.]/g, "")) || 0) * 100), cur = l.kind === "field" ? p.wholesale : (l.over[p.id] != null ? l.over[p.id] : p.price); if (v === cur) delete S.pl.draft[p.id]; else S.pl.draft[p.id] = v; S.pl.raw[p.id] = e.target.value; render(); }
+    if (e.target.id === "stsearch2") { S.st.q = e.target.value; render(); }
+    if (e.target.dataset && e.target.dataset.st === "role") { const u = allStaff().find(x => x.id === S.st.sel); if (canEditUser(u)) { const old = u.role; u.role = e.target.value; render(); toast(`${u.short}: ${old} → ${u.role} · applies at the next sign-in`); } }
+    if (e.target.dataset && e.target.dataset.iv && S.modal) { const k = e.target.dataset.iv; S.modal[k] = e.target.value; const pos = e.target.tagName === "SELECT" ? null : e.target.selectionStart; renderModal(); if (pos != null) setTimeout(() => { const x = document.querySelector(`[data-iv="${k}"]`); if (x) { x.focus(); try { x.setSelectionRange(pos, pos); } catch (er) {} } }); }
+    if (e.target.dataset && e.target.dataset.rf) { S.rep[e.target.dataset.rf] = e.target.value; render(); }
     if (e.target.dataset && e.target.dataset.bp) { const k = e.target.dataset.bp; S.bp[k] = k === "value" ? e.target.value.replace(/[^0-9.]/g, "") : e.target.value; render(); }
     if (e.target.dataset && e.target.dataset.dl && S.discDraft) { const k = e.target.dataset.dl, a = S.discDraft.roles[e.target.dataset.role], v = e.target.value; a[k] = k === "pct" ? Math.min(100, Math.max(0, parseInt(v.replace(/\D/g, ""), 10) || 0)) : k === "amt" ? Math.round((parseFloat(v.replace(/[^0-9.]/g, "")) || 0) * 100) : v; render(); }
     if (e.target.id === "trsearch") { S.tr.q = e.target.value; render(); }
@@ -3501,6 +3843,7 @@ Yesterday 09:15  SYNC-003 Catalog cursor too old · catalog snapshot downloaded<
       if (m.type === "batch") { if (k === "ArrowDown" || k === "ArrowUp") { e.preventDefault(); const n = byId(m.pid).batches.length; m.choice = (m.choice + (k === "ArrowDown" ? 1 : -1) + n) % n; renderModal(); return; } if (k === "Enter") { e.preventDefault(); const p = byId(m.pid); S.modal = null; renderModal(); addProduct(p, { batch: p.batches[m.choice].id }); } return; }
       if (m.type === "weight" || m.type === "qty") { if (/^[0-9.]$/.test(k)) { modalKey(k); return; } if (k === "Backspace") { modalKey("⌫"); return; } if (k === "Enter") { e.preventDefault(); confirmQty(); } return; }
       if (m.type === "discount") { if (/^[0-9]$/.test(k) && discNeeds(S.cart[S.sel], m.pct) && !discBlock(S.cart[S.sel], m.pct)) { pinKey(k); return; } if (k === "Backspace") { pinKey("⌫"); return; } if (k === "Enter") { e.preventDefault(); confirmDiscount(); } return; }
+      if (m.type === "invite") { if (k === "Enter" && e.target.tagName !== "SELECT") { e.preventDefault(); inviteSave(); } return; }
       if (m.type === "recall") { if (k === "Enter") { e.preventDefault(); recallDo(); } return; }
       if (m.type === "rate") { if (k === "Enter") { e.preventDefault(); rateSave(); } return; }
       if (m.type === "cn") { if (k === "Enter") { e.preventDefault(); cnIssue(); } return; }
@@ -3573,6 +3916,15 @@ Yesterday 09:15  SYNC-003 Catalog cursor too old · catalog snapshot downloaded<
       if ((e.ctrlKey || e.metaKey) && k.toLowerCase() === "s") { e.preventDefault(); saveSettings(); }
       return;
     }
+    if (S.view === "categories") {
+      if (e.target.id === "catname") { if (k === "Enter") { e.preventDefault(); if (catRename(S.cat2.sel, S.cat2.rename != null ? S.cat2.rename : S.cat2.sel)) { S.cat2.rename = null; render(); toast("Category saved"); } } else if (k === "Escape") { S.cat2.rename = null; render(); } return; }
+      if (e.target.id === "catsub") { if (k === "Enter") { e.preventDefault(); app.querySelector('[data-act="cat-subadd"]').click(); } return; }
+      if (e.target.id === "brname") { if (k === "Enter") { e.preventDefault(); brandSave(); } else if (k === "Escape") app.querySelector('[data-act="brand-cancel"]').click(); return; }
+      return;
+    }
+    if (S.view === "pricelists") { if ((e.ctrlKey || e.metaKey) && k.toLowerCase() === "s") { e.preventDefault(); plSave(); } else if (k === "Enter" && e.target.dataset && e.target.dataset.pl) { e.preventDefault(); const ins = [...app.querySelectorAll("[data-pl]")], nx = ins[ins.indexOf(e.target) + 1]; if (nx) { nx.focus(); nx.select(); } } return; }
+    if (S.view === "staff") { if (inInput || e.target.tagName === "SELECT") return; if (k === "ArrowDown" || k === "ArrowUp") { e.preventDefault(); const list = allStaff(), i0 = list.findIndex(u => u.id === S.st.sel); S.st.sel = list[Math.max(0, Math.min(list.length - 1, i0 + (k === "ArrowDown" ? 1 : -1)))].id; S.st.tempPin = null; render(); } return; }
+    if (S.view === "reports") return;
     if (S.view === "discounts") { if ((e.ctrlKey || e.metaKey) && k.toLowerCase() === "s") { e.preventDefault(); discSave(); } return; }
     if (S.view === "pricing" || S.view === "batch" || S.view === "taxrates" || S.view === "vat") return;
     if (S.view === "tax") {
@@ -3773,11 +4125,16 @@ Yesterday 09:15  SYNC-003 Catalog cursor too old · catalog snapshot downloaded<
   let rz; window.addEventListener("resize", () => { clearTimeout(rz); rz = setTimeout(render, 120); });
   if (S.theme) document.documentElement.dataset.theme = S.theme;
   const hash = location.hash.replace("#", "");
-  if (["sell", "dashboard", "signin", "openshift", "returns", "cash", "orders", "receiving", "pricecheck", "status", "settings", "products", "stock", "expiry", "counts", "import", "exceptions", "suppliers", "customers", "shifts", "tax", "vat", "batch", "pricing", "discounts", "taxrates"].includes(hash)) S.view = hash;
+  if (["sell", "dashboard", "signin", "openshift", "returns", "cash", "orders", "receiving", "pricecheck", "status", "settings", "products", "stock", "expiry", "counts", "import", "exceptions", "suppliers", "customers", "shifts", "tax", "vat", "batch", "pricing", "discounts", "taxrates", "categories", "pricelists", "staff", "reports"].includes(hash)) S.view = hash;
   if (hash === "stock" || hash === "expiry" || hash === "counts") S.user = USERS[4]; // Kasun, stock keeper
-  if (hash === "import" || hash === "exceptions" || hash === "suppliers" || hash === "customers" || hash === "shifts" || hash === "tax" || hash === "vat" || hash === "batch" || hash === "pricing" || hash === "discounts" || hash === "taxrates") S.user = USERS[3]; // Malini, manager
+  if (hash === "import" || hash === "exceptions" || hash === "suppliers" || hash === "customers" || hash === "shifts" || hash === "tax" || hash === "vat" || hash === "batch" || hash === "pricing" || hash === "discounts" || hash === "taxrates" || hash === "categories" || hash === "pricelists" || hash === "staff" || hash === "reports") S.user = USERS[3]; // Malini, manager
   // File picker and drag-and-drop for the import wizard (A-23)
   document.addEventListener("change", e => { if (e.target.id === "impfile" && e.target.files && e.target.files[0]) { const fl = e.target.files[0]; impSetFile(fl.name, fl.size); } });
+  document.addEventListener("dragstart", e => { const r = e.target.closest && e.target.closest("[data-drag]"); if (r) { S.cat2.drag = r.dataset.drag; e.dataTransfer.effectAllowed = "move"; try { e.dataTransfer.setData("text/plain", r.dataset.drag); } catch (er) {} r.classList.add("dragging"); } });
+  document.addEventListener("dragover", e => { const r = e.target.closest && e.target.closest("[data-drag]"); if (r && S.cat2.drag) { e.preventDefault(); app.querySelectorAll(".cat-item.over").forEach(x => x.classList.remove("over")); r.classList.add("over"); } });
+  document.addEventListener("drop", e => { const r = e.target.closest && e.target.closest("[data-drag]"); if (!r || !S.cat2.drag) return; e.preventDefault(); const a = S.catTree, from = a.findIndex(c => c.name === S.cat2.drag), to = a.findIndex(c => c.name === r.dataset.drag); if (from >= 0 && to >= 0 && from !== to) { const [m] = a.splice(from, 1); a.splice(to, 0, m); toast("Order saved · registers update within a minute"); } S.cat2.drag = null; render(); });
+  document.addEventListener("dragend", () => { if (S.cat2.drag) { S.cat2.drag = null; render(); } });
+  document.addEventListener("mouseover", e => { const t2 = e.target.closest && e.target.closest("[data-tip]"), tip = document.getElementById("tip"); if (!tip) return; if (!t2) { tip.classList.remove("on"); return; } const host = tip.parentElement.getBoundingClientRect(), b = t2.getBoundingClientRect(); tip.textContent = t2.dataset.tip; tip.classList.add("on"); tip.style.left = Math.min(host.width - 220, Math.max(8, b.left - host.left + b.width / 2 - 60)) + "px"; tip.style.top = (b.top - host.top - 36) + "px"; });
   document.addEventListener("dragover", e => { const z = e.target.closest && e.target.closest(".dropzone"); if (z) { e.preventDefault(); z.classList.add("over"); } });
   document.addEventListener("dragleave", e => { const z = e.target.closest && e.target.closest(".dropzone"); if (z) z.classList.remove("over"); });
   document.addEventListener("drop", e => { const z = e.target.closest && e.target.closest(".dropzone"); if (!z) return; e.preventDefault(); const fl = e.dataTransfer.files[0]; if (fl) impSetFile(fl.name, fl.size); });
