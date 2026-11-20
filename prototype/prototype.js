@@ -43,7 +43,12 @@
     leaf:'<path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z"/><path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12"/>', sparkles:'<path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"/>',
     smile:'<circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><path d="M9 9h.01"/><path d="M15 9h.01"/>', sun:'<circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/>',
     moon:'<path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>', sliders:'<path d="M4 21v-7"/><path d="M4 10V3"/><path d="M12 21v-9"/><path d="M12 8V3"/><path d="M20 21v-5"/><path d="M20 12V3"/><path d="M1 14h6"/><path d="M9 8h6"/><path d="M17 16h6"/>',
-    keyboard:'<rect width="20" height="16" x="2" y="4" rx="2"/><path d="M6 8h.01"/><path d="M10 8h.01"/><path d="M14 8h.01"/><path d="M18 8h.01"/><path d="M8 12h.01"/><path d="M12 12h.01"/><path d="M16 12h.01"/><path d="M7 16h10"/>'
+    keyboard:'<rect width="20" height="16" x="2" y="4" rx="2"/><path d="M6 8h.01"/><path d="M10 8h.01"/><path d="M14 8h.01"/><path d="M18 8h.01"/><path d="M8 12h.01"/><path d="M12 12h.01"/><path d="M16 12h.01"/><path d="M7 16h10"/>',
+    activity:'<path d="M22 12h-4l-3 9L9 3l-3 9H2"/>', wifi:'<path d="M12 20h.01"/><path d="M2 8.82a15 15 0 0 1 20 0"/><path d="M5 12.86a10 10 0 0 1 14 0"/><path d="M8.5 16.43a5 5 0 0 1 7 0"/>',
+    refresh:'<path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 16h5v5"/>',
+    upload:'<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m17 8-5-5-5 5"/><path d="M12 3v12"/>',
+    disk:'<path d="M22 12H2"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/><path d="M6 16h.01"/><path d="M10 16h.01"/>',
+    monitor:'<rect width="20" height="14" x="2" y="3" rx="2"/><path d="M8 21h8"/><path d="M12 17v4"/>', school:'<path d="M22 10 12 5 2 10l10 5 10-5Z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/>'
   };
   const ic = (n, s = 20, cls = "") => `<svg class="ic ${cls}" width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${I[n] || ""}</svg>`;
   const esc = s => String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -212,6 +217,13 @@
   const emptyGrn = () => ({ supplier: "Hemas Pharmaceuticals", invoice: "", invTotal: "", lines: [], query: "", error: "", posted: null, flash: null });
   S.grn = emptyGrn(); S.grnSeq = 2292;
   S.pc = { query: "", pid: null, error: "", recent: [] };
+  // Register status (R-19) and device settings (R-20)
+  S.diag = { lastPush: daysAgo(0, 10, 41), lastPull: daysAgo(0, 10, 41), testing: null, scan: "", logsSent: false };
+  S.dev = { printer: { conn: "usb", ip: "192.168.1.50", port: "9100", width: "80", raster: true, kick: true, copies: "1" },
+    receipt: { h1: "CITY PHARMACY & MART", h2: "No. 12, Galle Road, Colombo 03", footer: "Thank you! Come again", policy: "Returns within 14 days with receipt", lang: "en", logo: true, tax: true, barcode: true },
+    scanner: { suffix: "enter", beep: true, prefix: "" },
+    display: { theme: "auto", touch: false, lang: "en" }, training: false };
+  S.devDraft = JSON.parse(JSON.stringify(S.dev)); S.devTab = "printer";
 
   // ---------- Money ----------
   const lineGross = l => Math.round(l.qty * l.unit);
@@ -321,7 +333,8 @@
     S.history.unshift({ no: S.last.no, date: S.last.time, customer: S.customer, method: S.pay.method, cashier: S.user.short + " " + S.user.name.split(" ")[1][0] + ".", sync: S.offline ? "waiting" : "synced",
       taxInvoice: S.pay.taxInvoice ? S.last.no.replace(/-(\d+)$/, "-TI-$1") : null, lines: S.cart.map(l => ({ pid: l.pid, qty: l.qty, unit: l.unit, batch: l.batch, exp: l.exp, disc: l.disc, returned: 0 })) });
     const sh = S.shifts[S.user.id];
-    if (sh) { sh.count++; const key = { cash: "cashSales", card: "cardSales", qr: "qrSales", credit: "creditSales" }[S.pay.method]; if (key) sh[key] += tt.net; }
+    if (S.dev.training) { S.history[0].training = true; S.history[0].sync = "synced"; }
+    else if (sh) { sh.count++; const key = { cash: "cashSales", card: "cardSales", qr: "qrSales", credit: "creditSales" }[S.pay.method]; if (key) sh[key] += tt.net; }
     S.modal = null; S.view = "complete"; S.countdown = 8; renderModal(); render();
   }
   function applyDiscount(pct, approver) {
@@ -347,7 +360,8 @@
       }
     }
     h += `</nav><div class="side-spacer"></div>
-      <button class="nav-item" data-act="nav" data-view="settings" title="${esc(t("settings"))}">${ic("settings")}<span class="lbl">${esc(t("settings"))}</span></button>
+      <button class="nav-item ${cur === "status" ? "active" : ""}" data-act="nav" data-view="status" title="Status & diagnostics">${ic("activity")}<span class="lbl">Status</span>${S.history.some(s => s.sync === "error") ? `<span class="count" style="background:var(--error);color:#fff">!</span>` : ""}</button>
+      <button class="nav-item ${cur === "settings" ? "active" : ""}" data-act="nav" data-view="settings" title="${esc(t("settings"))}">${ic("settings")}<span class="lbl">${esc(t("settings"))}</span>${S.dev.training ? `<span class="count">TRAINING</span>` : ""}</button>
       <button class="nav-item danger" data-act="logout" title="${esc(t("logout"))}">${ic("logout")}<span class="lbl">${esc(t("logout"))}</span></button>
       <button class="user-card" data-act="logout" title="Switch user / sign out"><span class="avatar">${S.user.initials}</span><span class="who"><b>${esc(S.user.name)}</b><span>${esc(S.user.role)} · CMB01</span></span>${ic("chevDown", 16)}</button></aside>`;
     return h;
@@ -440,9 +454,9 @@
 
   // ---------- Render: Sale complete ----------
   function receiptText(s) {
-    const W = 40, L2 = (l, r) => l + r.padStart(Math.max(1, W - l.length)), C = x => " ".repeat(Math.max(0, Math.floor((W - x.length) / 2))) + x, D = "-".repeat(W);
+    const W = S.dev.printer.width === "58" ? 32 : 40, L2 = (l, r) => l + r.padStart(Math.max(1, W - l.length)), C = x => " ".repeat(Math.max(0, Math.floor((W - x.length) / 2))) + x, D = "-".repeat(W);
     const n = c => (c / 100).toLocaleString("en-US", { minimumFractionDigits: 2 });
-    const out = [C("CITY PHARMACY & MART"), C("No. 12, Galle Road, Colombo 03"), C("VAT Reg: 123456789-7000"), D, "Receipt: " + s.no, "Date: " + s.time.toLocaleDateString("en-GB") + " " + s.time.toTimeString().slice(0, 5) + "  Cashier: Sachini", D];
+    const out = [C(S.dev.receipt.h1), C(S.dev.receipt.h2), C("VAT Reg: 123456789-7000"), ...(S.dev.training ? [C("*** TRAINING · NOT A RECEIPT ***")] : []), D, "Receipt: " + s.no, "Date: " + s.time.toLocaleDateString("en-GB") + " " + s.time.toTimeString().slice(0, 5) + "  Cashier: Sachini", D];
     for (const l of s.cart) {
       const p = byId(l.pid);
       out.push(p.name + (l.batch ? "  " + l.batch + " exp " + l.exp : ""));
@@ -830,7 +844,7 @@
           <span class="t">${dayDiff(s.date) ? s.date.toLocaleDateString("en-GB", { day: "numeric", month: "short" }) : s.date.toTimeString().slice(0, 5)}</span>
           <span class="no"><b>${s.no}</b><small>${esc(s.customer.name)} · ${esc(s.cashier)}</small></span><span class="c">${s.lines.length}</span>
           <span class="m">${ic(METHOD[s.method][1], 16)}${METHOD[s.method][0]}</span><span class="amt">${fmt(saleTotal(s))}</span>
-          <span class="st">${rs ? badge("", rs, "undo") : ""}${syncBadge(s)}</span></button>`; }).join("")}</div>`
+          <span class="st">${s.training ? badge("warning", "Training", "school") : ""}${rs ? badge("", rs, "undo") : ""}${s.training ? "" : syncBadge(s)}</span></button>`; }).join("")}</div>`
         : `<div class="empty card"><span class="circle">${ic("receipt", 28)}</span><h3>No sales match</h3><span>Try another day, the whole branch, or clear the search.</span></div>`}
     </section>`;
     return `<div class="body">${left}${saleDetailPanel(sel)}</div>`;
@@ -1057,6 +1071,139 @@
     </div>`;
   }
 
+  // ---------- Status & diagnostics (R-19) ----------
+  const hm = d => d.toTimeString().slice(0, 5);
+  function classifyScan(raw) {
+    const q = raw.trim(); if (!q) return "";
+    const gs = parseGS1(q);
+    if (gs) { const p = PRODUCTS.find(x => gtinOf(x) === gs["01"]); return `GS1 2D code · GTIN ${gs["01"]}${gs["10"] ? " · batch " + gs["10"] : ""}${gs["17"] ? " · expiry " + fmtExpIso(isoDate(gs1Date(gs["17"]))) : ""} · ${p ? p.name : "unknown product"}`; }
+    if (/^2\d{12}$/.test(q)) { const hit = findByCode(q); return `Scale label · PLU ${q.slice(1, 6)} · ${(parseInt(q.slice(6, 12), 10) / 1000).toFixed(3)} kg${hit ? " · " + hit.p.name : ""}`; }
+    if (/^\d{8,14}$/.test(q)) { const p = PRODUCTS.find(x => x.code === q); return `Barcode (${q.length === 13 ? "EAN-13" : q.length === 8 ? "EAN-8" : "GTIN"}) · ${p ? p.name : "not in the catalog"}`; }
+    return `Text “${q}” · the scanner is sending keystrokes correctly`;
+  }
+  function statusView() {
+    const d = S.diag, off = S.offline, blocked = S.history.filter(s => s.sync === "error"), waitingSales = S.history.filter(s => s.sync === "waiting");
+    const queue = off ? Math.max(S.waiting, waitingSales.length) : waitingSales.length;
+    const test = (what, label) => `<button class="btn secondary" data-act="st-test" data-what="${what}" ${d.testing ? "disabled" : ""}>${d.testing === what ? "Testing…" : label}</button>`;
+    const card = (cls, icon, tile, label, val, sub, btn = "") => `<div class="scard ${cls}"><div class="top"><span class="icon-tile ${tile}">${ic(icon, 18)}</span>${label}</div><div class="val">${val}</div><div class="sub">${sub}</div>${btn}</div>`;
+    const P = S.dev.printer, conn = { usb: "USB", net: "Network " + P.ip, bt: "Bluetooth" }[P.conn];
+    return `<div class="status-wrap">
+      <div class="actions-bar">
+        <button class="btn primary" data-act="st-sync">${ic("refresh", 18)}Sync now</button>
+        <button class="btn secondary" data-act="st-logs" ${d.logsSent ? "disabled" : ""}>${ic("upload", 18)}${d.logsSent ? "Logs sent · ticket RS-20431" : "Upload logs to support"}</button>
+        <button class="btn danger-outline" data-act="st-resync">${ic("refresh", 18)}Full resync (manager)</button>
+        <span class="spacer"></span><span class="sub" style="font-size:13px;color:var(--text-2)">Read this screen to DevCity support over the phone if something looks wrong.</span>
+      </div>
+      <div class="status-grid">
+        ${off ? card("warn", "wifiOff", "tile-orange", "Connection", "Offline", "Since 10:12 · selling continues and sales are saved here", test("net", "Test connection"))
+              : card("", "wifi", "tile-green", "Connection", "Online · 38 ms", "RetailOS cloud · secure connection", test("net", "Test connection"))}
+        ${card(blocked.length ? "err" : queue ? "warn" : "", "cloudCheck", blocked.length ? "tile-pink" : queue ? "tile-orange" : "tile-green", "Sync queue", `${queue} waiting · ${blocked.length} blocked`, `Last send ${hm(d.lastPush)} · last update ${hm(d.lastPull)}`)}
+        ${card(S.printerError ? "err" : "", "printer", S.printerError ? "tile-pink" : "tile-green", "Receipt printer", S.printerError ? "Out of paper" : "Ready", `${P.width} mm thermal · ${conn}`, `<button class="btn secondary" data-act="st-print">Test print</button>`)}
+        ${card("", "wallet", "tile-blue", "Cash drawer", "Connected", P.kick ? "Opens through the printer on cash sales" : "Opens only from the menu", `<button class="btn secondary" data-act="st-drawer">Open drawer</button>`)}
+        <div class="scard"><div class="top"><span class="icon-tile tile-blue">${ic("scan", 18)}</span>Barcode scanner</div><div class="val">Keyboard (HID)</div>
+          <label class="voucher" style="height:40px">${ic("scan", 16)}<input id="scantest" data-fid="scantest" placeholder="Scan anything to test" autocomplete="off"></label>
+          <div class="sub" style="min-height:36px">${d.scan ? esc(d.scan) : "Suffix: " + ({ enter: "Enter", tab: "Tab", none: "none" }[S.dev.scanner.suffix])}</div></div>
+        ${card("", "disk", "tile-blue", "Storage", "42.6 GB free", "Local database 186 MB · 9,412 products cached")}
+        ${card("", "clock", "tile-green", "Clock", "In sync", "Device and server differ by 0 s · Asia/Colombo")}
+        ${card("", "monitor", "tile-blue", "App", "Version 1.6.0", "Device WIN-CMB01-02 · Register R02 · up to date")}
+      </div>
+      <div class="card"><div class="card-head"><h2>Waiting to send</h2>${queue || blocked.length ? "" : badge("success", "Nothing waiting", "check")}</div>
+        ${blocked.map(s => `<div class="dline"><span class="thumb tile-pink" style="width:36px;height:36px">${ic("alert", 18)}</span><span class="grow"><b>${s.no} · blocked</b><small style="font-family:var(--mono)">${esc(s.syncError || "")}</small></span><button class="btn secondary s" data-act="st-requeue" data-no="${s.no}">Requeue</button></div>`).join("")}
+        ${queue ? `<div class="dline"><span class="thumb tile-orange" style="width:36px;height:36px">${ic("wifiOff", 18)}</span><span class="grow"><b>${queue} sale${queue === 1 ? "" : "s"} waiting</b><small>Saved safely on this register. ${off ? "They send automatically when the connection is back." : "Press Sync now to send them."}</small></span></div>` : ""}
+      </div>
+      <details class="card"><summary>${ic("chevRight", 18)}Recent errors <span class="badge">${3 + blocked.length}</span></summary>
+        <div class="log">${off ? `<span class="w">${hm(new Date())}:02  SYNC-001  Network unreachable · retry 3 · next try in 8 s</span>\n` : ""}<span class="e">08:31:22  SALE-005  Receipt CMB01-R02-000147 rejected: price list version not found</span>
+07:58:10  DEV-006   Scanner reconnected (USB)
+Yesterday 17:02  PRN-002  Printer out of paper · resolved by reprint
+Yesterday 09:15  SYNC-003 Catalog cursor too old · catalog snapshot downloaded</div></details>
+    </div>`;
+  }
+  function resyncStart() {
+    const m = S.modal; if (!m || m.type !== "resync" || m.stage !== "pin") return;
+    if (S.offline) { toast("A full resync needs a connection", { error: true }); return; }
+    if (m.pin !== MANAGER_PIN) { m.pin = ""; m.pinErr = true; renderModal(); return; }
+    runResync();
+  }
+  function runResync() {
+    const m = S.modal; m.stage = "run"; m.progress = 0; renderModal();
+    const tick = setInterval(() => {
+      if (!S.modal || S.modal.type !== "resync") { clearInterval(tick); return; }
+      m.progress += 7; if (m.progress >= 100) { clearInterval(tick); m.progress = 100; S.history.forEach(s => { if (s.sync === "waiting") s.sync = "synced"; }); S.waiting = 0; S.diag.lastPush = S.diag.lastPull = new Date(); closeModal(); render(); toast("Full resync complete · catalog, prices and staff are up to date"); return; }
+      renderModal();
+    }, 180);
+  }
+
+  // ---------- Device settings (R-20) ----------
+  const getPath = (o, p) => p.split(".").reduce((a, k) => a && a[k], o);
+  const setPath = (o, p, v) => { const ks = p.split("."), last = ks.pop(); ks.reduce((a, k) => a[k], o)[last] = v; };
+  const devDirty = () => JSON.stringify(S.dev) !== JSON.stringify(S.devDraft);
+  function receiptPreview(D, training) {
+    const W = D.printer.width === "58" ? 32 : 40, L2 = (l, r) => l + r.padStart(Math.max(1, W - l.length)), C = x => " ".repeat(Math.max(0, Math.floor((W - x.length) / 2))) + x.slice(0, W), Dl = "-".repeat(W);
+    const R = D.receipt, out = [];
+    if (R.logo) out.push(C("[ LOGO ]"));
+    out.push(C(R.h1), C(R.h2), C("VAT Reg: 123456789-7000"));
+    if (training) out.push(C("*** TRAINING · NOT A RECEIPT ***"));
+    out.push(Dl, "Receipt: CMB01-R02-000155", "Date: " + new Date().toLocaleDateString("en-GB") + " " + hm(new Date()), Dl, "Paracetamol 500mg", L2("  2 x 32.00", "64.00"), "Basmati rice 5kg", L2("  1 x 3,250.00", "3,250.00"), Dl, L2("TOTAL", "Rs 3,314.00"));
+    if (R.tax) out.push(L2("  incl. VAT 18%", "505.53"));
+    out.push(L2("Cash", "5,000.00"), L2("CHANGE", "1,686.00"), Dl);
+    if (R.policy) out.push(C(R.policy));
+    if (R.barcode) out.push("", C("|| ||| | |||| || ||| ||"), C("CMB01-R02-000155"));
+    out.push("", C(R.footer || ""));
+    if (R.lang !== "en") out.push(C(R.lang === "si" ? "ස්තූතියි!" : "நன்றி!"));
+    return out.join("\n");
+  }
+  function settingsView() {
+    const D = S.devDraft, tab = S.devTab;
+    const seg = (path, opts) => `<div class="seg">${opts.map(([v, l]) => `<button data-act="set-val" data-path="${path}" data-v="${v}" aria-pressed="${getPath(D, path) === v}">${l}</button>`).join("")}</div>`;
+    const tog = (path, label) => `<input type="checkbox" class="toggle" data-set="${path}" data-fid="set-${path}" ${getPath(D, path) ? "checked" : ""} aria-label="${esc(label)}">`;
+    const row = (title, help, ctrl) => `<div class="srow"><div><b>${title}</b>${help ? `<small>${help}</small>` : ""}</div><div class="ctrl">${ctrl}</div></div>`;
+    const inp = (path, ph, w = 220) => `<input data-set="${path}" data-fid="set-${path}" value="${esc(getPath(D, path))}" placeholder="${esc(ph)}" style="width:${w}px">`;
+    let body = "";
+    if (tab === "printer") body = `<div class="card"><h2>Receipt printer</h2>
+        ${row("Connection", "How this register reaches the printer", seg("printer.conn", [["usb", "USB"], ["net", "Network"], ["bt", "Bluetooth"]]))}
+        ${D.printer.conn === "net" ? row("Printer address", "IP address and port (ESC/POS raw, usually 9100)", inp("printer.ip", "192.168.1.50", 160) + inp("printer.port", "9100", 80)) : ""}
+        ${row("Paper width", "80 mm fits 40 characters per line, 58 mm fits 32", seg("printer.width", [["80", "80 mm"], ["58", "58 mm"]]))}
+        ${row("Print Sinhala and Tamil as an image", "Most thermal printers have no Sinhala or Tamil font", tog("printer.raster", "Print Sinhala and Tamil as an image"))}
+        ${row("Open the cash drawer on cash sales", "The drawer is connected to the printer", tog("printer.kick", "Open drawer on cash sales"))}
+        ${row("Copies per receipt", "Some shops print a copy for the counter file", `<select data-set="printer.copies" data-fid="set-printer.copies">${["1", "2"].map(v => `<option ${D.printer.copies === v ? "selected" : ""}>${v}</option>`).join("")}</select>`)}
+        ${row("Test the hardware", "Prints a test page / opens the drawer", `<button class="btn secondary s" data-act="st-print">${ic("printer", 16)}Test print</button><button class="btn secondary s" data-act="st-drawer">Open drawer</button>`)}</div>`;
+    if (tab === "receipt") body = `<div class="card"><h2>Receipt layout</h2>
+        <div class="srow stack"><div><b>Header</b><small>Shop name and address at the top of every receipt</small></div>${inp("receipt.h1", "Shop name", 0).replace("width:0px", "width:100%")}${inp("receipt.h2", "Address", 0).replace("width:0px", "width:100%")}</div>
+        <div class="srow stack"><div><b>Return policy</b></div>${inp("receipt.policy", "e.g. Returns within 14 days with receipt", 0).replace("width:0px", "width:100%")}</div>
+        <div class="srow stack"><div><b>Footer message</b></div>${inp("receipt.footer", "e.g. Thank you! Come again", 0).replace("width:0px", "width:100%")}</div>
+        ${row("Receipt language", "Sinhala and Tamil lines print as an image", seg("receipt.lang", [["en", "EN"], ["si", "සිං"], ["ta", "தமி"]]))}
+        ${row("Logo", "Prints the shop logo at the top", tog("receipt.logo", "Print logo"))}
+        ${row("VAT summary", "Shows the VAT included in the total", tog("receipt.tax", "VAT summary"))}
+        ${row("Receipt barcode", "Lets cashiers scan the receipt for returns", tog("receipt.barcode", "Receipt barcode"))}</div>`;
+    if (tab === "scanner") body = `<div class="card"><h2>Barcode scanner</h2>
+        ${row("Key after each scan", "Most scanners send Enter after the code", `<select data-set="scanner.suffix" data-fid="set-scanner.suffix">${[["enter", "Enter"], ["tab", "Tab"], ["none", "None"]].map(([v, l]) => `<option value="${v}" ${D.scanner.suffix === v ? "selected" : ""}>${l}</option>`).join("")}</select>`)}
+        ${row("Prefix to ignore", "Some scanners add a prefix character", inp("scanner.prefix", "none", 100))}
+        ${row("Beep on scan", "Sound when an item is added or a scan fails", tog("scanner.beep", "Beep on scan"))}
+        <div class="srow stack"><div><b>Test the scanner</b><small>Scan any barcode, scale label or GS1 2D code</small></div><label class="voucher" style="height:44px">${ic("scan", 16)}<input id="scantest" data-fid="scantest" placeholder="Scan here" autocomplete="off"></label><div class="sub" style="font-size:13px;color:var(--text-2)">${S.diag.scan ? esc(S.diag.scan) : "Waiting for a scan…"}</div></div></div>`;
+    if (tab === "display") body = `<div class="card"><h2>Display &amp; language</h2>
+        ${row("Theme", "Light is easiest to read in bright shops", seg("display.theme", [["auto", "Auto"], ["light", "Light"], ["dark", "Dark"]]))}
+        ${row("Language", "Staff can still switch from the top bar", seg("display.lang", [["en", "EN"], ["si", "සිං"], ["ta", "தமி"]]))}
+        ${row("Touch mode", "Bigger buttons and steppers for touch screens", tog("display.touch", "Touch mode"))}</div>`;
+    if (tab === "training") body = `<div class="card"><h2>Training mode</h2>
+        ${row("Training mode on this register", "For teaching new staff. Sales are marked TRAINING, receipts say “not a receipt”, and nothing counts in shift totals, stock or reports.", tog("training", "Training mode"))}
+        <div class="srow"><div class="note">${ic("lock", 16)}Switching training mode is saved in the audit log. Turn it off before real trading.</div></div></div>`;
+    const tabs = [["printer", "Printer", "printer"], ["receipt", "Receipt", "receipt"], ["scanner", "Scanner", "scan"], ["display", "Display & language", "monitor"], ["training", "Training mode", "school"]];
+    return `<div style="flex:1;display:flex;flex-direction:column;min-height:0"><div class="settings">
+      <nav class="stabs" aria-label="Settings sections">${tabs.map(([k, l, i]) => `<button class="nav-item ${tab === k ? "active" : ""}" data-act="set-tab" data-tab="${k}">${ic(i)}<span class="lbl">${l}</span>${k === "training" && D.training ? `<span class="count">ON</span>` : ""}</button>`).join("")}</nav>
+      <div class="sform">${body}</div>
+      <aside class="spreview" aria-label="Receipt preview"><div class="head"><span>Receipt preview</span>${badge("", D.printer.width + " mm", null)}</div><div class="paper ${D.training ? "training" : ""}">${esc(receiptPreview(D, D.training))}</div></aside>
+    </div>
+    <div class="save-bar"><span class="sub">${devDirty() ? "You have unsaved changes on this register" : "Saved on this register · " + S.user.name}</span><button class="btn secondary" data-act="set-discard" ${devDirty() ? "" : "disabled"}>Discard</button><button class="btn primary" data-act="set-save" ${devDirty() ? "" : "disabled"}>${ic("check")}Save <kbd>Ctrl S</kbd></button></div></div>`;
+  }
+  function saveSettings() {
+    if (!devDirty()) return;
+    S.dev = JSON.parse(JSON.stringify(S.devDraft));
+    const th = S.dev.display.theme;
+    if (th === "auto") { delete document.documentElement.dataset.theme; store("retailos-proto-theme", ""); } else { document.documentElement.dataset.theme = th; store("retailos-proto-theme", th); }
+    S.touch = S.dev.display.touch; if (S.dev.display.lang) S.lang = S.dev.display.lang;
+    render(); toast(`Settings saved${S.dev.training ? " · training mode is ON" : ""}`);
+  }
+
   // ---------- Render: main ----------
   function render() {
     const fid = document.activeElement && document.activeElement.dataset ? document.activeElement.dataset.fid : null;
@@ -1075,6 +1222,8 @@
     if (S.view === "sell") main = topbar(t("sell"), null, `<span class="badge hide-t">${ic("store", 14)}CMB01 · Register 2</span>`) + `<div class="body">${productArea()}${orderPanel()}</div>${sheet ? `<button class="fab" data-act="camera" title="Scan with camera">${ic("camera", 24)}</button>` : ""}`;
     else if (S.view === "complete") main = topbar("Sale complete", null) + completeView();
     else if (S.view === "returns") main = topbar(t("returns"), S.ret.done ? "Refund recorded" : S.ret.sale ? "Choose the items the customer is bringing back" : "Find the original sale") + returnsView();
+    else if (S.view === "status") main = topbar("Status & diagnostics", "Register CMB01 · R02 · device WIN-CMB01-02") + statusView();
+    else if (S.view === "settings") main = topbar("Register settings", "These settings apply to this register only") + settingsView();
     else if (S.view === "receiving") main = topbar("Receive goods", S.grn.posted ? "Receipt posted" : `${esc(S.user.name)} · CMB01 · scan each item of the delivery`) + receivingView();
     else if (S.view === "pricecheck") main = topbar(t("pricecheck"), "Price, stock and batches without starting a sale") + priceCheckView();
     else if (S.view === "orders") main = topbar("Sales history", "Receipts on this branch · reprint, e-mail or start a return") + historyView();
@@ -1082,7 +1231,8 @@
     else if (S.view === "openshift") main = topbar(t("openShift"), `${greeting()}, ${S.user.short} · count the cash before you start selling`) + openShiftView();
     else if (S.view === "dashboard") main = topbar(t("overview"), "Thursday, 19 Nov 2026", `<span class="badge hide-t">${ic("store", 14)}All branches</span>`) + dashboard();
     else main = topbar(t(S.view) || "Settings", null) + `<div class="placeholder"><div class="empty"><span class="circle">${ic("package", 28)}</span><h3>${esc(t(S.view))} is not part of this prototype</h3><span>The prototype covers Sell, payment, sale complete and the Overview dashboard.</span><button class="btn primary s" data-act="nav" data-view="sell">Go to Sell</button></div></div>`;
-    app.innerHTML = `<div class="app ${S.collapsed ? "collapsed" : ""} ${S.tablet ? "tablet" : ""} ${!S.tablet && window.innerWidth > 1180 ? "desk" : ""}">${sidebar()}<main class="main">${main}</main></div>${protoControls()}`;
+    const trainBar = S.dev.training ? `<div class="training-bar" role="status">${ic("school", 16)}TRAINING MODE · sales are not real and are not counted · turn off in Settings</div>` : "";
+    app.innerHTML = `<div class="app ${S.collapsed ? "collapsed" : ""} ${S.tablet ? "tablet" : ""} ${!S.tablet && window.innerWidth > 1180 ? "desk" : ""}">${sidebar()}<main class="main">${trainBar}${main}</main></div>${protoControls()}`;
     S.flash = null;
     if (fid) { const el = app.querySelector(`[data-fid="${fid}"]`); if (el) { el.focus({ preventScroll: true }); if (caret != null && el.setSelectionRange) el.setSelectionRange(caret, caret); } }
     const selLine = app.querySelector(".line.sel"); if (selLine && selLine.scrollIntoView) selLine.scrollIntoView({ block: "nearest" });
@@ -1164,6 +1314,18 @@
       return;
     } else if (m.type === "cash") {
       h = cashModal(m, head);
+    } else if (m.type === "resync") {
+      const steps = ["Send sales waiting on this register", "Download the catalog snapshot (9,412 products)", "Apply prices, batches and tax rates", "Update staff, PINs and settings", "Check the local database"];
+      const at = Math.min(steps.length - 1, Math.floor(m.progress / (100 / steps.length)));
+      h = `<div class="modal" role="dialog" aria-modal="true" aria-labelledby="mt" style="width:min(480px,100%)">${head("Full resync", "Rebuilds this register's local data from the server")}
+        ${m.stage === "pin" ? `${S.offline ? `<div class="banner error">${ic("wifiOff")}A full resync needs a connection. Sales already on this register are kept either way.</div>` : `<div class="note">${ic("alert", 16)}Selling pauses for about a minute. Sales on this register are sent first, so nothing is lost.</div>`}
+          <div class="mgr"><div class="head">${ic("lock", 18)}Manager approval</div><div class="pin-dots">${[0, 1, 2, 3].map(i => `<i class="${m.pin.length > i ? "on" : ""}"></i>`).join("")}</div>
+          <div class="keypad">${["1", "2", "3", "4", "5", "6", "7", "8", "9", "C", "0", "⌫"].map(k => `<button data-act="rs-pin" data-k="${k}" aria-label="${k === "⌫" ? "Backspace" : k === "C" ? "Clear" : k}">${k === "⌫" ? ic("backspace", 22) : k}</button>`).join("")}</div>
+          ${m.pinErr ? `<div class="scan-error" role="alert">${ic("alert", 16)}Wrong manager PIN</div>` : `<div class="note">Demo manager PIN: 1234</div>`}</div>
+          <button class="btn danger block l" data-act="rs-start" ${m.pin.length === 4 && !S.offline ? "" : "disabled"}>${ic("refresh")}Start full resync <kbd>Enter</kbd></button>`
+        : `<div class="progress" role="progressbar" aria-valuenow="${m.progress}" aria-valuemin="0" aria-valuemax="100"><i style="width:${m.progress}%"></i></div>
+          <div class="steps-list">${steps.map((s, i) => `<div class="${i < at ? "done" : i === at ? "now" : ""}">${ic(i < at ? "check" : i === at ? "refresh" : "clock", 16)}${s}</div>`).join("")}</div>
+          <div class="note">${m.progress}% · don't switch off the register</div>`}</div>`;
     } else if (m.type === "help") {
       const sc = [["F2 or Ctrl K", "Search / scan"], ["Enter", "Add focused product"], ["Arrow keys", "Move between products"], ["Space", "Quick view"], ["↑ ↓ (cart)", "Select cart line"], ["+ / −", "Change quantity"], ["Del", "Remove line"], ["F3", "Customer"], ["F4", "Edit quantity / weight"], ["F5", "Discount"], ["F6 / F7", "Hold / recall bill"], ["F8", "Returns"], ["F9", "Cash in / out"], ["F10", "Pay"], ["Ctrl Z", "Undo"], ["Esc", "Close dialog"], ["3*", "Then scan: quantity 3"]];
       h = `<div class="modal" role="dialog" aria-modal="true" aria-labelledby="mt" style="width:min(640px,100%)">${head("Keyboard shortcuts", "Everything also works with mouse and touch")}<div class="shortcuts">${sc.map(([k, v]) => `<div><span>${v}</span><kbd>${k}</kbd></div>`).join("")}</div><div class="note">${ic("scan", 16)}Demo barcodes: 4791111000011 (milk powder), 2012340012507 (carrots 1.250 kg), 0108901234567890B1 (paracetamol batch B1), 9999999999999 (unknown)</div></div>`;
@@ -1198,6 +1360,19 @@
       case "pc-pick": S.pc.pid = el.dataset.pid; S.pc.error = ""; render(); break;
       case "pc-clear": S.pc.pid = null; S.pc.error = ""; S.pc.query = ""; render(); focusId("pcsearch"); break;
       case "pc-add": { const p = byId(S.pc.pid); if (!p) break; if (!S.shifts[S.user.id]) { S.view = "openshift"; render(); toast("Open a shift first", { error: true }); break; } S.view = "sell"; render(); addProduct(p); break; }
+      case "st-test": { const what = el.dataset.what; S.diag.testing = what; render(); setTimeout(() => { S.diag.testing = null; render(); toast(S.offline ? "Connection test failed · no internet. Selling continues offline." : "Connection OK · 38 ms · server time matches", { error: S.offline }); }, 900); break; }
+      case "st-sync": if (S.offline) { toast("No connection · sales stay safe on this register", { error: true }); break; } S.history.forEach(s => { if (s.sync === "waiting") s.sync = "synced"; }); S.waiting = 0; S.diag.lastPush = S.diag.lastPull = new Date(); render(); toast(`Sync complete${S.history.some(s => s.sync === "error") ? " · 1 blocked item needs attention" : " · nothing waiting"}`); break;
+      case "st-requeue": { const s = S.history.find(x => x.no === el.dataset.no); if (s) { s.sync = S.offline ? "waiting" : "synced"; s.syncError = null; render(); toast(S.offline ? "Requeued · will send when online" : `${s.no} sent`); } break; }
+      case "st-logs": S.diag.logsSent = true; render(); toast("Logs sent to DevCity support · ticket RS-20431"); break;
+      case "st-print": toast(S.printerError ? "Printer is out of paper · load paper and try again" : "Test page printed", { error: S.printerError }); break;
+      case "st-drawer": toast("Drawer opened · recorded in the audit log"); break;
+      case "st-resync": openModal({ type: "resync", stage: "pin", pin: "", pinErr: false, progress: 0 }); break;
+      case "rs-pin": { const m = S.modal; m.pinErr = false; const k = el.dataset.k; if (k === "⌫") m.pin = m.pin.slice(0, -1); else if (k === "C") m.pin = ""; else if (m.pin.length < 4) m.pin += k; renderModal(); break; }
+      case "rs-start": resyncStart(); break;
+      case "set-tab": S.devTab = el.dataset.tab; render(); break;
+      case "set-val": setPath(S.devDraft, el.dataset.path, el.dataset.v); render(); break;
+      case "set-save": saveSettings(); break;
+      case "set-discard": S.devDraft = JSON.parse(JSON.stringify(S.dev)); render(); toast("Changes discarded"); break;
       case "h-scope": S.hist.scope = el.dataset.v; render(); break;
       case "h-period": S.hist.period = el.dataset.v; render(); break;
       case "h-status": S.hist.status = el.dataset.v; render(); break;
@@ -1296,6 +1471,7 @@
     if (e.target.hasAttribute && e.target.hasAttribute("data-coins")) { S[e.target.dataset.scope].coins = e.target.value.replace(/[^0-9.]/g, ""); render(); }
     if (e.target.id === "rsearch") { S.ret.query = e.target.value; S.ret.error = ""; }
     if (e.target.id === "hsearch") { S.hist.q = e.target.value; render(); }
+    if (e.target.dataset && e.target.dataset.set) { setPath(S.devDraft, e.target.dataset.set, e.target.type === "checkbox" ? e.target.checked : e.target.value); render(); }
     if (e.target.id === "gsearch") { S.grn.query = e.target.value; S.grn.error = ""; }
     if (e.target.id === "pcsearch") { S.pc.query = e.target.value; S.pc.error = ""; }
     if (e.target.dataset && e.target.dataset.g) { S.grn[e.target.dataset.g] = e.target.value; render(); }
@@ -1383,6 +1559,13 @@
       if (m.type === "batch") { if (k === "ArrowDown" || k === "ArrowUp") { e.preventDefault(); const n = byId(m.pid).batches.length; m.choice = (m.choice + (k === "ArrowDown" ? 1 : -1) + n) % n; renderModal(); return; } if (k === "Enter") { e.preventDefault(); const p = byId(m.pid); S.modal = null; renderModal(); addProduct(p, { batch: p.batches[m.choice].id }); } return; }
       if (m.type === "weight" || m.type === "qty") { if (/^[0-9.]$/.test(k)) { modalKey(k); return; } if (k === "Backspace") { modalKey("⌫"); return; } if (k === "Enter") { e.preventDefault(); confirmQty(); } return; }
       if (m.type === "discount") { if (/^[0-9]$/.test(k) && m.pct > DISCOUNT_LIMIT) { pinKey(k); return; } if (k === "Backspace") { pinKey("⌫"); return; } if (k === "Enter") { e.preventDefault(); confirmDiscount(); } return; }
+      if (m.type === "resync") {
+        if (m.stage !== "pin") return;
+        if (/^[0-9]$/.test(k)) { m.pinErr = false; if (m.pin.length < 4) m.pin += k; renderModal(); return; }
+        if (k === "Backspace") { e.preventDefault(); m.pin = m.pin.slice(0, -1); renderModal(); return; }
+        if (k === "Enter") { e.preventDefault(); resyncStart(); }
+        return;
+      }
       if (m.type === "cash") {
         if (k === "Enter") { e.preventDefault(); cmSubmit(); return; }
         if (inInput) return;
@@ -1420,6 +1603,15 @@
       if (!r.sale && k.length === 1 && /[0-9A-Za-z-]/.test(k) && !e.ctrlKey && !e.metaKey) { e.preventDefault(); r.query += k; render(); focusId("rsearch"); }
       return;
     }
+    if (e.target.id === "scantest") {
+      if (k === "Enter" || k === "Tab") { e.preventDefault(); S.diag.scan = classifyScan(e.target.value); render(); focusId("scantest"); }
+      return;
+    }
+    if (S.view === "settings") {
+      if ((e.ctrlKey || e.metaKey) && k.toLowerCase() === "s") { e.preventDefault(); saveSettings(); }
+      return;
+    }
+    if (S.view === "status") return;
     if (S.view === "receiving") {
       const g = S.grn;
       if (g.posted) { if (k === "Enter") { e.preventDefault(); S.grn = emptyGrn(); render(); focusId("gsearch"); } return; }
@@ -1532,7 +1724,7 @@
   let rz; window.addEventListener("resize", () => { clearTimeout(rz); rz = setTimeout(render, 120); });
   if (S.theme) document.documentElement.dataset.theme = S.theme;
   const hash = location.hash.replace("#", "");
-  if (["sell", "dashboard", "signin", "openshift", "returns", "cash", "orders", "receiving", "pricecheck"].includes(hash)) S.view = hash;
+  if (["sell", "dashboard", "signin", "openshift", "returns", "cash", "orders", "receiving", "pricecheck", "status", "settings"].includes(hash)) S.view = hash;
   if (hash === "receiving") S.user = USERS[4]; // Kasun, stock keeper
   if (hash === "openshift") { S.user = USERS[1]; }            // Nimal has no open shift yet
   if (hash === "signin") { S.su.sel = 1; }
