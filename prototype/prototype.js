@@ -397,7 +397,7 @@
     ["management", [["suppliers", "store"], ["promotions", "percent"], ["staff", "userCog"]]]
   ];
   function sidebar() {
-    const cur = S.view === "complete" ? "sell" : S.view === "product" ? "products" : S.view;
+    const cur = S.view === "complete" ? "sell" : S.view === "product" || S.view === "import" ? "products" : S.view === "counts" ? "stock" : S.view;
     let h = `<aside class="sidebar" aria-label="Main navigation"><div class="brand"><span class="mark">R</span><span class="brand-name">RetailOS</span><button class="icon-btn" data-act="collapse" title="Collapse sidebar">${ic("panel")}</button></div><nav>`;
     for (const [g, items] of NAV) {
       h += `<div class="nav-label">${t(g)}</div>`;
@@ -1271,7 +1271,7 @@ Yesterday 09:15  SYNC-003 Catalog cursor too old · catalog snapshot downloaded<
         <button class="toggle-btn" data-act="pf-low" aria-pressed="${f.low}">${ic("alert", 16)}Low stock · ${lowCount}</button>
         <button class="toggle-btn" data-act="pf-missing" aria-pressed="${f.missing}">සිං/தமி missing · ${missingCount}</button>
         <span class="spacer"></span>
-        <button class="btn secondary" data-act="toast" data-msg="The import wizard is screen A-23 — coming in a later batch">${ic("upload", 18)}Import</button>
+        <button class="btn secondary" data-act="nav" data-view="import">${ic("upload", 18)}Import</button>
         <button class="btn secondary" data-act="toast" data-msg="products.xlsx exported (${list.length} rows)">Export</button>
         <button class="btn primary" data-act="p-new">${ic("plus", 18)}Add product <kbd>N</kbd></button>
       </div>
@@ -1454,7 +1454,7 @@ Yesterday 09:15  SYNC-003 Catalog cursor too old · catalog snapshot downloaded<
         <select data-sk="cat" data-fid="sk-cat" aria-label="Category"><option value="All">All categories</option>${CATS_ADMIN.map(c => `<option ${s.cat === c ? "selected" : ""}>${c}</option>`).join("")}</select>
         <div class="chips">${chip("all", "All")}${chip("low", `Low · ${low}`)}${chip("out", `Out · ${out}`)}${chip("exp", "Expiring ≤ 90 days")}</div>
         <span class="spacer"></span>
-        <button class="btn secondary" data-act="toast" data-msg="Stock counts are screen A-44 — coming in a later batch">Stock count</button>
+        <button class="btn secondary" data-act="nav" data-view="counts">${ic("list", 18)}Stock count</button>
         <button class="btn secondary" data-act="toast" data-msg="stock-${s.branch}.xlsx exported">Export</button>
       </div>
       <div class="stats4"><div class="stat"><span>Stock value at cost</span><b>${fmt(value)}</b></div><div class="stat"><span>Retail value</span><b>${fmt(retail)}</b></div><div class="stat"><span>Low stock</span><b style="color:var(--warning-text)">${low}</b></div><div class="stat"><span>Out of stock</span><b style="color:var(--error-text)">${out}</b></div></div>
@@ -1546,6 +1546,390 @@ Yesterday 09:15  SYNC-003 Catalog cursor too old · catalog snapshot downloaded<
   }
   const findLot = (pid, id) => lotsOf(byId(pid)).find(l => l.id === id);
 
+  // ---------- Shared: step bar with custom labels ----------
+  const stepsBar = (labels, step) => `<div class="stepbar" aria-label="Steps">${labels.map((x, i) => `<span class="${i + 1 === step ? "on" : i + 1 < step ? "done" : ""}" ${i + 1 === step ? 'aria-current="step"' : ""}><i>${i + 1 < step ? "✓" : i + 1}</i>${x}</span>`).join("")}</div>`;
+  const meShort = () => `${S.user.short} ${S.user.name.split(" ")[1][0]}.`;
+  const signed = (c, plus = "+") => (c < 0 ? "−" : c > 0 ? plus : "") + fmt(Math.abs(c));
+
+  // ---------- Stock counts (A-44) ----------
+  const CNT_TYPES = {
+    cycle: ["Cycle count", "A short list of high-value fast movers picked by the system. Count a few every day.", "refresh"],
+    category: ["Category count", "Every product in one category, e.g. Pharmacy once a month.", "grid"],
+    full: ["Full count", "Every product in the branch. Usually once a year, before opening.", "warehouse"]
+  };
+  const CNT_STEPS = ["Count", "Review differences", "Posted"];
+  S.cnt = { seq: 42, cur: null, form: { type: "cycle", cat: "Pharmacy", blind: true }, filter: "all",
+    list: [
+      { no: "CNT-0041", type: "cycle", scope: "8 fast movers", by: "Kasun S.", when: daysAgo(3, 8, 15), items: 8, value: -96000 },
+      { no: "CNT-0040", type: "category", scope: "Pharmacy", by: "Kasun S.", when: daysAgo(9, 7, 40), items: 186, value: -215000 },
+      { no: "CNT-0039", type: "full", scope: "All categories", by: "Malini J.", when: daysAgo(46, 6, 30), items: 1248, value: -1842000 }
+    ] };
+  const cntVal = it => it.cnt === "" || it.cnt == null ? null : Math.max(0, Math.round((parseFloat(it.cnt) || 0) * 1000) / 1000);
+  const cntDiff = it => { const v = cntVal(it); return v == null ? null : Math.round((v - it.exp) * 1000) / 1000; };
+  function cntScope(f) {
+    let ps = PRODUCTS.filter(p => p.active !== false);
+    if (f.type === "category") ps = ps.filter(p => p.cat === f.cat);
+    if (f.type === "cycle") ps = ps.filter(p => p.stock > 0).sort((a, b) => b.cost * b.stock - a.cost * a.stock).slice(0, 8);
+    return ps;
+  }
+  function cntStats(c) {
+    const s = { counted: 0, total: c.items.length, match: 0, short: 0, over: 0, shortV: 0, overV: 0 };
+    for (const it of c.items) {
+      const d = cntDiff(it); if (d == null) continue; s.counted++;
+      const v = Math.round(d * byId(it.pid).cost);
+      if (!d) s.match++; else if (d < 0) { s.short++; s.shortV += v; } else { s.over++; s.overV += v; }
+    }
+    s.net = s.shortV + s.overV; s.abs = s.overV - s.shortV;
+    return s;
+  }
+  const cntNeedsMgr = c => S.user.role !== "Manager" && cntStats(c).abs > ADJ_LIMIT;
+  const cntUnit = p => p.weighed ? "kg" : p.cat === "Pharmacy" ? "strips" : "pcs";
+  function startCount() {
+    const f = S.cnt.form, ps = cntScope(f);
+    if (!ps.length) { toast("No active products in this category", { error: true }); return; }
+    S.cnt.cur = { no: `CNT-${String(S.cnt.seq).padStart(4, "0")}`, type: f.type, blind: f.blind, step: "count", q: "", err: "", flash: null, confirmDiscard: false,
+      scope: f.type === "full" ? "All categories" : f.type === "category" ? f.cat : `${ps.length} fast movers`, started: new Date(), by: meShort(),
+      items: ps.map(p => ({ pid: p.id, exp: p.stock, cnt: "" })) };
+    S.cnt.filter = "all"; render(); focusId("cntscan");
+  }
+  function cntScan(raw) {
+    const c = S.cnt.cur, q = raw.trim(); c.err = ""; c.confirmDiscard = false;
+    if (!q) return;
+    const hit = findByCode(q), lc = q.toLowerCase();
+    let ps = hit ? [hit.p] : PRODUCTS.filter(p => p.sku.toLowerCase() === lc || p.variants.some(v => v.barcode === q));
+    const exact = ps.length > 0;
+    if (!exact) ps = PRODUCTS.filter(p => p.name.toLowerCase().includes(lc));
+    const mine = ps.filter(p => c.items.some(it => it.pid === p.id));
+    if (!ps.length) c.err = `Nothing matches "${q}". Check the barcode, or type part of the name.`;
+    else if (!mine.length) c.err = `${ps[0].name} is not part of this count (${c.scope}). Count it in another count.`;
+    else if (mine.length > 1) c.err = `${mine.length} products match "${q}": ${mine.slice(0, 3).map(p => p.name).join(", ")}. Type more of the name, or scan the barcode.`;
+    if (c.err) { c.q = q; render(); focusId("cntscan"); return; }
+    const p = mine[0], it = c.items.find(x => x.pid === p.id);
+    c.q = ""; c.flash = p.id; S.cnt.filter = "all";
+    if (exact && (!p.weighed || hit && hit.qty)) {
+      it.cnt = String(Math.round(((cntVal(it) || 0) + (hit && hit.qty ? hit.qty : 1)) * 1000) / 1000);
+      render(); focusId("cntscan");
+    } else { render(); selectId("cq-" + p.id); }
+  }
+  function selectId(id) { setTimeout(() => { const x = document.getElementById(id); if (x) { x.focus(); x.select(); x.scrollIntoView({ block: "nearest" }); } }); }
+  function cntStep(pid, d) {
+    const c = S.cnt.cur, it = c.items.find(x => x.pid === pid), p = byId(pid), step = p.weighed ? 0.1 : 1;
+    it.cnt = String(Math.max(0, Math.round(((cntVal(it) || 0) + d * step) * 1000) / 1000)); c.flash = null; c.confirmDiscard = false; render();
+  }
+  function cntDemo() {
+    const c = S.cnt.cur;
+    c.items.forEach((it, i) => {
+      const p = byId(it.pid), w = p.weighed;
+      if (i === c.items.length - 1 && c.items.length > 3) { it.cnt = ""; return; }   // one product left uncounted
+      const d = i === 0 ? (w ? -0.35 : -2) : i === 2 ? -1 : i === 4 ? 1 : 0;
+      it.cnt = String(Math.max(0, Math.round((it.exp + d) * 1000) / 1000));
+    });
+    c.flash = null; render(); toast("Demo counts filled in · one product left uncounted");
+  }
+  function cntPost(approved) {
+    const c = S.cnt.cur;
+    if (cntNeedsMgr(c) && !approved) { openModal({ type: "cntpin", pin: "", pinErr: false }); return; }
+    const st = cntStats(c), by = meShort(), approver = cntNeedsMgr(c) ? "Malini J." : null;
+    let changed = 0;
+    for (const it of c.items) {
+      const d = cntDiff(it); if (!d) continue;
+      const p = byId(it.pid); changed++;
+      p.stock = Math.max(0, Math.round((p.stock + d) * 1000) / 1000);      // sales made during the count stay counted
+      const lots = lotsOf(p).filter(l => l.qty > 0 && l.exp).sort((a, b) => a.exp.localeCompare(b.exp));
+      if (lots.length && d < 0) { let left = -d; for (const l of lots) { const t = Math.min(l.qty, left); l.qty = Math.round((l.qty - t) * 1000) / 1000; left -= t; if (left <= 0) break; } }
+      else if (lots.length) lots[lots.length - 1].qty += d;
+      S.moves.unshift({ when: new Date(), product: p.name, lot: "", qty: d, reason: `Count correction · ${c.no}`, note: "", who: by, approver });
+      p.log.unshift({ when: new Date(), who: by, what: `Stock ${d > 0 ? "+" : "−"}${Math.abs(d)} · count ${c.no}` });
+    }
+    c.step = "posted"; c.posted = { when: new Date(), changed, st, approver };
+    S.cnt.list.unshift({ no: c.no, type: c.type, scope: c.scope, by, when: new Date(), items: st.counted, value: st.net });
+    S.cnt.seq++; S.modal = null; renderModal(); render();
+  }
+  function cntApprove() { const m = S.modal; if (m.pin !== MANAGER_PIN) { m.pin = ""; m.pinErr = true; renderModal(); return; } cntPost(true); }
+  function cntPinModal(m, head) {
+    const st = cntStats(S.cnt.cur);
+    return `<div class="modal" role="dialog" aria-modal="true" aria-labelledby="mt" style="width:min(440px,100%)">${head("Manager approval", `${S.cnt.cur.no} · differences of ${fmt(st.abs)} at cost`)}
+      <div class="mgr"><div class="head">${ic("lock", 18)}Counts that change more than ${fmt(ADJ_LIMIT)} of stock need a manager</div>
+        <div class="pin-dots">${[0, 1, 2, 3].map(i => `<i class="${m.pin.length > i ? "on" : ""}"></i>`).join("")}</div>
+        <div class="keypad">${["1", "2", "3", "4", "5", "6", "7", "8", "9", "C", "0", "⌫"].map(k => `<button data-act="cnt-pin" data-k="${k}" aria-label="${k === "⌫" ? "Backspace" : k === "C" ? "Clear" : k}">${k === "⌫" ? ic("backspace", 22) : k}</button>`).join("")}</div>
+        ${m.pinErr ? `<div class="scan-error" role="alert">${ic("alert", 16)}Wrong manager PIN</div>` : `<div class="note">Demo manager PIN: 1234</div>`}</div>
+      <button class="btn primary l block" data-act="cnt-approve" ${m.pin.length === 4 ? "" : "disabled"}>${ic("check")}Approve and post <kbd>Enter</kbd></button></div>`;
+  }
+  function countsView() {
+    const c = S.cnt.cur;
+    if (S.user.role === "Cashier") return `<div class="placeholder"><div class="empty"><span class="circle">${ic("lock", 28)}</span><h3>Stock counts are for stock keepers and managers</h3><span>${esc(S.user.short)} is signed in as cashier. Ask Kasun or a manager to run the count.</span><button class="btn primary s" data-act="logout">Switch user</button></div></div>`;
+    if (!c) return countsHome();
+    if (c.step === "posted") return countPosted(c);
+    if (c.step === "review") return countReview(c);
+    return countSheet(c);
+  }
+  function countsHome() {
+    const f = S.cnt.form, n = cntScope(f).length, ago = S.cnt.list.filter(x => dayDiff(x.when) <= 90).reduce((a, x) => a + x.value, 0);
+    return `<div class="page"><div class="cnt-home">
+      <section class="card" aria-labelledby="cnt-new"><h2 id="cnt-new">Start a count</h2>
+        <div class="cnt-types" role="radiogroup" aria-label="Type of count">${Object.entries(CNT_TYPES).map(([k, [l, d, i]]) => `<button class="cnt-type" role="radio" data-act="cnt-type" data-k="${k}" aria-checked="${f.type === k}"><span class="thumb tile-${k === "full" ? "purple" : k === "category" ? "teal" : "blue"}">${ic(i, 20)}</span><span class="grow"><b>${l}</b><small>${d}</small></span><i class="radio"></i></button>`).join("")}</div>
+        ${f.type === "category" ? `<label class="field">Category<select data-cf="cat" data-fid="cf-cat">${CATS_ADMIN.map(c => `<option ${f.cat === c ? "selected" : ""}>${c}</option>`).join("")}</select></label>` : ""}
+        <label class="check-row"><input type="checkbox" data-act="cnt-blind" ${f.blind ? "checked" : ""}><span><b>Blind count</b><small>Hide the expected quantity on the count sheet, so people count what is really on the shelf.</small></span></label>
+        <div class="note">${ic("help", 16)}Selling can go on while you count. Sales made after you start are allowed for when you post.</div>
+        <button class="btn primary l block" data-act="cnt-start" ${n ? "" : "disabled"}>${ic("list")}Start count · ${n} product${n === 1 ? "" : "s"}</button>
+      </section>
+      <section class="card" aria-labelledby="cnt-recent"><div class="card-head"><h2 id="cnt-recent">Recent counts</h2><span class="sub">CMB01 · Colombo 03</span></div>
+        <div class="dlines">${S.cnt.list.map(x => `<div class="dline"><span class="thumb tile-${x.type === "full" ? "purple" : x.type === "category" ? "teal" : "blue"}">${ic(CNT_TYPES[x.type][2], 18)}</span><span class="grow"><b>${x.no} · ${CNT_TYPES[x.type][0]}</b><small>${esc(x.scope)} · ${x.items.toLocaleString("en-US")} products · ${esc(x.by)} · ${dayDiff(x.when) === 0 ? "today " + hm(x.when) : x.when.toLocaleDateString("en-GB", { day: "numeric", month: "short" })}</small></span><span class="cnt-val"><b style="color:${x.value < 0 ? "var(--error-text)" : x.value > 0 ? "var(--success-text)" : "var(--text)"}">${signed(x.value)}</b>${badge("success", "Posted", null)}</span></div>`).join("")}</div>
+        <div class="note">${ic("chart", 16)}Net count differences in the last 90 days: <b style="color:var(--text)">${signed(ago)}</b> at cost</div>
+      </section>
+    </div></div>`;
+  }
+  function countSheet(c) {
+    const st = cntStats(c), pct = Math.round(st.counted / st.total * 100), F = S.cnt.filter;
+    const rows = c.items.filter(it => F === "all" || (F === "todo") === (cntVal(it) == null));
+    const chip = (v, l) => `<button class="chip" data-act="cnt-filter" data-v="${v}" aria-pressed="${F === v}">${l}</button>`;
+    return `<div class="page">
+      <div class="cnt-top">${stepsBar(CNT_STEPS, 1)}<span class="spacer"></span><button class="btn ${c.confirmDiscard ? "danger" : "ghost"}" data-act="cnt-cancel">${c.confirmDiscard ? "Click again to discard" : "Discard count"}</button></div>
+      <div class="card cnt-bar"><span class="grow"><b>${c.no} · ${CNT_TYPES[c.type][0]}</b><small>${esc(c.scope)} · started ${hm(c.started)} by ${esc(c.by)}${c.blind ? ` · ${ic("lock", 12)} blind count` : ""}</small></span>
+        <div class="cnt-prog" role="progressbar" aria-valuenow="${pct}" aria-valuemin="0" aria-valuemax="100" aria-label="Counted"><div class="lbl"><span>${st.counted} of ${st.total} counted</span><b>${pct}%</b></div><div class="bar"><i style="width:${pct}%"></i></div></div></div>
+      <div class="page-actions">
+        <label class="search ${c.err ? "error" : ""}">${ic("scan", 20, "scan")}<span class="sr">Scan or search</span><input id="cntscan" data-fid="cntscan" autocomplete="off" placeholder="Scan a barcode (+1 per scan) or type a name" value="${esc(c.q)}"><kbd>Enter</kbd></label>
+        <div class="chips">${chip("all", `All · ${st.total}`)}${chip("todo", `Not counted · ${st.total - st.counted}`)}${chip("done", `Counted · ${st.counted}`)}</div>
+        <button class="btn ghost" data-act="cnt-demo">Demo: fill counts</button>
+        <span class="spacer"></span>
+        <button class="btn primary" data-act="cnt-review" ${st.counted ? "" : "disabled"}>Review differences <kbd>F10</kbd></button>
+      </div>
+      ${c.err ? `<div class="scan-error" role="alert">${ic("alert", 18)}${esc(c.err)}</div>` : ""}
+      <div class="ctable" role="table" aria-label="Count sheet">
+        <div class="crow head" role="row"><span>Product</span><span class="c-code">Barcode</span><span class="r">Expected</span><span class="c">Counted</span><span>Status</span></div>
+        ${rows.length ? rows.map(it => {
+          const p = byId(it.pid), v = cntVal(it), d = cntDiff(it);
+          const status = v == null ? `<span class="muted">Not counted</span>` : c.blind ? badge("info", "Counted", "check") : !d ? badge("success", "Matches", "check") : badge(d < 0 ? "error" : "warning", `${d > 0 ? "+" : "−"}${fq(p, Math.abs(d))}`, null);
+          return `<div class="crow ${c.flash === p.id ? "flash" : ""} ${v != null ? "done" : ""}" role="row">
+            <span class="pname"><span class="thumb tile-${p.tone}">${ic(p.icon, 20)}</span><span style="min-width:0"><b>${esc(p.name)}</b><small>${esc(p.sku)} · ${esc(p.cat)}</small></span></span>
+            <span class="c-code mono">${p.code}</span>
+            <span class="r">${c.blind ? `<span class="muted hidden-q">${ic("lock", 14)}Hidden</span>` : fq(p, it.exp)}</span>
+            <span class="c"><span class="qty"><button data-act="cnt-dec" data-id="${p.id}" aria-label="One less ${esc(p.name)}" tabindex="-1">${ic("minus", 16)}</button><input data-cq="${p.id}" data-fid="cq-${p.id}" id="cq-${p.id}" inputmode="decimal" autocomplete="off" value="${esc(it.cnt)}" placeholder="—" aria-label="Counted ${esc(p.name)} in ${cntUnit(p)}"><button data-act="cnt-inc" data-id="${p.id}" aria-label="One more ${esc(p.name)}" tabindex="-1">${ic("plus", 16)}</button></span><small>${cntUnit(p)}</small></span>
+            <span>${status}</span></div>`; }).join("")
+          : `<div class="empty"><span class="circle">${ic("check", 28)}</span><h3>${F === "todo" ? "Everything is counted" : "Nothing counted yet"}</h3><span>${F === "todo" ? "Review the differences and post the count." : "Scan the first product on the shelf."}</span></div>`}
+      </div>
+      <div class="table-foot"><span>Enter or Tab moves to the next product · counts are saved on this device as you go</span><span>Works on a tablet: tap + / − or type the number</span></div>
+    </div>`;
+  }
+  function countReview(c) {
+    const st = cntStats(c), mgr = cntNeedsMgr(c);
+    const diff = c.items.filter(it => cntDiff(it)), un = c.items.filter(it => cntVal(it) == null);
+    return `<div class="page">
+      <div class="cnt-top">${stepsBar(CNT_STEPS, 2)}<span class="spacer"></span><span class="sub">${c.no} · ${CNT_TYPES[c.type][0]} · ${esc(c.scope)}</span></div>
+      <div class="stats4">
+        <div class="stat"><span>Counted</span><b>${st.counted} of ${st.total}</b></div>
+        <div class="stat"><span>Match</span><b style="color:var(--success-text)">${st.match}</b></div>
+        <div class="stat"><span>Short · ${st.short} product${st.short === 1 ? "" : "s"}</span><b style="color:var(--error-text)">${signed(st.shortV)}</b></div>
+        <div class="stat"><span>Over · ${st.over} product${st.over === 1 ? "" : "s"}</span><b style="color:var(--success-text)">${signed(st.overV)}</b></div>
+      </div>
+      <div class="ctable rv" role="table" aria-label="Differences">
+        <div class="crow head" role="row"><span>Product</span><span class="r">Expected</span><span class="r">Counted</span><span class="r">Difference</span><span class="r c-code">Value at cost</span><span></span></div>
+        ${diff.length ? diff.map(it => { const p = byId(it.pid), d = cntDiff(it), v = Math.round(d * p.cost); return `<div class="crow" role="row">
+            <span class="pname"><span class="thumb tile-${p.tone}">${ic(p.icon, 20)}</span><span style="min-width:0"><b>${esc(p.name)}</b><small>${esc(p.sku)}</small></span></span>
+            <span class="r muted">${fq(p, it.exp)}</span><span class="r">${fq(p, cntVal(it))}</span>
+            <span class="r"><b style="color:${d < 0 ? "var(--error-text)" : "var(--success-text)"}">${d > 0 ? "+" : "−"}${fq(p, Math.abs(d))}</b></span>
+            <span class="r c-code">${signed(v)}</span>
+            <span class="r"><button class="btn ghost" data-act="cnt-recount" data-id="${p.id}">Recount</button></span></div>`; }).join("")
+          : `<div class="empty"><span class="circle">${ic("check", 28)}</span><h3>Every counted product matches</h3><span>Posting records the count with no stock changes.</span></div>`}
+      </div>
+      ${un.length ? `<div class="banner">${ic("alert")}<span><b>${un.length} product${un.length === 1 ? " was" : "s were"} not counted:</b> ${un.slice(0, 4).map(it => esc(byId(it.pid).name)).join(", ")}${un.length > 4 ? "…" : ""}. ${un.length === 1 ? "Its" : "Their"} stock stays as it is.</span><button class="btn secondary" data-act="cnt-todo">Count ${un.length === 1 ? "it" : "them"}</button></div>` : ""}
+      <div class="card cnt-foot">
+        <span class="grow"><b>Net difference ${signed(st.net)} at cost</b><small>Posting sets stock to what you counted and records one "Count correction" movement per product (INV-04).</small></span>
+        ${mgr ? `<span class="note">${ic("lock", 16)}More than ${fmt(ADJ_LIMIT)} · needs a manager PIN</span>` : ""}
+        <button class="btn secondary l" data-act="cnt-back">Back to count sheet</button>
+        <button class="btn primary l" data-act="cnt-post">${ic(mgr ? "lock" : "check")}Post count <kbd>F10</kbd></button>
+      </div>
+    </div>`;
+  }
+  function countPosted(c) {
+    const P = c.posted, st = P.st;
+    const row = (l, v, col) => `<div class="dline"><span class="grow">${l}</span><b style="${col ? "color:" + col : ""}">${v}</b></div>`;
+    return `<div class="body"><section class="complete">
+      <div class="success-mark"><div>${ic("check", 40)}</div></div>
+      <h1>Count posted</h1><div class="sub">${c.no} · ${CNT_TYPES[c.type][0]} · ${esc(c.scope)}${P.approver ? ` · approved by ${P.approver}` : ""}</div>
+      <div class="card" style="width:min(560px,100%);text-align:left"><div class="dlines">
+        ${row("Products counted", `${st.counted} of ${st.total}`)}${row("Matched", st.match, "var(--success-text)")}${row(`Short · ${st.short}`, signed(st.shortV), "var(--error-text)")}${row(`Over · ${st.over}`, signed(st.overV), "var(--success-text)")}${row("Stock adjusted", `${P.changed} product${P.changed === 1 ? "" : "s"}`)}
+      </div><div class="note">${ic("lock", 16)}Each change is a "Count correction" stock movement in the audit log.</div></div>
+      <div class="actions"><button class="btn primary l" data-act="cnt-done">Back to counts <kbd>Enter</kbd></button><button class="btn secondary l" data-act="toast" data-msg="Variance report for ${c.no} sent to the printer">${ic("printer")}Print variance report</button><button class="btn ghost l" data-act="nav" data-view="stock">${ic("warehouse")}Stock on hand</button></div>
+    </section></div>`;
+  }
+
+  // ---------- Import wizard (A-23) ----------
+  const IMP_STEPS = ["Template", "Upload", "Match columns", "Preview", "Import", "Result"];
+  const IMP_COLS = ["Item Name", "SKU", "Barcode", "Category", "Selling Price", "Cost Price", "VAT", "Sinhala Name", "Shelf"];
+  const IMP_FIELDS = [["name", "Product name", true], ["sku", "SKU", true], ["barcode", "Barcode", false], ["cat", "Category", true], ["price", "Selling price (Rs)", true], ["cost", "Cost price (Rs)", false], ["tax", "VAT (Standard / Exempt)", false], ["nameSi", "Name in Sinhala", false], ["nameTa", "Name in Tamil", false], ["reorder", "Reorder level", false]];
+  const IMP_AUTO = { "Item Name": "name", SKU: "sku", Barcode: "barcode", Category: "cat", "Selling Price": "price", "Cost Price": "cost", VAT: "tax", "Sinhala Name": "nameSi", Shelf: "" };
+  const IMP_ROWS = [
+    ["Milk powder 400g", "MP-400", "4791111000011", "Dairy", "1190.00", "860.00", "Standard", "කිරි පිටි 400g", "A3"],
+    ["Basmati rice 5kg", "BR-5K", "4791111000028", "Grocery", "3250.00", "2340.00", "Exempt", "බාස්මතී සහල් 5kg", "B1"],
+    ["Paracetamol 500mg", "PC-500", "4791111000035", "Pharmacy", "32.00", "23.00", "Exempt", "පැරසිටමෝල් 500mg", "P2"],
+    ["Panadol Extra 500mg", "PE-500", "4792222000017", "Pharmacy", "48.00", "35.00", "Exempt", "", "P2"],
+    ["Ceylon black tea 200g", "CT-200", "4791111000103", "Beverages", "790.00", "560.00", "Standard", "ලංකා කළු තේ 200g", "C4"],
+    ["Fresh milk 1L", "FM-1L", "4792222000024", "Dairy", "520.00", "410.00", "Exempt", "දියර කිරි 1L", "F1"],
+    ["Bottled water 1.5L", "BW-15", "4791111000097", "Beverages", "150.00", "100.00", "Standard", "", "C1"],
+    ["Yoghurt 80g", "YG-80", "4792222000031", "Dairy", "90.00", "68.00", "Exempt", "යෝගට් 80g", "F1"],
+    ["Ginger tea 20 bags", "GT-20", "4792222000048", "Beverages", "12,50o", "310.00", "Standard", "", "C4"],
+    ["Toothpaste 120g", "TP-120", "4791111000059", "Personal care", "380.00", "274.00", "Standard", "", "D2"],
+    ["Shampoo 340ml", "SH-340", "4791111000066", "Personal care", "1150.00", "785.00", "Standard", "", "D2"],
+    ["Red raw rice 5kg", "RR-5K", "4792222000055", "Grocery", "1450.00", "1100.00", "Exempt", "රතු කැකුළු සහල් 5kg", "B1"],
+    ["Cream crackers 500g", "CC-500", "4791111000073", "Grocery", "540.00", "374.00", "Standard", "", "B3"],
+    ["Herbal soap 100g", "HS-100", "4791111000059", "Personal care", "165.00", "120.00", "Standard", "", "D3"],
+    ["Eggs 10-pack", "EG-10", "4791111000080", "Grocery", "650.00", "468.00", "Exempt", "බිත්තර 10", "F2"],
+    ["Vitamin C 1000mg", "VC-1000", "4792222000062", "Pharmacy", "85.00", "60.00", "Exempt", "", "P3"],
+    ["Frozen peas 500g", "FP-500", "4792222000079", "Frozen", "690.00", "500.00", "Standard", "", "Z1"],
+    ["Dishwash liquid 500ml", "DW-500", "4792222000086", "Household", "395.00", "280.00", "Standard", "", "H1"]
+  ];
+  const IMP_TEMPLATES = [["products", "Products", "Create new products and update names, categories and prices", "package"], ["prices", "Price list", "Change selling prices only, matched by SKU or barcode", "tag"], ["stock", "Opening stock", "Starting quantities and batches for a new branch", "warehouse"]];
+  const emptyImp = () => ({ step: 1, kind: "products", file: null, map: { ...IMP_AUTO }, touched: {}, skip: false, filter: "all", progress: 0, job: null, result: null, fileErr: "" });
+  S.imp = emptyImp(); S.impSeq = 318;
+  const impCol = f => IMP_COLS.findIndex(c => S.imp.map[c] === f);
+  const impColName = f => { const i = impCol(f); return i < 0 ? (IMP_FIELDS.find(x => x[0] === f) || [, f])[1] : IMP_COLS[i]; };
+  function impMapIssues() {
+    const used = Object.values(S.imp.map).filter(Boolean);
+    return { miss: IMP_FIELDS.filter(f => f[2] && !used.includes(f[0])).map(f => f[1]), dup: IMP_FIELDS.filter(f => used.filter(u => u === f[0]).length > 1).map(f => f[1]) };
+  }
+  const money = s => { const x = String(s).replace(/,/g, "").trim(); return /^\d+(\.\d{1,2})?$/.test(x) ? Math.round(parseFloat(x) * 100) : null; };
+  function impAnalyze() {
+    return IMP_ROWS.map((r, n) => {
+      const get = f => { const i = impCol(f); return i < 0 ? "" : String(r[i]).trim(); };
+      const row = n + 2, name = get("name"), sku = get("sku"), bc = get("barcode"), cat = get("cat"), si = get("nameSi"), errs = [];
+      const priceS = get("price"), price = money(priceS), costS = get("cost"), cost = costS ? money(costS) : null;
+      if (!name) errs.push([impColName("name"), "Product name is empty"]);
+      if (!sku) errs.push([impColName("sku"), "SKU is empty"]);
+      if (price == null) errs.push([impColName("price"), priceS ? `"${priceS}" is not a price. Use digits, e.g. 1250.00` : "Price is empty"]);
+      if (costS && cost == null) errs.push([impColName("cost"), `"${costS}" is not a price`]);
+      if (cat && !CATS_ADMIN.includes(cat)) errs.push([impColName("cat"), `Unknown category "${cat}". Use an existing category or add it first`]);
+      const ex = sku ? PRODUCTS.find(p => p.sku.toLowerCase() === sku.toLowerCase()) : null;
+      if (bc) { const owner = PRODUCTS.find(p => p !== ex && p.variants.some(v => v.barcode === bc)); if (owner) errs.push([impColName("barcode"), `Barcode ${bc} already belongs to ${owner.name} (${owner.sku})`]); }
+      const base = { row, name, sku, bc, cat, price, cost, si, tax: get("tax") };
+      if (errs.length) return { ...base, status: "error", errs };
+      if (!ex) return { ...base, status: "new", ch: [`New in ${cat} at ${fmt(price)}`] };
+      const ch = [];
+      if (price !== ex.price) ch.push(`Price ${fmt(ex.price)} → ${fmt(price)}`);
+      if (name !== ex.name) ch.push(`Name → ${name}`);
+      if (cat && cat !== ex.cat) ch.push(`Category ${ex.cat} → ${cat}`);
+      if (si && si !== ex.nameSi) ch.push("Sinhala name added");
+      return { ...base, p: ex, status: ch.length ? "update" : "same", ch };
+    });
+  }
+  const IMP_BADGE = { new: ["info", "New", "plus"], update: ["warning", "Update", "pencil"], same: ["", "No change", null], error: ["error", "Error", "alert"] };
+  function impApply(rows) {
+    const no = `IMP-${S.impSeq}`, by = meShort(); let created = 0, updated = 0;
+    for (const r of rows) {
+      if (r.status === "update") {
+        const p = r.p, old = p.price;
+        p.price = r.price; p.name = r.name; if (r.cat) p.cat = r.cat; if (r.si) p.nameSi = r.si;
+        const v = p.variants.find(x => x.sku === p.sku); if (v) v.price = r.price;
+        p.updated = new Date(); p.log.unshift({ when: new Date(), who: by, what: old !== r.price ? `Price ${fmt(old)} → ${fmt(r.price)} (import ${no})` : `Updated by import ${no}` });
+        updated++;
+      } else if (r.status === "new") {
+        const [icon, tone] = TONES[r.cat] || ["package", "purple"];
+        PRODUCTS.push({ id: "im-" + r.sku.toLowerCase(), name: r.name, cat: r.cat, meta: `New · ${r.sku}`, price: r.price, icon, tone, code: r.bc || "", stock: 0,
+          brand: "No brand", nameSi: r.si, nameTa: "", tax: /exempt/i.test(r.tax) ? "exempt" : "std", reorder: 5, active: true,
+          wholesale: Math.round(r.price * 0.93 / 100) * 100, cost: r.cost != null ? r.cost : Math.round(r.price * 0.72 / 100) * 100, sku: r.sku, newPrice: "", newFrom: "",
+          variants: [{ label: "Each", sku: r.sku, barcode: r.bc || "", price: r.price }], drug: null, updated: new Date(), seedLots: [],
+          log: [{ when: new Date(), who: by, what: `Product created from import ${no}` }] });
+        created++;
+      }
+    }
+    S.impSeq++;
+    return { no, created, updated, skipped: rows.filter(r => r.status === "error").length, same: rows.filter(r => r.status === "same").length, when: new Date() };
+  }
+  function impCommit() {
+    const im = S.imp, rows = impAnalyze(), todo = rows.filter(r => r.status === "new" || r.status === "update").length;
+    if (rows.some(r => r.status === "error") && !im.skip) { toast("Tick “skip the rows with errors” or fix the file first", { error: true }); return; }
+    im.step = 5; im.progress = 0; im.job = `JOB-${(Date.now() % 46656).toString(36).toUpperCase().padStart(3, "0")}`; im.total = todo; render();
+    clearInterval(im.timer);
+    im.timer = setInterval(() => {
+      im.progress = Math.min(todo, im.progress + 1);
+      if (im.progress >= todo) { clearInterval(im.timer); im.result = impApply(impAnalyze()); im.step = 6; if (S.view !== "import") toast(`Import finished: ${im.result.created} created, ${im.result.updated} updated`); }
+      if (S.view === "import") render();
+    }, 260);
+  }
+  function impGo(step) {
+    const im = S.imp;
+    if (step === 3 && !im.file) { toast("Choose a file first", { error: true }); return; }
+    if (step === 4) { const x = impMapIssues(); if (x.miss.length || x.dup.length) { toast("Match the required columns first", { error: true }); return; } }
+    im.step = step; render();
+  }
+  function impSetFile(name, size) {
+    const im = S.imp;
+    if (size > 20 * 1024 * 1024) { im.fileErr = `${name} is ${(size / 1048576).toFixed(1)} MB. The limit is 20 MB; split the file into two.`; im.file = null; render(); return; }
+    if (!/\.(xlsx|csv)$/i.test(name)) { im.fileErr = `${name} is not an Excel (.xlsx) or CSV file.`; im.file = null; render(); return; }
+    im.fileErr = ""; im.file = { name, size, rows: IMP_ROWS.length, cols: IMP_COLS.length }; im.map = { ...IMP_AUTO }; im.touched = {}; render();
+  }
+  const kb = n => n < 1048576 ? Math.max(1, Math.round(n / 1024)) + " KB" : (n / 1048576).toFixed(1) + " MB";
+  function importView() {
+    const im = S.imp;
+    if (S.user.role !== "Manager") return `<div class="placeholder"><div class="empty"><span class="circle">${ic("lock", 28)}</span><h3>Only managers can import products</h3><span>${esc(S.user.short)} is signed in as ${esc(S.user.role.toLowerCase())}. A manager can import, or give you access in Staff.</span><button class="btn primary s" data-act="logout">Switch user</button></div></div>`;
+    const back = im.step > 1 && im.step < 5 ? `<button class="btn secondary l" data-act="imp-go" data-step="${im.step - 1}">Back</button>` : "";
+    let body = "", next = "";
+    if (im.step === 1) {
+      body = `<section class="card imp-card"><h2>Which data are you importing?</h2>
+        <div class="cnt-types">${IMP_TEMPLATES.map(([k, l, d, i]) => `<div class="cnt-type" role="radio" tabindex="0" data-act="imp-kind" data-k="${k}" aria-checked="${im.kind === k}"><span class="thumb tile-blue">${ic(i, 20)}</span><span class="grow"><b>${l}</b><small>${d}</small></span><button class="btn ghost s" data-act="toast" data-msg="${k}-template.xlsx downloaded">${ic("upload", 16)}Template</button><i class="radio"></i></div>`).join("")}</div>
+        <div class="imp-rules"><b>Rules for the file</b><ul>
+          <li>The first row holds the column names. Your own column names are fine; you match them in step 3.</li>
+          <li>Rows are matched by <b>SKU</b>: an existing SKU is updated, a new SKU creates a product.</li>
+          <li>Empty cells keep the current value. Nothing is ever deleted by an import.</li>
+          <li>Prices in rupees with up to two decimals, e.g. <code>1190.00</code>. Excel (.xlsx) or CSV in UTF-8, up to 20 MB.</li></ul></div></section>`;
+      next = `<button class="btn primary l" data-act="imp-go" data-step="2" ${im.kind === "products" ? "" : "disabled"}>Next: upload ${ic("arrowRight")}</button>`;
+      if (im.kind !== "products") body += `<div class="note">${ic("help", 16)}Price list and opening stock imports use the same six steps. This demo walks through Products.</div>`;
+    } else if (im.step === 2) {
+      body = `<section class="card imp-card"><h2>Upload the file</h2>
+        ${im.file ? `<div class="file-card"><span class="thumb tile-green">${ic("list", 22)}</span><span class="grow"><b>${esc(im.file.name)}</b><small>${kb(im.file.size)} · sheet “Products” · ${im.file.rows} rows · ${im.file.cols} columns</small></span>${badge("success", "Read OK", "check")}<button class="icon-btn" data-act="imp-clear" aria-label="Remove file">${ic("x")}</button></div>`
+          : `<label class="dropzone ${im.drag ? "over" : ""}" for="impfile" tabindex="0" data-fid="impdrop">${ic("upload", 32)}<b>Drop your file here, or click to choose</b><small>Excel (.xlsx) or CSV · up to 20 MB</small><input type="file" id="impfile" accept=".xlsx,.csv" class="sr"></label>
+             <button class="btn ghost" data-act="imp-demo">Use the demo file: products-nov-2026.xlsx (18 rows)</button>`}
+        ${im.fileErr ? `<div class="scan-error" role="alert">${ic("alert", 18)}${esc(im.fileErr)}</div>` : ""}
+        <div class="note">${ic("help", 16)}In this prototype any file you choose is read as the demo data.</div></section>`;
+      next = `<button class="btn primary l" data-act="imp-go" data-step="3" ${im.file ? "" : "disabled"}>Next: match columns ${ic("arrowRight")}</button>`;
+    } else if (im.step === 3) {
+      const x = impMapIssues();
+      body = `<section class="card imp-card"><div class="card-head"><h2>Match your columns to RetailOS fields</h2><span class="sub">${esc(im.file.name)}</span></div>
+        <div class="maptable" role="table" aria-label="Column matching">
+          <div class="mrow head" role="row"><span>Column in your file</span><span>Sample values</span><span>RetailOS field</span><span></span></div>
+          ${IMP_COLS.map((c, i) => { const f = im.map[c]; return `<div class="mrow" role="row"><b>${esc(c)}</b><span class="samples">${IMP_ROWS.slice(0, 3).map(r => `<span>${esc(r[i]) || "—"}</span>`).join("")}</span>
+            <select data-im="${esc(c)}" data-fid="im-${i}" aria-label="Field for ${esc(c)}"><option value="">Don't import</option>${IMP_FIELDS.map(([k, l, req]) => `<option value="${k}" ${f === k ? "selected" : ""}>${l}${req ? " *" : ""}</option>`).join("")}</select>
+            <span>${!f ? badge("", "Skipped", null) : im.touched[c] ? badge("info", "Your choice", "pencil") : badge("success", "Auto-matched", "check")}</span></div>`; }).join("")}
+        </div>
+        ${x.miss.length ? `<div class="banner error">${ic("alert")}Required fields with no column: ${x.miss.join(", ")}</div>` : ""}
+        ${x.dup.length ? `<div class="banner error">${ic("alert")}More than one column goes to: ${x.dup.join(", ")}</div>` : ""}
+        ${!x.miss.length && !x.dup.length ? `<div class="note">${ic("check", 16)}All required fields (*) are matched. RetailOS remembers this matching for your next file.</div>` : ""}</section>`;
+      next = `<button class="btn primary l" data-act="imp-go" data-step="4" ${x.miss.length || x.dup.length ? "disabled" : ""}>Next: preview ${ic("arrowRight")}</button>`;
+    } else if (im.step === 4) {
+      const rows = impAnalyze(), n = k => rows.filter(r => r.status === k).length, errs = rows.filter(r => r.status === "error"), todo = n("new") + n("update");
+      const chip = (v, l) => `<button class="chip" data-act="imp-filter" data-v="${v}" aria-pressed="${im.filter === v}">${l}</button>`;
+      const shown = rows.filter(r => im.filter === "all" || r.status === im.filter);
+      body = `<div class="banner" style="background:var(--primary-tint);color:var(--primary-text)">${ic("help")}Dry run: nothing has changed yet. Check the preview, then import.</div>
+        <div class="stats4"><div class="stat"><span>New products</span><b style="color:var(--primary-text)">${n("new")}</b></div><div class="stat"><span>Updates</span><b style="color:var(--warning-text)">${n("update")}</b></div><div class="stat"><span>No change</span><b>${n("same")}</b></div><div class="stat"><span>Rows with errors</span><b style="color:var(--error-text)">${n("error")}</b></div></div>
+        ${errs.length ? `<section class="card"><div class="card-head"><h2>${errs.length} row${errs.length === 1 ? "" : "s"} need${errs.length === 1 ? "s" : ""} fixing</h2><button class="btn secondary" data-act="toast" data-msg="import-errors.csv downloaded (${errs.length} rows)">Download error rows (CSV)</button></div>
+          <div class="errtable" role="table" aria-label="Errors"><div class="erow head" role="row"><span>Row</span><span>Column</span><span>Problem</span></div>${errs.flatMap(r => r.errs.map(([c, m]) => `<div class="erow" role="row"><span class="mono">${r.row}</span><span>${esc(c)}</span><span>${esc(m)}<small>${esc(r.name)} · ${esc(r.sku)}</small></span></div>`)).join("")}</div></section>` : ""}
+        <section class="card"><div class="card-head"><h2>All rows</h2><div class="chips">${chip("all", `All · ${rows.length}`)}${chip("new", `New · ${n("new")}`)}${chip("update", `Updates · ${n("update")}`)}${chip("same", `No change · ${n("same")}`)}${chip("error", `Errors · ${n("error")}`)}</div></div>
+          <div class="prevtable" role="table" aria-label="Preview"><div class="vrow head" role="row"><span>Row</span><span>Product</span><span>SKU</span><span>Result</span><span>What changes</span></div>
+          ${shown.map(r => `<div class="vrow ${r.status}" role="row"><span class="mono">${r.row}</span><b>${esc(r.name)}</b><span class="mono">${esc(r.sku)}</span><span>${badge(...IMP_BADGE[r.status])}</span><span class="muted">${r.status === "error" ? esc(r.errs.map(e => e[1]).join(" · ")) : r.ch.length ? esc(r.ch.join(" · ")) : "Same as now"}</span></div>`).join("")}</div></section>
+        ${errs.length ? `<label class="check-row"><input type="checkbox" data-act="imp-skip" ${im.skip ? "checked" : ""}><span><b>Skip the ${errs.length} rows with errors and import the rest</b><small>You can fix those rows and import them later. Or fix the file now and upload it again.</small></span></label>` : ""}`;
+      next = `<button class="btn primary l" data-act="imp-commit" ${todo && (!errs.length || im.skip) ? "" : "disabled"}>${ic("check")}Import ${todo} product${todo === 1 ? "" : "s"}</button>`;
+    } else if (im.step === 5) {
+      const pct = im.total ? Math.round(im.progress / im.total * 100) : 100;
+      body = `<section class="card imp-card imp-run"><span class="spinner" aria-hidden="true"></span><h2>Importing…</h2><div class="sub">${im.job} · ${esc(im.file.name)}</div>
+        <div class="cnt-prog" role="progressbar" aria-valuenow="${pct}" aria-valuemin="0" aria-valuemax="100" aria-label="Import progress"><div class="lbl"><span>${im.progress} of ${im.total} rows</span><b>${pct}%</b></div><div class="bar"><i style="width:${pct}%"></i></div></div>
+        <div class="note">${ic("help", 16)}You can leave this page. The import keeps running and you get a notification when it is done.</div></section>`;
+    } else {
+      const R = im.result;
+      body = `<section class="complete">
+        <div class="success-mark"><div>${ic("check", 40)}</div></div>
+        <h1>Import finished</h1><div class="sub">${R.no} · ${esc(im.file.name)} · by ${esc(meShort())} at ${hm(R.when)}</div>
+        <div class="card" style="width:min(560px,100%);text-align:left"><div class="dlines">
+          <div class="dline"><span class="grow">Products created</span><b style="color:var(--primary-text)">${R.created}</b></div>
+          <div class="dline"><span class="grow">Products updated</span><b style="color:var(--warning-text)">${R.updated}</b></div>
+          <div class="dline"><span class="grow">No change</span><b>${R.same}</b></div>
+          <div class="dline"><span class="grow">Rows skipped (errors)</span><b style="color:${R.skipped ? "var(--error-text)" : "var(--text)"}">${R.skipped}</b>${R.skipped ? `<button class="btn ghost s" data-act="toast" data-msg="import-errors.csv downloaded">Download</button>` : ""}</div>
+        </div><div class="note">${ic("refresh", 16)}Registers get the changes at their next sync, within a minute. New products start with zero stock: receive them in Goods receiving.</div></div>
+        <div class="actions"><button class="btn primary l" data-act="imp-products">${ic("package")}View products</button><button class="btn secondary l" data-act="imp-new">Import another file</button></div></section>`;
+    }
+    const foot = im.step < 5 ? `<div class="imp-foot"><span class="spacer"></span>${back}${next}</div>` : "";
+    return `<div class="page imp">${stepsBar(IMP_STEPS, im.step)}${body}${foot}</div>`;
+  }
+
   // ---------- Render: main ----------
   function render() {
     const fid = document.activeElement && document.activeElement.dataset ? document.activeElement.dataset.fid : null;
@@ -1566,6 +1950,8 @@ Yesterday 09:15  SYNC-003 Catalog cursor too old · catalog snapshot downloaded<
     else if (S.view === "returns") main = topbar(t("returns"), S.ret.done ? "Refund recorded" : S.ret.sale ? "Choose the items the customer is bringing back" : "Find the original sale") + returnsView();
     else if (S.view === "stock") main = topbar(t("stock"), "Stock on hand by product and batch") + stockView();
     else if (S.view === "expiry") main = topbar(t("expiry"), "Batches expiring in the next 90 days · act before they are lost") + expiryView();
+    else if (S.view === "counts") main = topbar("Stock counts", S.cnt.cur ? `${S.cnt.cur.no} · ${CNT_TYPES[S.cnt.cur.type][0]} · CMB01` : "Count what is on the shelf and correct the stock") + countsView();
+    else if (S.view === "import") main = topbar("Import products", "Catalog › Products › Import · nothing changes until you import") + importView();
     else if (S.view === "products") main = topbar(t("products"), "Catalog · 1,248 products in the real catalog") + productsView();
     else if (S.view === "product") main = topbar(S.pe.draft.id ? (byId(S.pe.draft.id).name) : "New product", `Catalog › Products › ${S.pe.draft.id ? esc(byId(S.pe.draft.id).sku) : "new"}`) + productEditor();
     else if (S.view === "status") main = topbar("Status & diagnostics", "Register CMB01 · R02 · device WIN-CMB01-02") + statusView();
@@ -1660,6 +2046,8 @@ Yesterday 09:15  SYNC-003 Catalog cursor too old · catalog snapshot downloaded<
       return;
     } else if (m.type === "cash") {
       h = cashModal(m, head);
+    } else if (m.type === "cntpin") {
+      h = cntPinModal(m, head);
     } else if (m.type === "adjust") {
       h = adjustModal(m, head);
     } else if (m.type === "leave") {
@@ -1713,6 +2101,31 @@ Yesterday 09:15  SYNC-003 Catalog cursor too old · catalog snapshot downloaded<
       case "pc-pick": S.pc.pid = el.dataset.pid; S.pc.error = ""; render(); break;
       case "pc-clear": S.pc.pid = null; S.pc.error = ""; S.pc.query = ""; render(); focusId("pcsearch"); break;
       case "pc-add": { const p = byId(S.pc.pid); if (!p) break; if (!S.shifts[S.user.id]) { S.view = "openshift"; render(); toast("Open a shift first", { error: true }); break; } S.view = "sell"; render(); addProduct(p); break; }
+      case "cnt-type": S.cnt.form.type = el.dataset.k; render(); break;
+      case "cnt-blind": S.cnt.form.blind = el.checked; render(); break;
+      case "cnt-start": startCount(); break;
+      case "cnt-filter": S.cnt.filter = el.dataset.v; render(); break;
+      case "cnt-demo": cntDemo(); break;
+      case "cnt-inc": cntStep(el.dataset.id, 1); break;
+      case "cnt-dec": cntStep(el.dataset.id, -1); break;
+      case "cnt-cancel": { const c = S.cnt.cur; if (c.items.some(it => cntVal(it) != null) && !c.confirmDiscard) { c.confirmDiscard = true; render(); break; } S.cnt.cur = null; render(); toast(`${c.no} discarded · no stock was changed`); break; }
+      case "cnt-review": { const c = S.cnt.cur; if (!c.items.some(it => cntVal(it) != null)) { toast("Count at least one product first", { error: true }); break; } c.step = "review"; c.err = ""; c.confirmDiscard = false; render(); break; }
+      case "cnt-back": S.cnt.cur.step = "count"; render(); focusId("cntscan"); break;
+      case "cnt-todo": S.cnt.cur.step = "count"; S.cnt.filter = "todo"; render(); focusId("cntscan"); break;
+      case "cnt-recount": { const c = S.cnt.cur, it = c.items.find(x => x.pid === el.dataset.id); it.cnt = ""; c.step = "count"; S.cnt.filter = "all"; c.flash = it.pid; render(); selectId("cq-" + it.pid); break; }
+      case "cnt-post": cntPost(false); break;
+      case "cnt-pin": { const m = S.modal, k = el.dataset.k; m.pinErr = false; if (k === "⌫") m.pin = m.pin.slice(0, -1); else if (k === "C") m.pin = ""; else if (m.pin.length < 4) m.pin += k; renderModal(); break; }
+      case "cnt-approve": cntApprove(); break;
+      case "cnt-done": S.cnt.cur = null; render(); break;
+      case "imp-go": impGo(+el.dataset.step); break;
+      case "imp-kind": if (e.target.closest('[data-act="toast"]')) break; S.imp.kind = el.dataset.k; render(); break;
+      case "imp-demo": impSetFile("products-nov-2026.xlsx", 23552); break;
+      case "imp-clear": S.imp.file = null; S.imp.fileErr = ""; render(); break;
+      case "imp-filter": S.imp.filter = el.dataset.v; render(); break;
+      case "imp-skip": S.imp.skip = el.checked; render(); break;
+      case "imp-commit": impCommit(); break;
+      case "imp-products": S.imp = emptyImp(); S.prod.q = ""; S.prod.cat = "All"; S.prod.status = "active"; S.view = "products"; render(); break;
+      case "imp-new": S.imp = emptyImp(); render(); break;
       case "stk-filter": S.stk.filter = el.dataset.v; render(); break;
       case "stk-toggle": if (S.stk.branch === "CMB01") { S.stk.open[el.dataset.id] = !S.stk.open[el.dataset.id]; render(); } break;
       case "adj-open": openAdjust(el.dataset.id, el.dataset.lot); break;
@@ -1858,6 +2271,10 @@ Yesterday 09:15  SYNC-003 Catalog cursor too old · catalog snapshot downloaded<
     if (e.target.dataset && e.target.dataset.pf) { S.prod[e.target.dataset.pf] = e.target.value; S.prod.picked = []; render(); }
     if (e.target.id === "psearch") { S.prod.q = e.target.value; render(); }
     if (e.target.id === "stsearch") { S.stk.q = e.target.value; render(); }
+    if (e.target.id === "cntscan" && S.cnt.cur) { S.cnt.cur.q = e.target.value; }
+    if (e.target.dataset && e.target.dataset.cq && S.cnt.cur) { const it = S.cnt.cur.items.find(x => x.pid === e.target.dataset.cq); it.cnt = e.target.value.replace(/[^0-9.]/g, ""); S.cnt.cur.flash = null; S.cnt.cur.confirmDiscard = false; render(); }
+    if (e.target.dataset && e.target.dataset.cf) { S.cnt.form[e.target.dataset.cf] = e.target.value; render(); }
+    if (e.target.dataset && e.target.dataset.im) { S.imp.map[e.target.dataset.im] = e.target.value; S.imp.touched[e.target.dataset.im] = true; render(); }
     if (e.target.dataset && e.target.dataset.sk) { S.stk[e.target.dataset.sk] = e.target.value; render(); }
     if (e.target.dataset && e.target.dataset.ex) { S.exp[e.target.dataset.ex] = e.target.value; render(); }
     if (e.target.dataset && e.target.dataset.adj && S.modal && S.modal.type === "adjust") {
@@ -1957,6 +2374,12 @@ Yesterday 09:15  SYNC-003 Catalog cursor too old · catalog snapshot downloaded<
       if (m.type === "batch") { if (k === "ArrowDown" || k === "ArrowUp") { e.preventDefault(); const n = byId(m.pid).batches.length; m.choice = (m.choice + (k === "ArrowDown" ? 1 : -1) + n) % n; renderModal(); return; } if (k === "Enter") { e.preventDefault(); const p = byId(m.pid); S.modal = null; renderModal(); addProduct(p, { batch: p.batches[m.choice].id }); } return; }
       if (m.type === "weight" || m.type === "qty") { if (/^[0-9.]$/.test(k)) { modalKey(k); return; } if (k === "Backspace") { modalKey("⌫"); return; } if (k === "Enter") { e.preventDefault(); confirmQty(); } return; }
       if (m.type === "discount") { if (/^[0-9]$/.test(k) && m.pct > DISCOUNT_LIMIT) { pinKey(k); return; } if (k === "Backspace") { pinKey("⌫"); return; } if (k === "Enter") { e.preventDefault(); confirmDiscount(); } return; }
+      if (m.type === "cntpin") {
+        if (k === "Enter") { e.preventDefault(); cntApprove(); return; }
+        if (/^[0-9]$/.test(k)) { m.pinErr = false; if (m.pin.length < 4) m.pin += k; renderModal(); return; }
+        if (k === "Backspace") { e.preventDefault(); m.pin = m.pin.slice(0, -1); renderModal(); return; }
+        return;
+      }
       if (m.type === "adjust") {
         if (k === "Enter") { e.preventDefault(); adjSubmit(); return; }
         if (m.stage === "pin" && /^[0-9]$/.test(k)) { m.pinErr = false; if (m.pin.length < 4) m.pin += k; renderModal(); return; }
@@ -2015,6 +2438,25 @@ Yesterday 09:15  SYNC-003 Catalog cursor too old · catalog snapshot downloaded<
       if ((e.ctrlKey || e.metaKey) && k.toLowerCase() === "s") { e.preventDefault(); saveSettings(); }
       return;
     }
+    if (S.view === "counts") {
+      const c = S.cnt.cur;
+      if (!c) return;
+      if (c.step === "posted") { if (k === "Enter" && !inInput) { e.preventDefault(); S.cnt.cur = null; render(); } return; }
+      if (k === "F10") { e.preventDefault(); if (c.step === "review") cntPost(false); else if (c.items.some(it => cntVal(it) != null)) { c.step = "review"; render(); } return; }
+      if (e.target.id === "cntscan") {
+        if (k === "Enter") { e.preventDefault(); cntScan(e.target.value); }
+        else if (k === "Escape") { c.q = ""; c.err = ""; render(); focusId("cntscan"); }
+        return;
+      }
+      if (e.target.dataset && e.target.dataset.cq && (k === "Enter" || k === "ArrowDown" || k === "ArrowUp")) {
+        e.preventDefault(); const ins = [...app.querySelectorAll("[data-cq]")], i = ins.indexOf(e.target), nx = ins[i + (k === "ArrowUp" ? -1 : 1)];
+        if (nx) { nx.focus(); nx.select(); } else if (k === "Enter") focusId("cntscan");
+        return;
+      }
+      if (!inInput && k === "/") { e.preventDefault(); focusId("cntscan"); }
+      return;
+    }
+    if (S.view === "import") { if ((k === "Enter" || k === " ") && e.target.dataset && e.target.dataset.act === "imp-kind") { e.preventDefault(); e.target.click(); } return; }
     if (S.view === "stock" || S.view === "expiry") {
       if (e.target.id === "stsearch") { if (k === "Escape") { S.stk.q = ""; render(); focusId("stsearch"); } return; }
       if (!inInput && k === "/" && S.view === "stock") { e.preventDefault(); focusId("stsearch"); }
@@ -2152,8 +2594,14 @@ Yesterday 09:15  SYNC-003 Catalog cursor too old · catalog snapshot downloaded<
   let rz; window.addEventListener("resize", () => { clearTimeout(rz); rz = setTimeout(render, 120); });
   if (S.theme) document.documentElement.dataset.theme = S.theme;
   const hash = location.hash.replace("#", "");
-  if (["sell", "dashboard", "signin", "openshift", "returns", "cash", "orders", "receiving", "pricecheck", "status", "settings", "products", "stock", "expiry"].includes(hash)) S.view = hash;
-  if (hash === "stock" || hash === "expiry") S.user = USERS[4]; // Kasun, stock keeper
+  if (["sell", "dashboard", "signin", "openshift", "returns", "cash", "orders", "receiving", "pricecheck", "status", "settings", "products", "stock", "expiry", "counts", "import"].includes(hash)) S.view = hash;
+  if (hash === "stock" || hash === "expiry" || hash === "counts") S.user = USERS[4]; // Kasun, stock keeper
+  if (hash === "import") S.user = USERS[3]; // Malini, manager
+  // File picker and drag-and-drop for the import wizard (A-23)
+  document.addEventListener("change", e => { if (e.target.id === "impfile" && e.target.files && e.target.files[0]) { const fl = e.target.files[0]; impSetFile(fl.name, fl.size); } });
+  document.addEventListener("dragover", e => { const z = e.target.closest && e.target.closest(".dropzone"); if (z) { e.preventDefault(); z.classList.add("over"); } });
+  document.addEventListener("dragleave", e => { const z = e.target.closest && e.target.closest(".dropzone"); if (z) z.classList.remove("over"); });
+  document.addEventListener("drop", e => { const z = e.target.closest && e.target.closest(".dropzone"); if (!z) return; e.preventDefault(); const fl = e.dataTransfer.files[0]; if (fl) impSetFile(fl.name, fl.size); });
   if (hash === "products") S.user = USERS[3]; // Malini, manager
   if (hash === "receiving") S.user = USERS[4]; // Kasun, stock keeper
   if (hash === "openshift") { S.user = USERS[1]; }            // Nimal has no open shift yet
