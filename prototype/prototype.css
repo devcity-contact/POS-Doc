@@ -722,6 +722,42 @@ details.card > summary::-webkit-details-marker { display: none; }
 .timeline small { display: block; color: var(--text-2); font-size: 13px; }
 @media (max-width: 1180px) { .prow { grid-template-columns: 32px minmax(0, 1fr) 110px 120px 90px; } .prow .c-brand, .prow .c-status, .prow .c-upd { display: none; } .ebody { grid-template-columns: 1fr; } .form-grid { grid-template-columns: 1fr; } }
 
+/* ---------- Stock on hand (A-40) ---------- */
+.stats4 { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.sttable { background: var(--surface); border: 1px solid var(--divider); border-radius: 16px; box-shadow: var(--shadow-card); overflow: hidden; }
+.strow { display: grid; grid-template-columns: 28px minmax(0, 2fr) 110px 90px 130px 150px 140px 96px; align-items: center; gap: 12px; padding: 10px 16px; border-bottom: 1px solid var(--divider); font-size: 14px; }
+.strow.head { font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--text-2); background: var(--subtle); }
+.strow.prod { cursor: pointer; }
+.strow.prod:hover { background: var(--hover); }
+.strow.lot { background: var(--subtle); font-size: 13px; padding-top: 7px; padding-bottom: 7px; }
+.strow.lot .lotname { padding-left: 52px; display: flex; gap: 8px; align-items: center; color: var(--text-2); }
+.strow.lot .lotname b { color: var(--text); font-family: var(--mono); font-size: 13px; }
+.strow .r { text-align: right; font-weight: 600; }
+.strow .neg { color: var(--error-text); }
+.strow .chev { color: var(--text-2); transition: transform .15s; display: grid; place-items: center; }
+.strow .chev.open { transform: rotate(90deg); }
+.strow .btn { height: 32px; font-size: 13px; padding: 0 10px; }
+
+/* ---------- Expiry board (A-45) ---------- */
+.kanban { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; align-items: start; }
+.kcol { background: var(--subtle); border-radius: 16px; padding: 12px; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.kcol-head { display: flex; align-items: center; gap: 8px; padding: 4px 4px 2px; }
+.kcol-head h3 { margin: 0; font-size: 15px; font-weight: 700; flex: 1; }
+.kcol-head i { width: 10px; height: 10px; border-radius: 50%; }
+.kcol .sub { font-size: 13px; color: var(--text-2); padding: 0 4px; }
+.kcard { background: var(--surface); border: 1px solid var(--divider); border-radius: 12px; padding: 12px; display: flex; flex-direction: column; gap: 8px; box-shadow: var(--shadow-card); }
+.kcard.blocked { border-color: var(--error-text); }
+.kcard .top { display: flex; gap: 10px; align-items: center; }
+.kcard .top .thumb { width: 36px; height: 36px; }
+.kcard .top b { display: block; font-weight: 600; font-size: 14px; }
+.kcard .top small { display: block; font-size: 12px; color: var(--text-2); font-family: var(--mono); }
+.kcard .facts { display: flex; justify-content: space-between; font-size: 13px; color: var(--text-2); }
+.kcard .facts b { color: var(--text); }
+.kcard .acts { display: flex; gap: 6px; flex-wrap: wrap; }
+.kcard .acts .btn { height: 30px; font-size: 12px; padding: 0 10px; border-radius: 8px; }
+.kempty { text-align: center; color: var(--text-3); font-size: 13px; padding: 16px 8px; }
+@media (max-width: 1180px) { .kanban { grid-template-columns: 1fr 1fr; } .stats4 { grid-template-columns: 1fr 1fr; } .strow { grid-template-columns: 24px minmax(0, 1fr) 90px 120px 96px; } .strow .c-reo, .strow .c-val, .strow .c-exp { display: none; } }
+
 /* ---------- Prototype controls ---------- */
 .proto {
   position: fixed; left: calc(var(--side-w) + 16px); bottom: 16px; z-index: 70; display: flex; flex-direction: column; gap: 8px; align-items: flex-start;

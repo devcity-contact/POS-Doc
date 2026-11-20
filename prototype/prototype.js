@@ -257,6 +257,21 @@
   S.prod = { q: "", cat: "All", status: "active", low: false, missing: false, picked: [] };
   S.pe = null; // product editor state
 
+  // ---------- Batches for stock & expiry (A-40 / A-45) ----------
+  const SEED_LOTS = { mp: [["MP7612", 40, 6], ["MP7701", 300, 18]], am: [["AM2509", -6, 4], ["AM2511", 25, 12], ["AM2604", 400, 44]], eg: [["EG1119", 9, 18], ["EG1124", 14, 12]], ct: [["CT2608", 52, 14], ["CT2703", 290, 30]], cc: [["CC2612", 75, 20], ["CC2703", 180, 32]] };
+  for (const p of PRODUCTS) {
+    if (p.batches) p.seedLots = p.batches.map(b => { const [m, y] = b.exp.split("/"); return { id: b.id, exp: `${y}-${m}-28`, qty: b.stock, price: b.price }; });
+    else p.seedLots = (SEED_LOTS[p.id] || []).map(([id, d, q]) => ({ id, exp: isoDate(inDays(d)), qty: q }));
+  }
+  const lotsOf = p => [...(p.lots || []), ...(p.seedLots || [])];
+  const nearestExp = p => lotsOf(p).filter(l => l.qty > 0 && l.exp).sort((a, b) => a.exp.localeCompare(b.exp))[0] || null;
+  const expiringCount = () => PRODUCTS.reduce((a, p) => a + lotsOf(p).filter(l => l.qty > 0 && l.exp && expInfo(l.exp).days <= 30).length, 0);
+  const ADJ_REASONS = { out: ["Damaged", "Expired write-off", "Theft or loss", "Count correction", "Returned to supplier", "Own use"], in: ["Found in store", "Count correction", "Customer return without receipt"] };
+  const ADJ_LIMIT = 500000; // adjustments above Rs 5,000 at cost need a manager
+  S.moves = [];             // stock movements made in this session (INV-04: every change is a movement)
+  S.stk = { q: "", cat: "All", filter: "all", branch: "CMB01", open: { am: true } };
+  S.exp = { cat: "All" };
+
   // ---------- Money ----------
   const lineGross = l => Math.round(l.qty * l.unit);
   const lineNet = l => Math.round(l.qty * l.unit * (100 - l.disc) / 100);
@@ -386,8 +401,8 @@
     let h = `<aside class="sidebar" aria-label="Main navigation"><div class="brand"><span class="mark">R</span><span class="brand-name">RetailOS</span><button class="icon-btn" data-act="collapse" title="Collapse sidebar">${ic("panel")}</button></div><nav>`;
     for (const [g, items] of NAV) {
       h += `<div class="nav-label">${t(g)}</div>`;
-      for (const [key, icon, view, count] of items) {
-        const v = view || key;
+      for (const [key, icon, view, count0] of items) {
+        const v = view || key, count = key === "expiry" ? (expiringCount() || "") : count0;
         h += `<button class="nav-item ${cur === v ? "active" : ""}" data-act="nav" data-view="${v}" title="${esc(t(key))}" ${cur === v ? 'aria-current="page"' : ""}>${ic(icon)}<span class="lbl">${esc(t(key))}</span>${count ? `<span class="count">${count}</span>` : ""}</button>`;
       }
     }
@@ -997,7 +1012,7 @@
       p.stock = Math.round((p.stock + base) * 1000) / 1000;
       p.lots = p.lots || [];
       if (l.batch) {
-        p.lots.unshift({ id: l.batch, exp: l.exp, qty: base });
+        p.lots.unshift({ id: l.batch, exp: l.exp, qty: base, fresh: true });
         if (p.batches && !p.batches.find(b => b.id === l.batch)) { const d = new Date(l.exp + "T00:00:00"); p.batches.push({ id: l.batch, exp: `${pad2(d.getMonth() + 1)}/${d.getFullYear()}`, price: p.price, stock: base }); }
       }
       updates.push({ p, base, batch: l.batch, exp: l.exp });
@@ -1075,7 +1090,7 @@
   }
   function priceCheckView() {
     const pc = S.pc, p = pc.pid ? byId(pc.pid) : null;
-    const lots = p ? [...(p.lots || []).map(x => ({ id: x.id, exp: x.exp, qty: x.qty, fresh: true })), ...(p.batches || []).filter(b => !(p.lots || []).some(x => x.id === b.id)).map(b => { const [m, y] = b.exp.split("/"); return { id: b.id, exp: `${y}-${m}-28`, qty: b.stock, price: b.price }; })] : [];
+    const lots = p ? lotsOf(p).filter(l => l.qty > 0) : [];
     let card = "";
     if (p) {
       const sb = stockBadge(p), offerPrice = p.offer ? Math.round(p.price * (100 - p.offer) / 100) : null;
@@ -1382,7 +1397,7 @@ Yesterday 09:15  SYNC-003 Catalog cursor too old · catalog snapshot downloaded<
         <label class="field">Starts on<input type="date" data-pd="newFrom" data-fid="pe-newFrom" class="${bad("newFrom")}" value="${esc(d.newFrom)}">${err("newFrom")}</label>
         <div class="full note">${ic("clock", 16)}${d.newFrom && d.newPrice ? `Registers switch to ${fmt(Math.round(parseFloat(d.newPrice) * 100))} at 00:00 on ${fmtExpIso(d.newFrom)} — even if they are offline.` : "Registers receive the change in advance and switch at midnight, even offline."}</div></div></div>`;
     if (pe.tab === "stock") {
-      const lots = p ? [...(p.lots || []), ...(p.batches || []).filter(b => !(p.lots || []).some(x => x.id === b.id)).map(b => { const [m, y] = b.exp.split("/"); return { id: b.id, exp: `${y}-${m}-28`, qty: b.stock }; })] : [];
+      const lots = p ? lotsOf(p).filter(l => l.qty > 0) : [];
       body = `<div class="card"><h2>Stock at CMB01</h2><div class="kpis2">
           <div class="stat"><span>On hand</span><b>${p ? (p.weighed ? p.stock.toFixed(1) + " kg" : p.stock) : 0}</b></div>
           <div class="stat"><span>Value at cost</span><b>${fmt(p ? Math.round(p.stock * p.cost) : 0)}</b></div>
@@ -1417,6 +1432,120 @@ Yesterday 09:15  SYNC-003 Catalog cursor too old · catalog snapshot downloaded<
     S.pe = null; S.view = to; render();
   }
 
+  // ---------- Stock on hand (A-40) ----------
+  const BRANCHES = [["CMB01", "CMB01 · Colombo 03", 1], ["KDY01", "KDY01 · Kandy", 0.6], ["GAL01", "GAL01 · Galle", 0.3]];
+  const qtyAt = (p, br) => br === "all" ? BRANCHES.reduce((a, b) => a + Math.max(0, Math.round(p.stock * b[2])), 0) : Math.max(0, br === "CMB01" ? p.stock : Math.round(p.stock * BRANCHES.find(b => b[0] === br)[2]));
+  const fq = (p, q) => p.weighed ? (Math.round(q * 10) / 10) + " kg" : String(q);
+  function stockList() {
+    const s = S.stk, q = s.q.trim().toLowerCase();
+    return PRODUCTS.filter(p => p.active !== false && (s.cat === "All" || p.cat === s.cat) && (!q || (p.name + " " + p.sku + " " + lotsOf(p).map(l => l.id).join(" ")).toLowerCase().includes(q))
+      && (s.filter === "all" || (s.filter === "low" && p.stock > 0 && p.stock <= p.reorder) || (s.filter === "out" && p.stock <= 0) || (s.filter === "exp" && nearestExp(p) && expInfo(nearestExp(p).exp).days <= 90)));
+  }
+  function stockView() {
+    const s = S.stk, list = stockList(), local = s.branch === "CMB01";
+    const value = PRODUCTS.filter(p => p.active !== false).reduce((a, p) => a + Math.round(qtyAt(p, s.branch) * p.cost), 0);
+    const retail = PRODUCTS.filter(p => p.active !== false).reduce((a, p) => a + Math.round(qtyAt(p, s.branch) * p.price), 0);
+    const low = PRODUCTS.filter(p => p.active !== false && p.stock > 0 && p.stock <= p.reorder).length, out = PRODUCTS.filter(p => p.active !== false && p.stock <= 0).length;
+    const chip = (v, l) => `<button class="chip" data-act="stk-filter" data-v="${v}" aria-pressed="${s.filter === v}">${l}</button>`;
+    return `<div class="page">
+      <div class="page-actions">
+        <label class="search">${ic("search")}<span class="sr">Search stock</span><input id="stsearch" data-fid="stsearch" autocomplete="off" placeholder="Product, SKU or batch number…" value="${esc(s.q)}"><kbd>/</kbd></label>
+        <select data-sk="branch" data-fid="sk-branch" aria-label="Branch">${[...BRANCHES.map(b => [b[0], b[1]]), ["all", "All branches"]].map(([v, l]) => `<option value="${v}" ${s.branch === v ? "selected" : ""}>${l}</option>`).join("")}</select>
+        <select data-sk="cat" data-fid="sk-cat" aria-label="Category"><option value="All">All categories</option>${CATS_ADMIN.map(c => `<option ${s.cat === c ? "selected" : ""}>${c}</option>`).join("")}</select>
+        <div class="chips">${chip("all", "All")}${chip("low", `Low · ${low}`)}${chip("out", `Out · ${out}`)}${chip("exp", "Expiring ≤ 90 days")}</div>
+        <span class="spacer"></span>
+        <button class="btn secondary" data-act="toast" data-msg="Stock counts are screen A-44 — coming in a later batch">Stock count</button>
+        <button class="btn secondary" data-act="toast" data-msg="stock-${s.branch}.xlsx exported">Export</button>
+      </div>
+      <div class="stats4"><div class="stat"><span>Stock value at cost</span><b>${fmt(value)}</b></div><div class="stat"><span>Retail value</span><b>${fmt(retail)}</b></div><div class="stat"><span>Low stock</span><b style="color:var(--warning-text)">${low}</b></div><div class="stat"><span>Out of stock</span><b style="color:var(--error-text)">${out}</b></div></div>
+      ${local ? "" : `<div class="banner" style="background:var(--primary-tint);color:var(--primary-text)">${ic("store")}Viewing ${esc(BRANCHES.find(b => b[0] === s.branch) ? BRANCHES.find(b => b[0] === s.branch)[1] : "all branches")} · read-only here. Batches and adjustments are managed at each branch.</div>`}
+      <div class="sttable" role="table" aria-label="Stock on hand">
+        <div class="strow head" role="row"><span></span><span>Product</span><span class="r">On hand</span><span class="r c-reo">Reorder</span><span class="r c-val">Value at cost</span><span class="c-exp">Nearest expiry</span><span>Status</span><span></span></div>
+        ${list.length ? list.map(p => {
+          const q = qtyAt(p, s.branch), ne = nearestExp(p), ei = ne ? expInfo(ne.exp) : null, open = local && s.open[p.id], lots = lotsOf(p).filter(l => l.qty > 0 || l.blocked);
+          const status = q <= 0 ? badge("error", "Out of stock", "alert") : q <= p.reorder ? badge("warning", "Low", "alert") : badge("success", "OK", null);
+          return `<div class="strow prod" role="row" data-act="stk-toggle" data-id="${p.id}">
+              <span class="chev ${open ? "open" : ""}">${local && lots.length ? ic("chevRight", 16) : ""}</span>
+              <span class="pname"><span class="thumb tile-${p.tone}">${ic(p.icon, 20)}</span><span style="min-width:0"><b>${esc(p.name)}</b><small>${esc(p.sku)}${lots.length ? ` · ${lots.length} batch${lots.length === 1 ? "" : "es"}` : ""}</small></span></span>
+              <span class="r ${q <= 0 ? "neg" : ""}">${fq(p, q)}</span><span class="r c-reo muted">${p.reorder}</span><span class="r c-val">${fmt(Math.round(q * p.cost))}</span>
+              <span class="c-exp">${ei ? (ei.tone ? badge(ei.tone, ei.days < 0 ? "Expired" : ei.days + " days", "clock") : `<span class="muted">${fmtExpIso(ne.exp)}</span>`) : `<span class="muted">—</span>`}</span>
+              <span>${status}</span>
+              <span>${local ? `<button class="btn secondary" data-act="adj-open" data-id="${p.id}">Adjust</button>` : ""}</span></div>
+            ${open ? lots.map(l => { const x = expInfo(l.exp); return `<div class="strow lot" role="row"><span></span><span class="lotname">${ic("package", 14)}<b>${esc(l.id)}</b>${l.fresh ? badge("info", "Just received", null) : ""}${l.blocked ? badge("error", "Blocked", "lock") : ""}${l.markdown ? badge("warning", `Clearance −${l.markdown}%`, "tag") : ""}</span><span class="r">${fq(p, l.qty)}</span><span class="c-reo"></span><span class="r c-val">${fmt(Math.round(l.qty * p.cost))}</span><span class="c-exp">${l.exp ? fmtExpIso(l.exp) : "—"}</span><span>${x && x.tone ? badge(x.tone, x.days < 0 ? `Expired ${-x.days} d ago` : `${x.days} days left`, "clock") : ""}</span><span>${l.qty > 0 ? `<button class="btn ghost" data-act="adj-open" data-id="${p.id}" data-lot="${esc(l.id)}">Adjust</button>` : ""}</span></div>`; }).join("") : ""}`;
+        }).join("") : `<div class="empty"><span class="circle">${ic("warehouse", 28)}</span><h3>No stock matches</h3><span>Clear the filters or search for a batch number.</span></div>`}
+      </div>
+      ${S.moves.length ? `<div class="card"><h2>Movements this session</h2><div class="dlines">${S.moves.slice(0, 6).map(m => `<div class="dline"><span class="grow"><b>${esc(m.product)}${m.lot ? " · " + esc(m.lot) : ""}</b><small>${hm(m.when)} · ${esc(m.reason)} · ${esc(m.who)}${m.approver ? " · approved by " + esc(m.approver) : ""}${m.note ? " · " + esc(m.note) : ""}</small></span><b style="color:${m.qty < 0 ? "var(--error-text)" : "var(--success-text)"}">${m.qty > 0 ? "+" : "−"}${Math.abs(m.qty)}</b></div>`).join("")}</div><div class="note">${ic("lock", 16)}Each adjustment is a stock movement with a reason, kept in the audit log.</div></div>` : ""}
+      <div class="table-foot"><span>${list.length} products · click a row to see batches</span><span>Value uses the average cost price</span></div>
+    </div>`;
+  }
+  function openAdjust(pid, lotId, preset = {}) {
+    const p = byId(pid);
+    openModal({ type: "adjust", pid, lot: lotId || (lotsOf(p).find(l => l.qty > 0) || {}).id || "", dir: preset.dir || "out", qty: preset.qty != null ? String(preset.qty) : "", reason: preset.reason || "", note: "", stage: "form", pin: "", pinErr: false });
+  }
+  const adjQty = m => Math.max(0, parseFloat(m.qty) || 0);
+  const adjNeedsMgr = m => S.user.role !== "Manager" && adjQty(m) * byId(m.pid).cost > ADJ_LIMIT;
+  function adjustModal(m, head) {
+    const p = byId(m.pid), lots = lotsOf(p).filter(l => l.qty > 0 || l.id === m.lot), lot = lots.find(l => l.id === m.lot), q = adjQty(m);
+    const max = m.dir === "out" ? (lot ? lot.qty : p.stock) : Infinity, over = q > max;
+    const ok = q > 0 && !over && m.reason;
+    return `<div class="modal" role="dialog" aria-modal="true" aria-labelledby="mt" style="width:min(520px,100%)">${head("Adjust stock", `${p.name} · on hand ${fq(p, p.stock)} at CMB01`)}
+      ${m.stage === "pin" ? `<div class="mgr"><div class="head">${ic("lock", 18)}Manager approval · ${m.dir === "out" ? "−" : "+"}${q} (${fmt(Math.round(q * p.cost))} at cost)</div><div class="pin-dots">${[0, 1, 2, 3].map(i => `<i class="${m.pin.length > i ? "on" : ""}"></i>`).join("")}</div>
+          <div class="keypad">${["1", "2", "3", "4", "5", "6", "7", "8", "9", "C", "0", "⌫"].map(k => `<button data-act="adj-pin" data-k="${k}" aria-label="${k === "⌫" ? "Backspace" : k === "C" ? "Clear" : k}">${k === "⌫" ? ic("backspace", 22) : k}</button>`).join("")}</div>
+          ${m.pinErr ? `<div class="scan-error" role="alert">${ic("alert", 16)}Wrong manager PIN</div>` : `<div class="note">Demo manager PIN: 1234</div>`}</div>
+          <div style="display:flex;gap:8px"><button class="btn secondary" data-act="adj-back" style="flex:1">Back</button><button class="btn primary" data-act="adj-submit" style="flex:2" ${m.pin.length === 4 ? "" : "disabled"}>Approve adjustment <kbd>Enter</kbd></button></div>`
+      : `<div class="cm-kinds" style="grid-template-columns:1fr 1fr">${[["out", "Remove stock", "minus"], ["in", "Add stock", "plus"]].map(([k, l, i]) => `<button class="method" data-act="adj-dir" data-k="${k}" aria-pressed="${m.dir === k}">${ic(i, 20)}<span>${l}</span></button>`).join("")}</div>
+        ${lots.length ? `<label class="field">Batch<select data-adj="lot" data-fid="adj-lot">${lots.map(l => `<option value="${esc(l.id)}" ${l.id === m.lot ? "selected" : ""}>${esc(l.id)} · ${fq(p, l.qty)} · exp ${l.exp ? fmtExpIso(l.exp) : "—"}</option>`).join("")}</select></label>` : ""}
+        <label class="field">Quantity (${p.weighed ? "kg" : p.cat === "Pharmacy" ? "strips" : "pieces"})<input data-adj="qty" data-fid="adj-qty" id="adjqty" inputmode="decimal" value="${esc(m.qty)}" placeholder="0" class="${over ? "bad" : ""}">${over ? `<span class="err">Only ${fq(p, max)} in ${lot ? "this batch" : "stock"}</span>` : q ? `<span class="hint">${m.dir === "out" ? "−" : "+"}${fmt(Math.round(q * p.cost))} at cost · on hand becomes ${fq(p, Math.round((p.stock + (m.dir === "out" ? -q : q)) * 1000) / 1000)}</span>` : ""}</label>
+        <div class="field">Reason<div class="chips wrap">${ADJ_REASONS[m.dir].map(r => `<button class="chip" data-act="adj-reason" data-v="${esc(r)}" aria-pressed="${m.reason === r}">${esc(r)}</button>`).join("")}</div></div>
+        <label class="field">Note (optional)<input data-adj="note" data-fid="adj-note" value="${esc(m.note)}" placeholder="e.g. Box crushed during delivery"></label>
+        ${adjNeedsMgr(m) ? `<div class="note">${ic("lock", 16)}Adjustments above ${fmt(ADJ_LIMIT)} at cost need a manager PIN</div>` : ""}
+        <button class="btn primary l block" data-act="adj-submit" ${ok ? "" : "disabled"}>${ic(adjNeedsMgr(m) ? "lock" : "check")}${adjNeedsMgr(m) ? "Continue to approval" : "Save adjustment"} <kbd>Enter</kbd></button>`}
+    </div>`;
+  }
+  function adjSubmit() {
+    const m = S.modal, p = byId(m.pid), lot = lotsOf(p).find(l => l.id === m.lot), q = adjQty(m);
+    const max = m.dir === "out" ? (lot ? lot.qty : p.stock) : Infinity;
+    if (!q || !m.reason || q > max) { toast(!q ? "Enter a quantity" : !m.reason ? "Choose a reason" : "More than is in stock", { error: true }); return; }
+    if (adjNeedsMgr(m) && m.stage !== "pin") { m.stage = "pin"; renderModal(); return; }
+    if (adjNeedsMgr(m) && m.pin !== MANAGER_PIN) { m.pin = ""; m.pinErr = true; renderModal(); return; }
+    const signed = m.dir === "out" ? -q : q;
+    p.stock = Math.max(0, Math.round((p.stock + signed) * 1000) / 1000);
+    if (lot) lot.qty = Math.max(0, Math.round((lot.qty + signed) * 1000) / 1000);
+    const who = `${S.user.short} ${S.user.name.split(" ")[1][0]}.`, approver = adjNeedsMgr(m) ? "Malini J." : null;
+    S.moves.unshift({ when: new Date(), product: p.name, lot: m.lot, qty: signed, reason: m.reason, note: m.note, who, approver });
+    p.log.unshift({ when: new Date(), who, what: `Stock ${signed > 0 ? "+" : "−"}${Math.abs(signed)}${m.lot ? " (" + m.lot + ")" : ""} · ${m.reason}` });
+    closeModal(); render(); toast(`${p.name}: ${signed > 0 ? "+" : "−"}${Math.abs(signed)} · ${m.reason}`);
+  }
+
+  // ---------- Expiry board (A-45) ----------
+  function expiryView() {
+    const f = S.exp, cols = [["Expired", -9999, -1, "var(--error)"], ["0 – 30 days", 0, 30, "var(--warning)"], ["31 – 60 days", 31, 60, "#E8B54A"], ["61 – 90 days", 61, 90, "var(--primary)"]];
+    const items = [];
+    for (const p of PRODUCTS) { if (p.active === false || (f.cat !== "All" && p.cat !== f.cat)) continue; for (const l of lotsOf(p)) { if (!(l.qty > 0) || !l.exp) continue; const x = expInfo(l.exp); if (x.days <= 90) items.push({ p, l, d: x.days }); } }
+    items.sort((a, b) => a.d - b.d);
+    const atRisk = items.reduce((a, it) => a + Math.round(it.l.qty * it.p.cost), 0);
+    return `<div class="page">
+      <div class="page-actions">
+        <select data-ex="cat" data-fid="ex-cat" aria-label="Category"><option value="All">All categories</option>${CATS_ADMIN.map(c => `<option ${f.cat === c ? "selected" : ""}>${c}</option>`).join("")}</select>
+        <select aria-label="Branch" disabled><option>CMB01 · Colombo 03</option></select>
+        <span class="spacer"></span><span class="sub" style="font-size:14px;color:var(--text-2)">Stock value at risk in the next 90 days: <b style="color:var(--text)">${fmt(atRisk)}</b></span>
+        <button class="btn secondary" data-act="toast" data-msg="Expiry report exported">Export</button>
+      </div>
+      <div class="kanban">${cols.map(([title, lo, hi, color]) => {
+        const its = items.filter(it => it.d >= lo && it.d <= hi), val = its.reduce((a, it) => a + Math.round(it.l.qty * it.p.cost), 0);
+        return `<section class="kcol" aria-label="${title}"><div class="kcol-head"><i style="background:${color}"></i><h3>${title}</h3>${badge(lo < 0 ? "error" : lo === 0 ? "warning" : "", String(its.length), null)}</div><div class="sub">${fmt(val)} at cost</div>
+          ${its.length ? its.map(({ p, l, d }) => `<div class="kcard ${l.blocked ? "blocked" : ""}">
+            <div class="top"><span class="thumb tile-${p.tone}">${ic(p.icon, 18)}</span><span style="min-width:0"><b>${esc(p.name)}</b><small>${esc(l.id)} · exp ${fmtExpIso(l.exp)}</small></span></div>
+            <div class="facts"><span>Qty <b>${fq(p, l.qty)}</b></span><span>Value <b>${fmt(Math.round(l.qty * p.cost))}</b></span><span><b style="color:${d < 0 ? "var(--error-text)" : d <= 30 ? "var(--warning-text)" : "var(--text)"}">${d < 0 ? `${-d} d ago` : `${d} days`}</b></span></div>
+            ${l.blocked ? badge("error", "Blocked · not sellable", "lock") : ""}${l.markdown ? badge("warning", `Clearance −${l.markdown}% on this batch`, "tag") : ""}
+            <div class="acts">${d < 0 ? `<button class="btn danger" data-act="ex-writeoff" data-id="${p.id}" data-lot="${esc(l.id)}">Write off</button><button class="btn secondary" data-act="ex-return" data-id="${p.id}" data-lot="${esc(l.id)}">Return to supplier</button>`
+              : `${l.markdown ? "" : `<button class="btn secondary" data-act="ex-markdown" data-id="${p.id}" data-lot="${esc(l.id)}">Clearance −20%</button>`}<button class="btn secondary" data-act="ex-block" data-id="${p.id}" data-lot="${esc(l.id)}">${l.blocked ? "Unblock" : "Block"}</button><button class="btn ghost" data-act="ex-front" data-id="${p.id}" data-lot="${esc(l.id)}">Move to front</button>`}</div></div>`).join("")
+          : `<div class="kempty">${ic("check", 16)} Nothing here</div>`}</section>`; }).join("")}</div>
+      <div class="note">${ic("help", 16)}Expired batches are blocked at the till automatically (BR-09). Writing off creates an "Expired write-off" stock movement; clearance prices apply only when that batch is scanned.</div>
+    </div>`;
+  }
+  const findLot = (pid, id) => lotsOf(byId(pid)).find(l => l.id === id);
+
   // ---------- Render: main ----------
   function render() {
     const fid = document.activeElement && document.activeElement.dataset ? document.activeElement.dataset.fid : null;
@@ -1435,6 +1564,8 @@ Yesterday 09:15  SYNC-003 Catalog cursor too old · catalog snapshot downloaded<
     if (S.view === "sell") main = topbar(t("sell"), null, `<span class="badge hide-t">${ic("store", 14)}CMB01 · Register 2</span>`) + `<div class="body">${productArea()}${orderPanel()}</div>${sheet ? `<button class="fab" data-act="camera" title="Scan with camera">${ic("camera", 24)}</button>` : ""}`;
     else if (S.view === "complete") main = topbar("Sale complete", null) + completeView();
     else if (S.view === "returns") main = topbar(t("returns"), S.ret.done ? "Refund recorded" : S.ret.sale ? "Choose the items the customer is bringing back" : "Find the original sale") + returnsView();
+    else if (S.view === "stock") main = topbar(t("stock"), "Stock on hand by product and batch") + stockView();
+    else if (S.view === "expiry") main = topbar(t("expiry"), "Batches expiring in the next 90 days · act before they are lost") + expiryView();
     else if (S.view === "products") main = topbar(t("products"), "Catalog · 1,248 products in the real catalog") + productsView();
     else if (S.view === "product") main = topbar(S.pe.draft.id ? (byId(S.pe.draft.id).name) : "New product", `Catalog › Products › ${S.pe.draft.id ? esc(byId(S.pe.draft.id).sku) : "new"}`) + productEditor();
     else if (S.view === "status") main = topbar("Status & diagnostics", "Register CMB01 · R02 · device WIN-CMB01-02") + statusView();
@@ -1529,6 +1660,8 @@ Yesterday 09:15  SYNC-003 Catalog cursor too old · catalog snapshot downloaded<
       return;
     } else if (m.type === "cash") {
       h = cashModal(m, head);
+    } else if (m.type === "adjust") {
+      h = adjustModal(m, head);
     } else if (m.type === "leave") {
       h = `<div class="modal" role="dialog" aria-modal="true" aria-labelledby="mt" style="width:min(440px,100%)">${head("Discard unsaved changes?", "Your edits to this product have not been saved.")}
         <div style="display:flex;gap:8px;justify-content:flex-end"><button class="btn secondary" data-act="close">Keep editing</button><button class="btn danger" data-act="leave-ok">Discard changes</button></div></div>`;
@@ -1580,6 +1713,19 @@ Yesterday 09:15  SYNC-003 Catalog cursor too old · catalog snapshot downloaded<
       case "pc-pick": S.pc.pid = el.dataset.pid; S.pc.error = ""; render(); break;
       case "pc-clear": S.pc.pid = null; S.pc.error = ""; S.pc.query = ""; render(); focusId("pcsearch"); break;
       case "pc-add": { const p = byId(S.pc.pid); if (!p) break; if (!S.shifts[S.user.id]) { S.view = "openshift"; render(); toast("Open a shift first", { error: true }); break; } S.view = "sell"; render(); addProduct(p); break; }
+      case "stk-filter": S.stk.filter = el.dataset.v; render(); break;
+      case "stk-toggle": if (S.stk.branch === "CMB01") { S.stk.open[el.dataset.id] = !S.stk.open[el.dataset.id]; render(); } break;
+      case "adj-open": openAdjust(el.dataset.id, el.dataset.lot); break;
+      case "adj-dir": { const m = S.modal; m.dir = el.dataset.k; m.reason = ""; renderModal(); break; }
+      case "adj-reason": S.modal.reason = el.dataset.v; renderModal(); break;
+      case "adj-pin": { const m = S.modal, k = el.dataset.k; m.pinErr = false; if (k === "⌫") m.pin = m.pin.slice(0, -1); else if (k === "C") m.pin = ""; else if (m.pin.length < 4) m.pin += k; renderModal(); break; }
+      case "adj-back": S.modal.stage = "form"; S.modal.pin = ""; renderModal(); break;
+      case "adj-submit": adjSubmit(); break;
+      case "ex-writeoff": { const l = findLot(el.dataset.id, el.dataset.lot); openAdjust(el.dataset.id, el.dataset.lot, { dir: "out", qty: l.qty, reason: "Expired write-off" }); break; }
+      case "ex-return": { const l = findLot(el.dataset.id, el.dataset.lot); openAdjust(el.dataset.id, el.dataset.lot, { dir: "out", qty: l.qty, reason: "Returned to supplier" }); break; }
+      case "ex-markdown": { const l = findLot(el.dataset.id, el.dataset.lot); l.markdown = 20; byId(el.dataset.id).log.unshift({ when: new Date(), who: `${S.user.short} ${S.user.name.split(" ")[1][0]}.`, what: `Clearance −20% on batch ${l.id}` }); render(); toast(`Clearance −20% set for batch ${l.id} · applies when this batch is scanned`); break; }
+      case "ex-block": { const l = findLot(el.dataset.id, el.dataset.lot); l.blocked = !l.blocked; render(); toast(l.blocked ? `Batch ${l.id} blocked · registers stop selling it within a minute` : `Batch ${l.id} unblocked`); break; }
+      case "ex-front": toast(`Task added for the stock keeper: move batch ${el.dataset.lot} to the front of the shelf`); break;
       case "p-new": openProduct(null); break;
       case "p-open": openProduct(el.dataset.id); break;
       case "p-pick": { e.stopPropagation(); const id = el.dataset.id, f = S.prod; f.picked = f.picked.includes(id) ? f.picked.filter(x => x !== id) : [...f.picked, id]; render(); break; }
@@ -1711,6 +1857,14 @@ Yesterday 09:15  SYNC-003 Catalog cursor too old · catalog snapshot downloaded<
     if (e.target.dataset && e.target.dataset.pd && S.pe) { setPath(S.pe.draft, e.target.dataset.pd, e.target.type === "checkbox" ? e.target.checked : e.target.value); render(); }
     if (e.target.dataset && e.target.dataset.pf) { S.prod[e.target.dataset.pf] = e.target.value; S.prod.picked = []; render(); }
     if (e.target.id === "psearch") { S.prod.q = e.target.value; render(); }
+    if (e.target.id === "stsearch") { S.stk.q = e.target.value; render(); }
+    if (e.target.dataset && e.target.dataset.sk) { S.stk[e.target.dataset.sk] = e.target.value; render(); }
+    if (e.target.dataset && e.target.dataset.ex) { S.exp[e.target.dataset.ex] = e.target.value; render(); }
+    if (e.target.dataset && e.target.dataset.adj && S.modal && S.modal.type === "adjust") {
+      const f = e.target.dataset.adj; S.modal[f] = e.target.value;
+      if (f === "qty") { renderModal(); setTimeout(() => { const x = document.getElementById("adjqty"); if (x) { x.focus(); x.setSelectionRange(x.value.length, x.value.length); } }); }
+      else if (f === "lot") renderModal();
+    }
     if (e.target.dataset && e.target.dataset.actChange === "p-bulk-cat" && e.target.value) {
       const cat = e.target.value, n = S.prod.picked.length;
       for (const id of S.prod.picked) { const p = byId(id); if (p) { p.cat = cat; p.updated = new Date(); p.log.unshift({ when: new Date(), who: `${S.user.short} ${S.user.name.split(" ")[1][0]}.`, what: `Moved to ${cat} (bulk)` }); } }
@@ -1803,6 +1957,12 @@ Yesterday 09:15  SYNC-003 Catalog cursor too old · catalog snapshot downloaded<
       if (m.type === "batch") { if (k === "ArrowDown" || k === "ArrowUp") { e.preventDefault(); const n = byId(m.pid).batches.length; m.choice = (m.choice + (k === "ArrowDown" ? 1 : -1) + n) % n; renderModal(); return; } if (k === "Enter") { e.preventDefault(); const p = byId(m.pid); S.modal = null; renderModal(); addProduct(p, { batch: p.batches[m.choice].id }); } return; }
       if (m.type === "weight" || m.type === "qty") { if (/^[0-9.]$/.test(k)) { modalKey(k); return; } if (k === "Backspace") { modalKey("⌫"); return; } if (k === "Enter") { e.preventDefault(); confirmQty(); } return; }
       if (m.type === "discount") { if (/^[0-9]$/.test(k) && m.pct > DISCOUNT_LIMIT) { pinKey(k); return; } if (k === "Backspace") { pinKey("⌫"); return; } if (k === "Enter") { e.preventDefault(); confirmDiscount(); } return; }
+      if (m.type === "adjust") {
+        if (k === "Enter") { e.preventDefault(); adjSubmit(); return; }
+        if (m.stage === "pin" && /^[0-9]$/.test(k)) { m.pinErr = false; if (m.pin.length < 4) m.pin += k; renderModal(); return; }
+        if (m.stage === "pin" && k === "Backspace") { e.preventDefault(); m.pin = m.pin.slice(0, -1); renderModal(); return; }
+        return;
+      }
       if (m.type === "resync") {
         if (m.stage !== "pin") return;
         if (/^[0-9]$/.test(k)) { m.pinErr = false; if (m.pin.length < 4) m.pin += k; renderModal(); return; }
@@ -1853,6 +2013,11 @@ Yesterday 09:15  SYNC-003 Catalog cursor too old · catalog snapshot downloaded<
     }
     if (S.view === "settings") {
       if ((e.ctrlKey || e.metaKey) && k.toLowerCase() === "s") { e.preventDefault(); saveSettings(); }
+      return;
+    }
+    if (S.view === "stock" || S.view === "expiry") {
+      if (e.target.id === "stsearch") { if (k === "Escape") { S.stk.q = ""; render(); focusId("stsearch"); } return; }
+      if (!inInput && k === "/" && S.view === "stock") { e.preventDefault(); focusId("stsearch"); }
       return;
     }
     if (S.view === "product") {
@@ -1987,7 +2152,8 @@ Yesterday 09:15  SYNC-003 Catalog cursor too old · catalog snapshot downloaded<
   let rz; window.addEventListener("resize", () => { clearTimeout(rz); rz = setTimeout(render, 120); });
   if (S.theme) document.documentElement.dataset.theme = S.theme;
   const hash = location.hash.replace("#", "");
-  if (["sell", "dashboard", "signin", "openshift", "returns", "cash", "orders", "receiving", "pricecheck", "status", "settings", "products"].includes(hash)) S.view = hash;
+  if (["sell", "dashboard", "signin", "openshift", "returns", "cash", "orders", "receiving", "pricecheck", "status", "settings", "products", "stock", "expiry"].includes(hash)) S.view = hash;
+  if (hash === "stock" || hash === "expiry") S.user = USERS[4]; // Kasun, stock keeper
   if (hash === "products") S.user = USERS[3]; // Malini, manager
   if (hash === "receiving") S.user = USERS[4]; // Kasun, stock keeper
   if (hash === "openshift") { S.user = USERS[1]; }            // Nimal has no open shift yet
