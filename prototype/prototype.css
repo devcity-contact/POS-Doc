@@ -926,3 +926,44 @@ details.card > summary::-webkit-details-marker { display: none; }
 /* Page sections keep their height; the page scrolls instead of squashing tables */
 .page > * { flex-shrink: 0; }
 .page-actions .search { flex: 1 1 320px; min-width: 260px; }
+
+/* ---------- Sale exceptions queue (A-53) ---------- */
+.filters select { height: 40px; border: 1px solid var(--border); border-radius: 10px; padding: 0 10px; background: var(--surface); color: var(--text); font: inherit; font-size: 14px; font-weight: 600; outline: 0; }
+.filters select:focus { border: 2px solid var(--primary); padding: 0 9px; }
+.xrow, .srow { display: grid; align-items: center; gap: 12px; padding: 10px 16px; width: 100%; text-align: left; border-bottom: 1px solid var(--divider); font-size: 14px; }
+.xrow { grid-template-columns: 172px minmax(0, 1fr) 96px 84px; }
+.srow { grid-template-columns: minmax(0, 1fr) 120px 110px 130px; }
+.xrow:last-child, .srow:last-child { border-bottom: 0; }
+.xrow.head, .srow.head { font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--text-2); background: var(--subtle); cursor: default; }
+.xrow:not(.head):hover, .srow:not(.head):hover { background: var(--hover); }
+.xrow[aria-selected="true"], .srow[aria-selected="true"] { background: var(--primary-tint); box-shadow: inset 3px 0 0 var(--primary); }
+.xrow .no b, .srow .no b { display: block; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.xrow .no small, .srow .no small { display: block; font-size: 13px; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.xrow .where { color: var(--text-2); font-size: 13px; font-weight: 500; }
+.xrow .amt, .srow .amt { text-align: right; font-weight: 600; }
+.xrow .badge { max-width: 100%; }
+.late { color: var(--error-text) !important; }
+.srow .amt small { display: block; font-size: 12px; font-weight: 600; }
+.srow.archived { opacity: .55; }
+.exc-panel, .sup-panel { width: 460px; }
+.order-title h2 { overflow-wrap: anywhere; }
+.exc-problem { margin: 0; padding: 12px 14px; border-radius: 12px; background: var(--subtle); color: var(--text); font-size: 14px; line-height: 21px; font-weight: 500; }
+.exc-problem.error { background: var(--error-tint); color: var(--error-text); }
+.exc-problem.warning { background: var(--warning-tint); color: var(--warning-text); }
+.exc-problem.info { background: var(--primary-tint); color: var(--primary-text); }
+.exc-kv { font-size: 13px; background: var(--subtle); border-radius: 12px; padding: 12px 14px; color: var(--text); }
+.exc-kv dd { overflow-wrap: anywhere; }
+.dline.hl { background: var(--warning-tint); border-radius: 8px; padding-left: 8px; padding-right: 8px; }
+.opt kbd { flex: none; }
+.order-foot .btn[aria-disabled="true"] { opacity: .45; }
+
+/* ---------- Suppliers (A-48) ---------- */
+.seg.tabs { align-self: flex-start; }
+.form-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.sup-panel .field input, .sup-panel .field select { height: 42px; font-size: 14px; }
+.sup-panel .dline .r { text-align: right; display: flex; flex-direction: column; align-items: flex-end; }
+.sup-panel .dline .r small { font-size: 12px; color: var(--text-2); }
+.sup-panel .dline .btn.s { height: 32px; font-size: 13px; padding: 0 10px; }
+@media (max-width: 1180px) { .exc-panel, .sup-panel { width: 380px; } .xrow { grid-template-columns: 150px minmax(0, 1fr) 76px; } .xrow .where { display: none; } .srow { grid-template-columns: minmax(0, 1fr) 120px; } .srow > :nth-child(2), .srow > :nth-child(3) { display: none; } .form-2 { grid-template-columns: 1fr; } }
+.form-2 > * { min-width: 0; }
+.form-2 input, .form-2 select, .sup-panel .field input { width: 100%; min-width: 0; box-sizing: border-box; }

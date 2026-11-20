@@ -180,7 +180,7 @@
 
   // ---------- i18n (draft Sinhala/Tamil labels, to be reviewed) ----------
   const T = {
-    en: { sell: "Sell", overview: "Overview", orders: "Orders", returns: "Returns", customers: "Customers", products: "Products", stock: "Stock", receiving: "Receiving", expiry: "Expiry", cash: "Cash & shifts", reports: "Reports", tax: "Tax", suppliers: "Suppliers", promotions: "Promotions", staff: "Staff", settings: "Settings", logout: "Logout",
+    en: { sell: "Sell", overview: "Overview", orders: "Orders", returns: "Returns", customers: "Customers", products: "Products", stock: "Stock", receiving: "Receiving", expiry: "Expiry", cash: "Cash & shifts", reports: "Reports", tax: "Tax", suppliers: "Suppliers", exceptions: "Exceptions", promotions: "Promotions", staff: "Staff", settings: "Settings", logout: "Logout",
       main: "Main", inventory: "Inventory", finance: "Finance", management: "Management", search: "Scan barcode or search name, generic or SKU…", charge: "Charge", hold: "Hold", discount: "Discount", current: "Current sale", total: "Total", sale: "Sale", ret: "Return", instock: "In stock only", payment: "Payment", addCustomer: "Add customer", whoWorking: "Who's working?", enterPin: "Enter your PIN", signIn: "Sign in", openShift: "Open shift", countFloat: "Count the opening float", openingFloat: "Opening float", signOut: "Sign out", pricecheck: "Price check" },
     si: { sell: "විකිණීම", overview: "දළ විශ්ලේෂණය", orders: "ඇණවුම්", returns: "ආපසු ලැබීම්", customers: "පාරිභෝගිකයින්", products: "නිෂ්පාදන", stock: "තොග", receiving: "භාණ්ඩ ලැබීම", expiry: "කල් ඉකුත්වීම", cash: "මුදල් සහ මුර", reports: "වාර්තා", tax: "බදු", suppliers: "සැපයුම්කරුවන්", promotions: "ප්‍රවර්ධන", staff: "කාර්ය මණ්ඩලය", settings: "සැකසුම්", logout: "ඉවත් වන්න",
       main: "ප්‍රධාන", inventory: "තොග කළමනාකරණය", finance: "මූල්‍ය", management: "කළමනාකරණය", search: "බාර්කෝඩය ස්කෑන් කරන්න හෝ නමින් සොයන්න…", charge: "අය කරන්න", hold: "රඳවන්න", discount: "වට්ටම", current: "වත්මන් විකිණීම", total: "එකතුව", sale: "විකිණීම", ret: "ආපසු", instock: "තොගයේ ඇති ඒවා පමණක්", payment: "ගෙවීම", addCustomer: "පාරිභෝගිකයා එක් කරන්න", whoWorking: "කවුද වැඩ කරන්නේ?", enterPin: "ඔබේ PIN අංකය ඇතුළත් කරන්න", signIn: "පුරන්න", openShift: "මුරය ආරම්භ කරන්න", countFloat: "ආරම්භක මුදල ගණන් කරන්න", openingFloat: "ආරම්භක මුදල", signOut: "ඉවත් වන්න", pricecheck: "මිල පරීක්ෂාව" },
@@ -393,7 +393,7 @@
   const NAV = [
     ["main", [["overview", "dashboard", "dashboard"], ["sell", "cart", "sell"], ["pricecheck", "tag"], ["orders", "receipt"], ["returns", "undo"], ["customers", "users"]]],
     ["inventory", [["products", "package"], ["stock", "warehouse"], ["receiving", "truck"], ["expiry", "calendar", null, "23"]]],
-    ["finance", [["cash", "wallet"], ["reports", "chart"], ["tax", "landmark"]]],
+    ["finance", [["cash", "wallet"], ["exceptions", "alert"], ["reports", "chart"], ["tax", "landmark"]]],
     ["management", [["suppliers", "store"], ["promotions", "percent"], ["staff", "userCog"]]]
   ];
   function sidebar() {
@@ -402,7 +402,7 @@
     for (const [g, items] of NAV) {
       h += `<div class="nav-label">${t(g)}</div>`;
       for (const [key, icon, view, count0] of items) {
-        const v = view || key, count = key === "expiry" ? (expiringCount() || "") : count0;
+        const v = view || key, count = key === "expiry" ? (expiringCount() || "") : key === "exceptions" ? (excOpen() || "") : count0;
         h += `<button class="nav-item ${cur === v ? "active" : ""}" data-act="nav" data-view="${v}" title="${esc(t(key))}" ${cur === v ? 'aria-current="page"' : ""}>${ic(icon)}<span class="lbl">${esc(t(key))}</span>${count ? `<span class="count">${count}</span>` : ""}</button>`;
       }
     }
@@ -553,7 +553,7 @@
         <div class="card"><div class="card-head"><h2>Sales by hour</h2><span class="legend"><i style="background:#3772FF"></i>Today</span><span class="legend"><i style="background:var(--text-3)"></i>Last week</span><span class="legend">Updated 10:45</span></div>
           <div class="chart">${chart}</div><div class="axis">${["8am", "10am", "12pm", "2pm", "4pm", "6pm", "8pm", "10pm"].map(x => `<span>${x}</span>`).join("")}</div></div>
         <div class="card"><div class="card-head"><h2>Needs attention</h2><button class="link">View all</button></div>
-          ${attn("Sale exceptions", "Negative stock, price mismatch", "alert", "tile-orange", "warning", "7", "orders")}
+          ${attn("Sale exceptions", "Negative stock, price mismatch", "alert", "tile-orange", "warning", String(excOpen()), "exceptions")}
           ${attn("Shift differences", "2 shifts waiting for approval", "wallet", "tile-orange", "warning", "2", "cash")}
           ${attn("Expiring in 30 days", "Batches across 3 branches", "calendar", "tile-orange", "warning", "23", "expiry")}
           ${attn("Low stock items", "Below reorder level", "package", "tile-blue", "", "41", "stock")}
@@ -1019,6 +1019,8 @@
     }
     const total = g.lines.reduce((a, l) => a + glCost(l), 0);
     g.posted = { no: `GRN-${S.grnSeq++}`, supplier: g.supplier, invoice: g.invoice, total, updates, time: new Date(), by: S.user.name };
+    const sx = SUP.find(x => x.name === g.supplier);
+    if (sx) { sx.grns.unshift({ no: g.posted.no, date: new Date(), invoice: g.invoice, total, paid: sx.terms === "cod" }); for (const u of updates) if (!sx.pids.includes(u.p.id)) sx.pids.push(u.p.id); }
     render(); toast(`${g.posted.no} posted · stock updated`);
   }
   function receivingView() {
@@ -1930,11 +1932,237 @@ Yesterday 09:15  SYNC-003 Catalog cursor too old · catalog snapshot downloaded<
     return `<div class="page imp">${stepsBar(IMP_STEPS, im.step)}${body}${foot}</div>`;
   }
 
+  // ---------- Sale exceptions queue (A-53) ----------
+  const EXC_TYPES = {
+    NEGATIVE_STOCK: ["Negative stock", "package", "error"],
+    PRICE_MISMATCH: ["Price mismatch", "tag", "warning"],
+    EXPIRED_BATCH_SOLD: ["Expired batch sold", "calendar", "error"],
+    CLOCK_SKEW: ["Clock skew", "clock", "warning"],
+    RECEIPT_COLLISION: ["Receipt number clash", "receipt", "info"]
+  };
+  const minsAgo = m => new Date(Date.now() - m * 60000);
+  const ageOf = d => { const m = Math.max(1, Math.round((Date.now() - d) / 60000)); return m < 60 ? `${m} min` : m < 1440 ? `${Math.floor(m / 60)} h${m % 60 ? " " + (m % 60) + " min" : ""}` : `${Math.floor(m / 1440)} day${m >= 2880 ? "s" : ""}`; };
+  S.exc = { type: "all", branch: "all", status: "open", sel: "EX-1046", note: "", action: null, err: false, list: [
+    { id: "EX-1046", code: "NEGATIVE_STOCK", branch: "CMB01", reg: "R02", sale: "CMB01-R02-000148", cashier: "Nimal P.", when: minsAgo(40), pid: "sh",
+      title: "Shampoo 340ml went below zero", problem: "The register sold 5 while the server had 3 on hand, so stock went to −2. The sale itself is valid and is kept.",
+      evidence: [["On hand before the sale", "3"], ["Sold", "5"], ["On hand after", "−2"], ["Pending goods receipt", "GRN-2291 · Cargills Distribution · 12 pcs, saved but not posted"]],
+      lines: [["sh", 5, 109000]],
+      actions: [["grn", "Post the pending goods receipt GRN-2291", "Adds the 12 pcs that arrived yesterday. Recommended."], ["adjust", "Adjust stock +2 · Found in store", "Creates a stock movement with a reason"], ["note", "Accept as it is", "Stock is corrected at the next count"]] },
+    { id: "EX-1045", code: "PRICE_MISMATCH", branch: "CMB01", reg: "R03", sale: "CMB01-R03-000077", cashier: "Anushka D.", when: minsAgo(75), pid: "mp",
+      title: "Milk powder 400g sold at the old price", problem: "Register 3 was offline when the new price started at 09:00, so it sold 2 at Rs 1,150 instead of Rs 1,190.",
+      evidence: [["Price on the register", "Rs 1,150.00"], ["Price on the server", "Rs 1,190.00 from 09:00"], ["Quantity", "2"], ["Difference", "Rs 80.00 less collected"], ["Register offline", "08:52 – 09:41"]],
+      lines: [["mp", 2, 115000], ["br", 1, 325000]],
+      actions: [["accept", "Accept the price difference", "Recorded as a price variance of Rs 80.00. The sale is not changed."], ["resync", "Accept and force a price re-sync on Register 3", "The register pulls the latest prices at its next sync"]] },
+    { id: "EX-1044", code: "EXPIRED_BATCH_SOLD", branch: "CMB01", reg: "R01", sale: "CMB01-R01-000213", cashier: "Rizwan F.", when: minsAgo(185), pid: "am", lot: "AM2509",
+      title: "Expired Amoxicillin batch AM2509 was sold", problem: "Batch AM2509 expired on " + fmtExpIso(isoDate(inDays(-6))) + ". Register 1 still had the old batch list because it was offline for 2 hours.",
+      evidence: [["Batch", "AM2509 · expired " + fmtExpIso(isoDate(inDays(-6)))], ["Sold", "1 strip"], ["Customer", "Kamal Perera · 077 123 4567"], ["Pharmacist on duty", "Rizwan Farook"]],
+      lines: [["am", 1, 45000], ["pc", 2, 3200]],
+      actions: [["block", "Block batch AM2509 everywhere and call the customer", "The pharmacist calls to replace the strip. Recommended."], ["note", "Note only", "Use when the customer has already been contacted"]] },
+    { id: "EX-1043", code: "CLOCK_SKEW", branch: "KDY01", reg: "R01", sale: "6 sales", cashier: "—", when: minsAgo(300),
+      title: "Register KDY01-R01 clock is 11 minutes slow", problem: "Six sales from this register are tagged. Their recorded times are kept and the server time is stored next to them.",
+      evidence: [["Register time", "10:31"], ["Server time", "10:42"], ["Difference", "11 min slow (limit 5 min)"], ["Sales tagged", "KDY01-R01-000301 to 000306"]],
+      lines: null,
+      actions: [["accept", "Accept the recorded times", "Reports use the server time for these six sales"], ["notify", "Accept and ask the branch to fix the clock", "Sends a task to the KDY01 manager"]] },
+    { id: "EX-1042", code: "RECEIPT_COLLISION", branch: "GAL01", reg: "R02", sale: "GAL01-R02-000131", cashier: "—", when: minsAgo(1580),
+      title: "Two sales share receipt number GAL01-R02-000131", problem: "The register was restored from a backup and reused a receipt number. Both sales are real and both are kept.",
+      evidence: [["First sale", "09:14 · Rs 2,340.00 · cash"], ["Second sale", "11:02 · Rs 860.00 · card"], ["Cause", "Device restored on 18 Nov"], ["Next free number", "000158"]],
+      lines: null,
+      actions: [["resync", "Keep both and reset the register's receipt counter", "The next receipt starts at 000158. Recommended after a restore."], ["suffix", "Keep both · show the second as 000131-B in reports", "Printed receipts are not changed (INV-02)"]] },
+    { id: "EX-1041", code: "PRICE_MISMATCH", branch: "KDY01", reg: "R02", sale: "KDY01-R02-000512", cashier: "Chamari W.", when: minsAgo(1500), title: "Ceylon black tea 200g sold below the list price", problem: "", evidence: [], lines: null, actions: [],
+      status: "resolved", res: { action: "Accept the price difference", note: "Weekend promotion ended a day early on this register. Accepted.", by: "Malini J.", when: minsAgo(1380) } },
+    { id: "EX-1040", code: "NEGATIVE_STOCK", branch: "CMB01", reg: "R02", sale: "CMB01-R02-000102", cashier: "Sachini K.", when: minsAgo(2900), title: "Eggs 10-pack went below zero", problem: "", evidence: [], lines: null, actions: [],
+      status: "resolved", res: { action: "Post the pending goods receipt GRN-2283", note: "Farm Fresh delivery was not posted on Monday.", by: "Malini J.", when: minsAgo(2800) } }
+  ] };
+  S.exc.list.forEach(e => { e.status = e.status || "open"; });
+  const excOpen = () => S.exc.list.filter(e => e.status === "open").length;
+  function excList() {
+    const f = S.exc;
+    return f.list.filter(e => e.status === f.status && (f.type === "all" || e.code === f.type) && (f.branch === "all" || e.branch === f.branch)).sort((a, b) => f.status === "open" ? a.when - b.when : b.res.when - a.res.when);
+  }
+  function excSelect(id) { const f = S.exc; if (f.sel === id) return; f.sel = id; f.note = ""; f.action = null; f.err = false; }
+  function excMove(d) {
+    const list = excList(); if (!list.length) return;
+    const i = list.findIndex(e => e.id === S.exc.sel);
+    excSelect(list[Math.max(0, Math.min(list.length - 1, i < 0 ? 0 : i + d))].id); render();
+    const row = app.querySelector('.xrow[aria-selected="true"]'); if (row) row.scrollIntoView({ block: "nearest" });
+  }
+  function excResolve() {
+    const f = S.exc, e = f.list.find(x => x.id === f.sel);
+    if (!e || e.status !== "open") return;
+    if (!f.action || f.note.trim().length < 5) { f.err = true; render(); toast(!f.action ? "Choose an action" : "Write a short note (at least 5 characters)", { error: true }); return; }
+    const a = e.actions.find(x => x[0] === f.action), by = meShort(), p = e.pid ? byId(e.pid) : null;
+    if (f.action === "grn" && p) { p.stock = Math.round((p.stock + 12) * 1000) / 1000; S.moves.unshift({ when: new Date(), product: p.name, lot: "", qty: 12, reason: "Goods receipt GRN-2291 posted", note: e.id, who: by, approver: null }); }
+    if (f.action === "adjust" && p) { p.stock = Math.round((p.stock + 2) * 1000) / 1000; S.moves.unshift({ when: new Date(), product: p.name, lot: "", qty: 2, reason: "Found in store", note: e.id, who: by, approver: null }); }
+    if (f.action === "block" && p) { const l = lotsOf(p).find(x => x.id === e.lot); if (l) l.blocked = true; }
+    if (p) p.log.unshift({ when: new Date(), who: by, what: `Exception ${e.id} resolved: ${a[1]}` });
+    e.status = "resolved"; e.res = { action: a[1], note: f.note.trim(), by, when: new Date() };
+    const next = excList()[0];
+    f.sel = next ? next.id : null; f.note = ""; f.action = null; f.err = false;
+    render(); toast(`${e.id} resolved · ${a[1]}`);
+  }
+  function exceptionsView() {
+    if (S.user.role !== "Manager") return `<div class="placeholder"><div class="empty"><span class="circle">${ic("lock", 28)}</span><h3>Sale exceptions are for managers</h3><span>${esc(S.user.short)} is signed in as ${esc(S.user.role.toLowerCase())}. A manager reviews and resolves exceptions.</span><button class="btn primary s" data-act="logout">Switch user</button></div></div>`;
+    const f = S.exc, list = excList(), all = f.list.filter(e => e.status === f.status && (f.branch === "all" || e.branch === f.branch));
+    if (!list.some(e => e.id === f.sel)) { f.sel = list[0] ? list[0].id : null; f.note = ""; f.action = null; f.err = false; }
+    const chip = (v, l) => `<button class="chip" data-act="exc-type" data-v="${v}" aria-pressed="${f.type === v}">${l}</button>`;
+    const left = `<section class="products" aria-label="Exceptions">
+      <div class="filters">
+        <div class="seg" role="group" aria-label="Status">${[["open", `Open · ${excOpen()}`], ["resolved", "Resolved"]].map(([v, l]) => `<button data-act="exc-status" data-v="${v}" aria-pressed="${f.status === v}">${l}</button>`).join("")}</div>
+        <select class="sel" data-xf="branch" data-fid="xf-branch" aria-label="Branch"><option value="all">All branches</option>${BRANCHES.map(b => `<option value="${b[0]}" ${f.branch === b[0] ? "selected" : ""}>${b[1]}</option>`).join("")}</select>
+      </div>
+      <div class="chips wrap">${chip("all", `All types · ${all.length}`)}${Object.entries(EXC_TYPES).map(([k, [l]]) => { const n = all.filter(e => e.code === k).length; return n || f.type === k ? chip(k, `${l} · ${n}`) : ""; }).join("")}</div>
+      ${list.length ? `<div class="htable" role="listbox" aria-label="Exception list">
+        <div class="xrow head" aria-hidden="true"><span>Type</span><span>Exception</span><span>Where</span><span class="amt">${f.status === "open" ? "Waiting" : "Resolved"}</span></div>
+        ${list.map(e => { const [l, i, tone] = EXC_TYPES[e.code]; return `<button class="xrow" role="option" aria-selected="${e.id === f.sel}" data-act="exc-sel" data-id="${e.id}">
+          <span>${badge(tone, l, i)}</span><span class="no"><b>${esc(e.title)}</b><small>${e.id} · ${esc(e.sale)}</small></span><span class="where">${e.branch} · ${e.reg}</span>
+          <span class="amt ${f.status === "open" && Date.now() - e.when > 86400000 ? "late" : ""}">${f.status === "open" ? ageOf(e.when) : esc(e.res.by)}</span></button>`; }).join("")}</div>`
+        : `<div class="empty card"><span class="circle">${ic("check", 28)}</span><h3>${f.status === "open" ? "No open exceptions" : "Nothing resolved yet"}</h3><span>${f.status === "open" ? "Every sale from the registers matched the server. Nice." : "Resolved exceptions appear here with the note and who resolved them."}</span></div>`}
+      <div class="note">${ic("lock", 16)}Resolving never edits the sale (INV-02). Actions create stock movements, tasks or notes, and each one is in the audit log.</div>
+    </section>`;
+    return `<div class="body">${left}${excPanel(f.list.find(e => e.id === f.sel))}</div>`;
+  }
+  function excPanel(e) {
+    if (!e) return `<aside class="order exc-panel"><div class="empty" style="flex:1"><span class="circle">${ic("alert", 28)}</span><h3>Select an exception</h3><span>Click a row, or use ↑ ↓.</span></div></aside>`;
+    const f = S.exc, [l, i, tone] = EXC_TYPES[e.code];
+    const head = `<div class="order-head"><div class="order-title"><div style="flex:1;min-width:0"><h2>${esc(e.title)}</h2><div class="sub">${e.id} · ${e.branch} · Register ${e.reg} · ${e.when.toLocaleDateString("en-GB", { day: "numeric", month: "short" })} ${hm(e.when)}</div></div>${badge(tone, l, i)}</div>
+      <dl class="kv"><dt>Sale</dt><dd>${esc(e.sale)}</dd><dt>Cashier</dt><dd>${esc(e.cashier)}</dd><dt>Waiting</dt><dd>${ageOf(e.when)}</dd></dl></div>`;
+    if (e.status === "resolved") return `<aside class="order exc-panel" aria-label="Exception details">${head}<div class="panel-body">
+        <div class="banner" style="background:var(--success-tint);color:var(--success-text)">${ic("check")}Resolved by ${esc(e.res.by)} · ${e.res.when.toLocaleDateString("en-GB", { day: "numeric", month: "short" })} ${hm(e.res.when)}</div>
+        <dl class="kv exc-kv"><dt>Action</dt><dd>${esc(e.res.action)}</dd><dt>Note</dt><dd>${esc(e.res.note)}</dd></dl>
+        ${e.problem ? `<div class="field">What happened<p class="exc-problem">${esc(e.problem)}</p></div>` : ""}</div></aside>`;
+    return `<aside class="order exc-panel" aria-label="Exception details">${head}
+      <div class="panel-body">
+        <p class="exc-problem ${tone}">${esc(e.problem)}</p>
+        <div class="field">Evidence<dl class="kv exc-kv">${e.evidence.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join("")}</dl></div>
+        ${e.lines ? `<div class="field">Sale lines<div class="dlines">${e.lines.map(([pid, q, u]) => { const p = byId(pid); return `<div class="dline ${pid === e.pid ? "hl" : ""}"><span class="thumb tile-${p.tone}">${ic(p.icon, 18)}</span><span class="grow"><b>${esc(p.name)}</b><small>${q} × ${fmt(u)}</small></span><b>${fmt(q * u)}</b></div>`; }).join("")}</div></div>` : ""}
+        <div class="field">Suggested actions<div class="opt-list" role="radiogroup" aria-label="Actions">${e.actions.map(([k, t1, t2], n) => `<button class="opt" role="radio" data-act="exc-action" data-k="${k}" aria-checked="${f.action === k}" aria-selected="${f.action === k}"><span class="grow"><b>${esc(t1)}</b><small>${esc(t2)}</small></span><kbd>${n + 1}</kbd></button>`).join("")}</div>
+          ${f.err && !f.action ? `<span class="err">Choose what to do</span>` : ""}</div>
+        <label class="field">Note for the audit log<textarea data-fid="exc-note" id="excnote" placeholder="What did you check, and why is this the right fix?">${esc(f.note)}</textarea>${f.err && f.note.trim().length < 5 ? `<span class="err">A short note is required</span>` : ""}</label>
+      </div>
+      <div class="order-foot"><button class="btn primary l block" data-act="exc-resolve" ${f.action && f.note.trim().length >= 5 ? "" : "aria-disabled=\"true\""}>${ic("check")}Resolve <kbd>Ctrl Enter</kbd></button>
+        <div class="two"><button class="btn secondary" data-act="toast" data-msg="Opened ${esc(e.sale)} in Sales history (A-51)">${ic("receipt", 18)}Open sale</button><button class="btn secondary" data-act="toast" data-msg="${e.id} assigned to Kasun S.">${ic("userPlus", 18)}Assign</button></div></div>
+    </aside>`;
+  }
+
+  // ---------- Suppliers (A-48) ----------
+  const TERMS = [["cod", "Cash on delivery", 0], ["7", "7 days", 7], ["14", "14 days", 14], ["30", "30 days", 30], ["45", "45 days", 45]];
+  const grnRow = (no, d, inv, total, paid) => ({ no, date: daysAgo(d, 11, 0), invoice: inv, total, paid });
+  const SUP = [
+    { id: "hemas", name: "Hemas Pharmaceuticals", contact: "Dilani Fernando", phone: "011 247 8800", email: "orders@hemaspharma.lk", vat: "114256789-7000", terms: "30", address: "75 Braybrooke Place, Colombo 02", note: "Rep visits on Tuesdays. Returns of expired stock accepted up to 30 days after expiry.", active: true, pids: ["pc", "am"],
+      grns: [grnRow("GRN-2289", 4, "HP-58190", 18450000, false), grnRow("GRN-2276", 19, "HP-57702", 9620000, true), grnRow("GRN-2251", 41, "HP-56311", 12380000, false)] },
+    { id: "cargills", name: "Cargills Distribution", contact: "Ruwan Jayawardena", phone: "011 242 7777", email: "distribution@cargills.lk", vat: "114002345-7000", terms: "14", address: "40 York Street, Colombo 01", note: "", active: true, pids: ["br", "co", "bw"],
+      grns: [grnRow("GRN-2290", 2, "CD-99412", 6420000, false), grnRow("GRN-2270", 22, "CD-98720", 5510000, false), grnRow("GRN-2262", 30, "CD-98113", 4800000, true)] },
+    { id: "lmf", name: "Lanka Milk Foods", contact: "Shirani Peiris", phone: "011 253 3366", email: "sales@lmf.lk", vat: "114778899-7000", terms: "30", address: "Welisara, Ragama", note: "", active: true, pids: ["mp"],
+      grns: [grnRow("GRN-2285", 6, "LMF-22018", 3312000, false), grnRow("GRN-2259", 35, "LMF-21877", 2980000, true)] },
+    { id: "cbl", name: "Ceylon Biscuits Ltd", contact: "Asela Gunawardena", phone: "011 486 0400", email: "trade@cbl.lk", vat: "114334455-7000", terms: "45", address: "Makumbura, Pannipitiya", note: "", active: true, pids: ["cc", "ct"],
+      grns: [grnRow("GRN-2280", 9, "CBL-7741", 1872000, false)] },
+    { id: "ffne", name: "Fresh Farms Nuwara Eliya", contact: "M. Rajendran", phone: "052 222 3344", email: "", vat: "", terms: "cod", address: "Kandapola, Nuwara Eliya", note: "Not VAT registered. Paid in cash when the lorry arrives.", active: true, pids: ["ca", "eg"],
+      grns: [grnRow("GRN-2288", 5, "FF-118", 640000, true), grnRow("GRN-2284", 8, "FF-112", 512000, true)] }
+  ];
+  const supTerm = s => TERMS.find(x => x[0] === s.terms) || TERMS[0];
+  const grnDue = (s, r) => { const d = new Date(r.date); d.setDate(d.getDate() + supTerm(s)[2]); return d; };
+  const grnState = (s, r) => r.paid ? "paid" : grnDue(s, r) < new Date() ? "overdue" : "due";
+  const supOwed = s => s.grns.filter(r => !r.paid).reduce((a, r) => a + r.total, 0);
+  const supOverdue = s => s.grns.filter(r => grnState(s, r) === "overdue").reduce((a, r) => a + r.total, 0);
+  const supDraft = s => ({ id: s ? s.id : null, name: s ? s.name : "", contact: s ? s.contact : "", phone: s ? s.phone : "", email: s ? s.email : "", vat: s ? s.vat : "", terms: s ? s.terms : "30", address: s ? s.address : "", note: s ? s.note : "", active: s ? s.active : true });
+  S.sup = { q: "", filter: "all", sel: "hemas", tab: "details", draft: supDraft(SUP[0]), showErr: false };
+  const supDirty = () => { const s = S.sup, cur = SUP.find(x => x.id === s.draft.id); return JSON.stringify(s.draft) !== JSON.stringify(supDraft(cur)); };
+  function supErrors(d) {
+    const e = {};
+    if (!d.name.trim()) e.name = "Name is required";
+    else if (SUP.some(x => x.id !== d.id && x.name.toLowerCase() === d.name.trim().toLowerCase())) e.name = "A supplier with this name already exists";
+    if (d.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(d.email)) e.email = "Check the e-mail address";
+    if (d.phone && d.phone.replace(/\D/g, "").length !== 10) e.phone = "Sri Lankan numbers have 10 digits, e.g. 011 247 8800";
+    if (d.vat && !/^\d{9}-7000$/.test(d.vat.trim())) e.vat = "VAT number looks like 114256789-7000";
+    return e;
+  }
+  function supList() {
+    const s = S.sup, q = s.q.trim().toLowerCase();
+    return SUP.filter(x => (s.filter === "all" || (s.filter === "owed" && supOwed(x)) || (s.filter === "overdue" && supOverdue(x)))
+      && (!q || [x.name, x.contact, x.phone, x.vat, x.email].join(" ").toLowerCase().includes(q)));
+  }
+  function supOpen(id) {
+    const s = S.sup;
+    if (s.sel === id && s.draft.id === id) return;
+    if (supDirty()) { toast("Save or discard the changes to " + (s.draft.name || "the new supplier") + " first", { error: true }); return; }
+    const x = SUP.find(y => y.id === id); s.sel = id; s.draft = supDraft(x); s.showErr = false; if (s.tab !== "details" && !x) s.tab = "details"; render();
+  }
+  function supNew() {
+    const s = S.sup;
+    if (supDirty()) { toast("Save or discard your changes first", { error: true }); return; }
+    s.sel = null; s.draft = supDraft(null); s.tab = "details"; s.showErr = false; render(); focusId("sup-name");
+  }
+  function supSave() {
+    const s = S.sup, d = s.draft, er = supErrors(d);
+    if (Object.keys(er).length) { s.showErr = true; render(); toast(Object.values(er)[0], { error: true }); return; }
+    d.name = d.name.trim(); d.vat = d.vat.trim();
+    let x = SUP.find(y => y.id === d.id);
+    if (!x) { x = { id: "s" + Date.now().toString(36), grns: [], pids: [] }; d.id = x.id; SUP.push(x); SUPPLIERS.push(d.name); }
+    else if (x.name !== d.name) { const i = SUPPLIERS.indexOf(x.name); if (i >= 0) SUPPLIERS[i] = d.name; }
+    Object.assign(x, { ...d }); s.sel = x.id; s.showErr = false; render(); toast(`${x.name} saved`);
+  }
+  function supMove(d) {
+    const list = supList(); if (!list.length) return;
+    const i = list.findIndex(x => x.id === S.sup.sel);
+    supOpen(list[Math.max(0, Math.min(list.length - 1, i < 0 ? 0 : i + d))].id);
+    const row = app.querySelector('.srow[aria-selected="true"]'); if (row) row.scrollIntoView({ block: "nearest" });
+  }
+  function suppliersView() {
+    const s = S.sup, list = supList();
+    const owed = SUP.reduce((a, x) => a + supOwed(x), 0), over = SUP.reduce((a, x) => a + supOverdue(x), 0);
+    const chip = (v, l) => `<button class="chip" data-act="sup-filter" data-v="${v}" aria-pressed="${s.filter === v}">${l}</button>`;
+    const left = `<section class="products" aria-label="Suppliers">
+      <div class="search-row"><label class="search">${ic("search")}<span class="sr">Search suppliers</span><input id="supsearch" data-fid="supsearch" autocomplete="off" placeholder="Name, contact, phone or VAT number…" value="${esc(s.q)}"><kbd>/</kbd></label>
+        <button class="btn primary" data-act="sup-new">${ic("plus", 18)}Add supplier <kbd>N</kbd></button></div>
+      <div class="stats"><div class="stat"><span>Suppliers</span><b>${SUP.filter(x => x.active).length}</b></div><div class="stat"><span>We owe</span><b>${fmt(owed)}</b></div><div class="stat"><span>Overdue</span><b style="color:${over ? "var(--error-text)" : "var(--text)"}">${fmt(over)}</b></div></div>
+      <div class="chips">${chip("all", `All · ${SUP.length}`)}${chip("owed", `We owe · ${SUP.filter(supOwed).length}`)}${chip("overdue", `Overdue · ${SUP.filter(supOverdue).length}`)}</div>
+      ${list.length ? `<div class="htable" role="listbox" aria-label="Supplier list">
+        <div class="srow head" aria-hidden="true"><span>Supplier</span><span>Terms</span><span>Last delivery</span><span class="amt">We owe</span></div>
+        ${list.map(x => { const last = x.grns.slice().sort((a, b) => b.date - a.date)[0], od = supOverdue(x); return `<button class="srow ${x.active ? "" : "archived"}" role="option" aria-selected="${x.id === s.sel}" data-act="sup-sel" data-id="${x.id}">
+          <span class="no"><b>${esc(x.name)}</b><small>${esc(x.contact || "No contact")} · ${esc(x.phone || "no phone")}</small></span><span>${supTerm(x)[1]}</span>
+          <span class="muted">${last ? (dayDiff(last.date) === 0 ? "Today" : dayDiff(last.date) + " days ago") : "—"}</span>
+          <span class="amt">${supOwed(x) ? fmt(supOwed(x)) : `<span class="muted">—</span>`}${od ? `<small class="late">${fmt(od)} overdue</small>` : ""}</span></button>`; }).join("")}</div>`
+        : `<div class="empty card"><span class="circle">${ic("store", 28)}</span><h3>No suppliers match</h3><span>Clear the search, or add a new supplier.</span></div>`}
+    </section>`;
+    return `<div class="body">${left}${supPanel()}</div>`;
+  }
+  function supPanel() {
+    const s = S.sup, d = s.draft, x = SUP.find(y => y.id === d.id), er = s.showErr ? supErrors(d) : {}, dirty = supDirty();
+    const fld = (k, label, ph, extra = "") => `<label class="field">${label}<input data-sup="${k}" data-fid="sup-${k}" id="sup-${k}" value="${esc(d[k])}" placeholder="${ph}" class="${er[k] ? "bad" : ""}" ${extra}>${er[k] ? `<span class="err">${esc(er[k])}</span>` : ""}</label>`;
+    const tabs = x ? [["details", "Details"], ["purchases", `Purchases · ${x.grns.length}`], ["products", `Products · ${x.pids.length}`]] : [["details", "Details"]];
+    let body = "";
+    if (s.tab === "details" || !x) {
+      body = `<div class="form-2">${fld("name", "Supplier name *", "e.g. Hemas Pharmaceuticals")}${fld("contact", "Contact person", "Name of the sales rep")}${fld("phone", "Phone", "011 247 8800", 'inputmode="tel"')}${fld("email", "E-mail for orders", "orders@supplier.lk", 'inputmode="email"')}${fld("vat", "VAT number", "114256789-7000")}
+        <label class="field">Payment terms<select data-sup="terms" data-fid="sup-terms">${TERMS.map(([k, l]) => `<option value="${k}" ${d.terms === k ? "selected" : ""}>${l}</option>`).join("")}</select></label></div>
+        ${fld("address", "Address", "Street, city")}
+        <label class="field">Notes<textarea data-sup="note" data-fid="sup-note" placeholder="Visit days, return rules, bank details for transfers…">${esc(d.note)}</textarea></label>
+        ${!d.vat ? `<div class="note">${ic("help", 16)}Without a VAT number, input VAT on this supplier's invoices cannot be claimed.</div>` : ""}
+        ${x ? `<label class="check-row"><input type="checkbox" data-act="sup-active" ${d.active ? "checked" : ""}><span><b>Active</b><small>Inactive suppliers are hidden from Goods receiving but keep their history.</small></span></label>` : ""}`;
+    } else if (s.tab === "purchases") {
+      const rows = x.grns.slice().sort((a, b) => b.date - a.date);
+      body = rows.length ? `<div class="dlines">${rows.map(r => { const st = grnState(x, r); return `<div class="dline"><span class="grow"><b>${r.no} · ${fmt(r.total)}</b><small>Invoice ${esc(r.invoice || "—")} · ${r.date.toLocaleDateString("en-GB", { day: "numeric", month: "short" })} · due ${grnDue(x, r).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}</small></span>
+          ${st === "paid" ? badge("success", "Paid", "check") : st === "overdue" ? badge("error", "Overdue", "alert") : badge("warning", "Due", "clock")}${st !== "paid" ? `<button class="btn secondary s" data-act="sup-pay" data-no="${r.no}">Record payment</button>` : ""}</div>`; }).join("")}</div>
+          <div class="note">${ic("wallet", 16)}We owe ${fmt(supOwed(x))}${supOverdue(x) ? ` · ${fmt(supOverdue(x))} is overdue` : ""}. Payment terms: ${supTerm(x)[1].toLowerCase()}.</div>`
+        : `<div class="empty"><span class="circle">${ic("truck", 28)}</span><h3>No deliveries yet</h3><span>Goods receipts from this supplier appear here.</span></div>`;
+    } else {
+      body = x.pids.length ? `<div class="dlines">${x.pids.map(pid => { const p = byId(pid); return p ? `<div class="dline"><span class="thumb tile-${p.tone}">${ic(p.icon, 18)}</span><span class="grow"><b>${esc(p.name)}</b><small>${esc(p.sku)} · ${fq(p, p.stock)} in stock</small></span><span class="r"><b>${fmt(p.cost)}</b><small>last cost</small></span></div>` : ""; }).join("")}</div>`
+        : `<div class="empty"><span class="circle">${ic("package", 28)}</span><h3>No products linked</h3><span>Products are linked when you receive them from this supplier.</span></div>`;
+    }
+    return `<aside class="order sup-panel" aria-label="Supplier details">
+      <div class="order-head"><div class="order-title"><div style="flex:1;min-width:0"><h2>${esc(x ? x.name : d.name || "New supplier")}</h2><div class="sub">${x ? `${esc(x.contact || "No contact")} · ${supTerm(x)[1]}` : "Fill in the details and save"}</div></div>${x ? (x.active ? badge("success", "Active", null) : badge("", "Inactive", null)) : badge("info", "New", "plus")}${dirty ? badge("warning", "Unsaved", "pencil") : ""}</div>
+        <div class="seg tabs" role="tablist">${tabs.map(([k, l]) => `<button role="tab" data-act="sup-tab" data-v="${k}" aria-pressed="${s.tab === k || (!x && k === "details")}" aria-selected="${s.tab === k}">${l}</button>`).join("")}</div></div>
+      <div class="panel-body">${body}</div>
+      <div class="order-foot">${s.tab === "details" || !x ? `<button class="btn primary l block" data-act="sup-save" ${dirty ? "" : "disabled"}>${ic("check")}${x ? "Save changes" : "Add supplier"} <kbd>Ctrl S</kbd></button>
+        <div class="two"><button class="btn secondary" data-act="sup-discard" ${dirty ? "" : "disabled"}>Discard changes</button>${x ? `<button class="btn secondary" data-act="sup-grn">${ic("truck", 18)}Receive goods</button>` : ""}</div>`
+        : `<button class="btn primary l block" data-act="sup-grn">${ic("truck")}Receive goods from ${esc(x.name.split(" ")[0])}</button>`}</div>
+    </aside>`;
+  }
+
   // ---------- Render: main ----------
   function render() {
     const fid = document.activeElement && document.activeElement.dataset ? document.activeElement.dataset.fid : null;
     const ae = document.activeElement;
-    const caret = ae && ae.tagName === "INPUT" && ae.type !== "checkbox" ? ae.selectionStart : null;
+    const caret = ae && ((ae.tagName === "INPUT" && ae.type !== "checkbox") || ae.tagName === "TEXTAREA") ? ae.selectionStart : null;
     if (S.view === "signin") {
       document.body.classList.remove("sheet-mode");
       app.innerHTML = signinView() + protoControls();
@@ -1950,6 +2178,8 @@ Yesterday 09:15  SYNC-003 Catalog cursor too old · catalog snapshot downloaded<
     else if (S.view === "returns") main = topbar(t("returns"), S.ret.done ? "Refund recorded" : S.ret.sale ? "Choose the items the customer is bringing back" : "Find the original sale") + returnsView();
     else if (S.view === "stock") main = topbar(t("stock"), "Stock on hand by product and batch") + stockView();
     else if (S.view === "expiry") main = topbar(t("expiry"), "Batches expiring in the next 90 days · act before they are lost") + expiryView();
+    else if (S.view === "exceptions") main = topbar("Sale exceptions", "Sales the server recorded but flagged for a manager · all branches") + exceptionsView();
+    else if (S.view === "suppliers") main = topbar(t("suppliers"), "Who we buy from, what we owe and what they supply") + suppliersView();
     else if (S.view === "counts") main = topbar("Stock counts", S.cnt.cur ? `${S.cnt.cur.no} · ${CNT_TYPES[S.cnt.cur.type][0]} · CMB01` : "Count what is on the shelf and correct the stock") + countsView();
     else if (S.view === "import") main = topbar("Import products", "Catalog › Products › Import · nothing changes until you import") + importView();
     else if (S.view === "products") main = topbar(t("products"), "Catalog · 1,248 products in the real catalog") + productsView();
@@ -2101,6 +2331,20 @@ Yesterday 09:15  SYNC-003 Catalog cursor too old · catalog snapshot downloaded<
       case "pc-pick": S.pc.pid = el.dataset.pid; S.pc.error = ""; render(); break;
       case "pc-clear": S.pc.pid = null; S.pc.error = ""; S.pc.query = ""; render(); focusId("pcsearch"); break;
       case "pc-add": { const p = byId(S.pc.pid); if (!p) break; if (!S.shifts[S.user.id]) { S.view = "openshift"; render(); toast("Open a shift first", { error: true }); break; } S.view = "sell"; render(); addProduct(p); break; }
+      case "exc-sel": excSelect(el.dataset.id); render(); break;
+      case "exc-status": S.exc.status = el.dataset.v; S.exc.sel = null; render(); break;
+      case "exc-type": S.exc.type = el.dataset.v; render(); break;
+      case "exc-action": S.exc.action = el.dataset.k; render(); if (S.exc.note.trim().length < 5) focusId("excnote"); break;
+      case "exc-resolve": excResolve(); break;
+      case "sup-sel": supOpen(el.dataset.id); break;
+      case "sup-filter": S.sup.filter = el.dataset.v; render(); break;
+      case "sup-tab": if (supDirty() && el.dataset.v !== "details") { toast("Save or discard your changes first", { error: true }); break; } S.sup.tab = el.dataset.v; render(); break;
+      case "sup-new": supNew(); break;
+      case "sup-save": supSave(); break;
+      case "sup-discard": { const x = SUP.find(y => y.id === S.sup.draft.id); S.sup.draft = supDraft(x || null); S.sup.showErr = false; if (!x) { S.sup.sel = SUP[0].id; S.sup.draft = supDraft(SUP[0]); } render(); toast("Changes discarded"); break; }
+      case "sup-active": S.sup.draft.active = el.checked; render(); break;
+      case "sup-pay": { const x = SUP.find(y => y.id === S.sup.sel), r = x.grns.find(z => z.no === el.dataset.no); r.paid = true; render(); toast(`Payment of ${fmt(r.total)} recorded for ${r.no}`); break; }
+      case "sup-grn": { if (supDirty()) { toast("Save or discard your changes first", { error: true }); break; } const x = SUP.find(y => y.id === S.sup.sel); if (S.grn.posted) S.grn = emptyGrn(); S.grn.supplier = x.name; S.view = "receiving"; render(); focusId("gsearch"); break; }
       case "cnt-type": S.cnt.form.type = el.dataset.k; render(); break;
       case "cnt-blind": S.cnt.form.blind = el.checked; render(); break;
       case "cnt-start": startCount(); break;
@@ -2272,6 +2516,10 @@ Yesterday 09:15  SYNC-003 Catalog cursor too old · catalog snapshot downloaded<
     if (e.target.id === "psearch") { S.prod.q = e.target.value; render(); }
     if (e.target.id === "stsearch") { S.stk.q = e.target.value; render(); }
     if (e.target.id === "cntscan" && S.cnt.cur) { S.cnt.cur.q = e.target.value; }
+    if (e.target.id === "excnote") { S.exc.note = e.target.value; render(); }
+    if (e.target.dataset && e.target.dataset.xf) { S.exc[e.target.dataset.xf] = e.target.value; render(); }
+    if (e.target.id === "supsearch") { S.sup.q = e.target.value; render(); }
+    if (e.target.dataset && e.target.dataset.sup) { S.sup.draft[e.target.dataset.sup] = e.target.value; render(); }
     if (e.target.dataset && e.target.dataset.cq && S.cnt.cur) { const it = S.cnt.cur.items.find(x => x.pid === e.target.dataset.cq); it.cnt = e.target.value.replace(/[^0-9.]/g, ""); S.cnt.cur.flash = null; S.cnt.cur.confirmDiscard = false; render(); }
     if (e.target.dataset && e.target.dataset.cf) { S.cnt.form[e.target.dataset.cf] = e.target.value; render(); }
     if (e.target.dataset && e.target.dataset.im) { S.imp.map[e.target.dataset.im] = e.target.value; S.imp.touched[e.target.dataset.im] = true; render(); }
@@ -2438,6 +2686,22 @@ Yesterday 09:15  SYNC-003 Catalog cursor too old · catalog snapshot downloaded<
       if ((e.ctrlKey || e.metaKey) && k.toLowerCase() === "s") { e.preventDefault(); saveSettings(); }
       return;
     }
+    if (S.view === "exceptions") {
+      if ((e.ctrlKey || e.metaKey) && k === "Enter") { e.preventDefault(); excResolve(); return; }
+      if (inInput || e.target.tagName === "SELECT") return;
+      if (k === "ArrowDown" || k === "ArrowUp") { e.preventDefault(); excMove(k === "ArrowDown" ? 1 : -1); return; }
+      if (/^[1-9]$/.test(k)) { const ex = S.exc.list.find(x => x.id === S.exc.sel); if (ex && ex.status === "open" && ex.actions[+k - 1]) { S.exc.action = ex.actions[+k - 1][0]; render(); } return; }
+      return;
+    }
+    if (S.view === "suppliers") {
+      if ((e.ctrlKey || e.metaKey) && k.toLowerCase() === "s") { e.preventDefault(); supSave(); return; }
+      if (e.target.id === "supsearch") { if (k === "Escape") { S.sup.q = ""; render(); focusId("supsearch"); } else if (k === "ArrowDown") { e.preventDefault(); e.target.blur(); supMove(1); } return; }
+      if (inInput || e.target.tagName === "SELECT") return;
+      if (k === "/") { e.preventDefault(); focusId("supsearch"); return; }
+      if (k === "n" || k === "N") { e.preventDefault(); supNew(); return; }
+      if (k === "ArrowDown" || k === "ArrowUp") { e.preventDefault(); supMove(k === "ArrowDown" ? 1 : -1); return; }
+      return;
+    }
     if (S.view === "counts") {
       const c = S.cnt.cur;
       if (!c) return;
@@ -2594,9 +2858,9 @@ Yesterday 09:15  SYNC-003 Catalog cursor too old · catalog snapshot downloaded<
   let rz; window.addEventListener("resize", () => { clearTimeout(rz); rz = setTimeout(render, 120); });
   if (S.theme) document.documentElement.dataset.theme = S.theme;
   const hash = location.hash.replace("#", "");
-  if (["sell", "dashboard", "signin", "openshift", "returns", "cash", "orders", "receiving", "pricecheck", "status", "settings", "products", "stock", "expiry", "counts", "import"].includes(hash)) S.view = hash;
+  if (["sell", "dashboard", "signin", "openshift", "returns", "cash", "orders", "receiving", "pricecheck", "status", "settings", "products", "stock", "expiry", "counts", "import", "exceptions", "suppliers"].includes(hash)) S.view = hash;
   if (hash === "stock" || hash === "expiry" || hash === "counts") S.user = USERS[4]; // Kasun, stock keeper
-  if (hash === "import") S.user = USERS[3]; // Malini, manager
+  if (hash === "import" || hash === "exceptions" || hash === "suppliers") S.user = USERS[3]; // Malini, manager
   // File picker and drag-and-drop for the import wizard (A-23)
   document.addEventListener("change", e => { if (e.target.id === "impfile" && e.target.files && e.target.files[0]) { const fl = e.target.files[0]; impSetFile(fl.name, fl.size); } });
   document.addEventListener("dragover", e => { const z = e.target.closest && e.target.closest(".dropzone"); if (z) { e.preventDefault(); z.classList.add("over"); } });
