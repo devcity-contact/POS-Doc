@@ -16,6 +16,7 @@ System design for RetailOS, DevCity's offline-first POS for retail, pharmacy and
 | `ai/AGENTS.md` | Copy to repo root for AI coding agents |
 | `ai/system-context.md` | Condensed design to paste into any assistant |
 | `DESIGN.md` | Design system (palette, tokens, contrast rules) + all Google Stitch prompts in Markdown. Regenerate after editing `stitch-prompts.html`: `python tools/build_design_md.py` |
+| `prototype/` | Clickable prototype of every MVP screen (`index.html`, `prototype.js`, `prototype.css`). No build step; open `prototype/index.html#<route>`. Screen-to-route list and demo PINs: `ui-screens.html#prototype` |
 | `tools/` | Doc maintenance scripts |
 
 ## Editing rules

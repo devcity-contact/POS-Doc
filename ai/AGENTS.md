@@ -51,6 +51,7 @@ listed there without adding it (with a reason) in the same change; new datastore
 | Task | Code | Doc |
 |---|---|---|
 | Any screen (find by ID R-xx / A-xx / P-xx / D-xx) | `apps/register/src/screens`, `apps/admin/src/routes` | `Doc/ui-screens.html`, `Doc/ui-design.html` |
+| What a screen should look and behave like | Reference only, not production code | `Doc/prototype/` (open `index.html#<route>`; route per screen in `Doc/ui-screens.html#prototype`) |
 | Checkout / cart | `packages/register-core/src/cart` | `Doc/flows.html#sale-states` |
 | Record synced sale | `backend/.../sales/internal/application` | `Doc/flows.html#record-sale` |
 | Stock / FEFO | `backend/.../inventory` | `Doc/flows.html#fefo` |

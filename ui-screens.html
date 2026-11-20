@@ -17,7 +17,7 @@
 <h1>Screens & navigation</h1>
 <p class="lead">RetailOS has three front-ends plus printed documents. This page lists every screen with an ID, who uses it, which release it ships in and how it behaves offline. It also specifies the screens that matter most in detail. Visual layouts are on <a href="ui-design.html">UI design & wireframes</a>.</p>
 
-<div class="callout tip"><span class="ct">Try it</span>A working <a href="prototype/index.html">clickable prototype</a> of the register and the Overview dashboard is included in these docs. It covers keyboard shortcuts, scanning (type a barcode and press Enter), the batch picker, weighing, discount with a manager PIN (1234), hold and recall, payment, sale complete, a tablet bottom-sheet layout, dark mode and simulated offline and printer states.</div>
+<div class="callout tip"><span class="ct">Try it</span>Every MVP screen on this page, from the register to the DevCity console, is in the <a href="prototype/index.html">clickable prototype</a>. See <a href="#prototype">Clickable prototype</a> below for a direct link to each screen, the demo PINs and logins, and journeys that cross screens.</div>
 <h2 id="apps">The front-ends</h2>
 <div class="cards">
   <div class="card"><h4>Register app <code>R-xx</code></h4><p>The counter. Cashiers, pharmacists and managers. Windows (MVP) and Android (R2). Fully offline. Optimised for speed, scanning and touch plus keyboard.</p><div class="k">~21 screens</div></div>
@@ -392,6 +392,119 @@ apps/register/src/screens/
 packages/ui/            shared components (Button, NumPad, Money, DataTable, Modal, Toast, …)
 packages/ext-pharmacy/  RegisterPlugin + admin tab components (R-30, R-31, A-100, A-101)</code></pre>
 <p>Put the screen ID in each route or screen file's header comment, so a search for <code>R-10</code> finds both the docs and the code.</p>
+
+<h2 id="prototype">Clickable prototype</h2>
+<p>Every MVP screen on this page is in the <a href="prototype/index.html">clickable prototype</a>: plain HTML, CSS and JavaScript with no build step and no server. Each link below opens a screen directly and signs in the right demo person. Data lives in the browser tab, so reloading the page resets the demo. Use the <b>Prototype</b> button (bottom left) for dark mode, offline, printer out of paper, tablet layout, touch mode, the demo PINs, and links to register setup, back-office login, onboarding and the DevCity console.</p>
+<div class="callout"><span class="ct">Scope</span>Screens marked R2, R3 or Later (for example A-33 Promotions, A-46 Transfers, P-06 Releases) are not in the prototype. Server behaviour (sync, tax, permissions) is simulated in the page; the real rules are on the architecture, data and security pages.</div>
+<h3 id="prototype-accounts">Demo accounts</h3>
+<table>
+<thead><tr><th>Person</th><th>Role</th><th>Register PIN</th><th>Back office (A-01)</th></tr></thead>
+<tbody>
+<tr><td>Sachini Kumari</td><td>Cashier (shift already open)</td><td>1111</td><td>—</td></tr>
+<tr><td>Nimal Perera</td><td>Cashier</td><td>2222</td><td>—</td></tr>
+<tr><td>Rizwan Farook</td><td>Pharmacist</td><td>3333</td><td>—</td></tr>
+<tr><td>Malini Jayasuriya</td><td>Manager</td><td>1234</td><td><code>malini@citypharmacy.lk</code> · <code>Colombo#2026</code></td></tr>
+<tr><td>Kasun Silva</td><td>Stock keeper</td><td>4444</td><td>—</td></tr>
+<tr><td>Anushka De Silva</td><td>Cashier</td><td>5555</td><td>—</td></tr>
+<tr><td>Dilan Wickrama</td><td>Owner</td><td>9999</td><td><code>dilan@citypharmacy.lk</code> · <code>Colombo#2026</code></td></tr>
+<tr><td>Priyanka Ratnayake</td><td>Accountant (invited)</td><td>—</td><td>Accept the invitation from the login page</td></tr>
+<tr><td>Nuwan Perera</td><td>DevCity support</td><td>—</td><td><code>nuwan@devcity.lk</code> + security-key tap (console)</td></tr>
+</tbody>
+</table>
+<p>The sidebar shows each role what it needs: for managers, the owner and the accountant, <b>Orders</b>, <b>Returns</b> and <b>Receiving</b> open the back-office lists (A-50, A-52, A-42); cashiers and stock keepers get the register screens (R-14, R-13, R-17). Click your name at the bottom of the sidebar for My profile.</p>
+<h3 id="prototype-register">Register screens</h3>
+<table>
+<thead><tr><th>ID</th><th>Screen</th><th>Open</th><th>Signed in as</th><th>What to try</th></tr></thead>
+<tbody>
+<tr><td>R-01</td><td>Device setup</td><td><a href="prototype/index.html#device">#device</a></td><td>—</td><td>Enter <code>DEMO-2026</code>, or a code made in A-81; download, test printer, drawer and scanner</td></tr>
+<tr><td>R-02</td><td>Sign-in (PIN)</td><td><a href="prototype/index.html#signin">#signin</a></td><td>—</td><td>Pick a person, type the PIN; 5 wrong PINs lock that person for 5 minutes</td></tr>
+<tr><td>R-03</td><td>Open shift</td><td><a href="prototype/index.html#openshift">#openshift</a></td><td>Nimal (cashier, no shift yet)</td><td>Count the float by note and coin</td></tr>
+<tr><td>R-04</td><td>Checkout</td><td><a href="prototype/index.html#sell">#sell</a></td><td>Sachini (cashier)</td><td>Scan <code>4791111000011</code> or search; F-keys; tablet layout in the Prototype panel</td></tr>
+<tr><td>R-05</td><td>Product lookup</td><td><a href="prototype/index.html#sell">#sell</a></td><td>Sachini (cashier)</td><td>Type part of a name, a SKU or a barcode; Enter adds the first match</td></tr>
+<tr><td>R-06</td><td>Batch picker</td><td><a href="prototype/index.html#sell">#sell</a></td><td>Sachini (cashier)</td><td>Add Paracetamol: batches with different prices, FEFO first</td></tr>
+<tr><td>R-07</td><td>Line editor</td><td><a href="prototype/index.html#sell">#sell</a></td><td>Sachini (cashier)</td><td>Select a line: quantity, weight (Carrots), discount (F5)</td></tr>
+<tr><td>R-08</td><td>Manager override</td><td><a href="prototype/index.html#sell">#sell</a></td><td>Sachini (cashier)</td><td>Discount above the role limit asks for PIN 1234</td></tr>
+<tr><td>R-09</td><td>Customer</td><td><a href="prototype/index.html#sell">#sell</a></td><td>Sachini (cashier)</td><td>Customer button: credit balance, loyalty</td></tr>
+<tr><td>R-10</td><td>Payment</td><td><a href="prototype/index.html#sell">#sell</a></td><td>Sachini (cashier)</td><td>Charge: cash with change, card, LankaQR, credit; tax invoice option</td></tr>
+<tr><td>R-11</td><td>Sale complete</td><td><a href="prototype/index.html#sell">#sell</a></td><td>Sachini (cashier)</td><td>After payment: receipt preview, e-mail, next sale</td></tr>
+<tr><td>R-12</td><td>Held bills</td><td><a href="prototype/index.html#sell">#sell</a></td><td>Sachini (cashier)</td><td>F6 holds, F7 recalls</td></tr>
+<tr><td>R-13</td><td>Returns</td><td><a href="prototype/index.html#returns">#returns</a></td><td>Sachini (cashier)</td><td>Find receipt CMB01-R02-000154; refund above Rs 2,000 needs a manager</td></tr>
+<tr><td>R-14</td><td>Sales history</td><td><a href="prototype/index.html#orders">#orders</a></td><td>Sachini (cashier)</td><td>Today's receipts, one not synced, reprint, start a return</td></tr>
+<tr><td>R-15</td><td>Cash in / out</td><td><a href="prototype/index.html#cash">#cash</a></td><td>Sachini (cashier)</td><td>Cash in / out (F9, also on Sell): petty cash, safe drop with a manager PIN</td></tr>
+<tr><td>R-16</td><td>Close shift</td><td><a href="prototype/index.html#cash">#cash</a></td><td>Sachini (cashier)</td><td>Blind count, difference, reason, Z-report</td></tr>
+<tr><td>R-17</td><td>Goods receiving</td><td><a href="prototype/index.html#receiving">#receiving</a></td><td>Kasun (stock keeper)</td><td>Demo GS1 scans fill batch and expiry; pack units from A-24</td></tr>
+<tr><td>R-18</td><td>Price & stock check</td><td><a href="prototype/index.html#pricecheck">#pricecheck</a></td><td>Sachini (cashier)</td><td>Scan to see price, batches and stock without selling</td></tr>
+<tr><td>R-19</td><td>Status & diagnostics</td><td><a href="prototype/index.html#status">#status</a></td><td>Sachini (cashier)</td><td>Connection test, sync queue, re-sync with a manager PIN</td></tr>
+<tr><td>R-20</td><td>Device settings</td><td><a href="prototype/index.html#settings">#settings</a></td><td>Sachini (cashier)</td><td>Printer, receipt preview, scanner test, training mode</td></tr>
+</tbody>
+</table>
+<h3 id="prototype-admin">Admin web screens</h3>
+<table>
+<thead><tr><th>ID</th><th>Screen</th><th>Open</th><th>Signed in as</th><th>What to try</th></tr></thead>
+<tbody>
+<tr><td>A-01–A-03</td><td>Login, two-step sign-in, reset / invitation</td><td><a href="prototype/index.html#login">#login</a></td><td>—</td><td><code>dilan@citypharmacy.lk</code>, password <code>Colombo#2026</code>; forgot password; Priyanka's invitation</td></tr>
+<tr><td>A-05</td><td>Onboarding wizard</td><td><a href="prototype/index.html#onboard">#onboard</a></td><td>—</td><td>Business → VAT → branch → register → products; does not change the demo shop</td></tr>
+<tr><td>A-10</td><td>Dashboard</td><td><a href="prototype/index.html#dashboard">#dashboard</a></td><td>Malini (manager)</td><td>Today's sales, things that need attention (live counts)</td></tr>
+<tr><td>A-20</td><td>Products list</td><td><a href="prototype/index.html#products">#products</a></td><td>Malini (manager)</td><td>Filters, bulk actions, missing translations</td></tr>
+<tr><td>A-21</td><td>Product editor</td><td><a href="prototype/index.html#products">#products</a></td><td>Malini (manager)</td><td>Open a product: tabs, variants, scheduled price, pharmacy tab</td></tr>
+<tr><td>A-22</td><td>Categories & brands</td><td><a href="prototype/index.html#categories">#categories</a></td><td>Malini (manager)</td><td>Drag to reorder: the register's category buttons follow</td></tr>
+<tr><td>A-23</td><td>Import wizard</td><td><a href="prototype/index.html#import">#import</a></td><td>Malini (manager)</td><td>Demo file: 6 new, 5 updates, 3 rows with errors</td></tr>
+<tr><td>A-24</td><td>Units</td><td><a href="prototype/index.html#units">#units</a></td><td>Malini (manager)</td><td>Change 1 box = 10 strips; receiving uses it</td></tr>
+<tr><td>A-30</td><td>Price lists</td><td><a href="prototype/index.html#pricelists">#pricelists</a></td><td>Malini (manager)</td><td>Wholesale rule, Galle branch overrides, below-cost check</td></tr>
+<tr><td>A-31</td><td>Bulk price change</td><td><a href="prototype/index.html#pricing">#pricing</a></td><td>Malini (manager)</td><td>Filter, % or fixed, rounding, preview, now or scheduled</td></tr>
+<tr><td>A-32</td><td>Discount limits</td><td><a href="prototype/index.html#discounts">#discounts</a></td><td>Malini (manager)</td><td>Limits per role drive the register's discount dialog</td></tr>
+<tr><td>A-40</td><td>Stock on hand</td><td><a href="prototype/index.html#stock">#stock</a></td><td>Kasun (stock keeper)</td><td>Batches per product, adjust with reason</td></tr>
+<tr><td>A-41</td><td>Batch detail & recall</td><td><a href="prototype/index.html#batch">#batch</a></td><td>Malini (manager)</td><td>Movements, buyers, block, recall with SMS</td></tr>
+<tr><td>A-42</td><td>Goods receipts</td><td><a href="prototype/index.html#grns">#grns</a></td><td>Malini (manager)</td><td>Drafts and posted receipts; post GRN-2292 after adding the invoice</td></tr>
+<tr><td>A-43</td><td>Stock adjustments</td><td><a href="prototype/index.html#adjustments">#adjustments</a></td><td>Malini (manager)</td><td>Loss by reason, new adjustment</td></tr>
+<tr><td>A-44</td><td>Stock counts</td><td><a href="prototype/index.html#counts">#counts</a></td><td>Kasun (stock keeper)</td><td>Cycle count, blind, review, manager PIN, post</td></tr>
+<tr><td>A-45</td><td>Expiry board</td><td><a href="prototype/index.html#expiry">#expiry</a></td><td>Kasun (stock keeper)</td><td>Expired / 30 / 60 / 90 days; write off, clearance, block</td></tr>
+<tr><td>A-48</td><td>Suppliers</td><td><a href="prototype/index.html#suppliers">#suppliers</a></td><td>Malini (manager)</td><td>Terms, purchases with overdue invoices, record payment</td></tr>
+<tr><td>A-50 / A-51</td><td>Sales history & sale detail</td><td><a href="prototype/index.html#sales">#sales</a></td><td>Malini (manager)</td><td>All branches; open a receipt for batches, payment, audit trail</td></tr>
+<tr><td>A-52</td><td>Returns</td><td><a href="prototype/index.html#returnslist">#returnslist</a></td><td>Malini (manager)</td><td>Refunds linked to their sales</td></tr>
+<tr><td>A-53</td><td>Sale exceptions queue</td><td><a href="prototype/index.html#exceptions">#exceptions</a></td><td>Malini (manager)</td><td>Resolve EX-1046: posting GRN-2291 fixes the negative stock</td></tr>
+<tr><td>A-55</td><td>Shifts & cash</td><td><a href="prototype/index.html#shifts">#shifts</a></td><td>Malini (manager)</td><td>Approve differences, ask for a recount, Z-report reprint</td></tr>
+<tr><td>A-60 / A-61</td><td>Customers & detail</td><td><a href="prototype/index.html#customers">#customers</a></td><td>Malini (manager)</td><td>Merge duplicates; Perera Stores: ledger, settlement, statement</td></tr>
+<tr><td>A-65</td><td>Tax documents</td><td><a href="prototype/index.html#tax">#tax</a></td><td>Malini (manager)</td><td>Tax invoices, credit and debit notes, invoice for an old receipt</td></tr>
+<tr><td>A-66</td><td>Tax rates & rules</td><td><a href="prototype/index.html#taxrates">#taxrates</a></td><td>Malini (manager)</td><td>VAT history, schedule a new rate, tax classes</td></tr>
+<tr><td>A-67</td><td>VAT report</td><td><a href="prototype/index.html#vat">#vat</a></td><td>Malini (manager)</td><td>Output VAT by rate and branch, lock a month</td></tr>
+<tr><td>A-70</td><td>Report centre</td><td><a href="prototype/index.html#reports">#reports</a></td><td>Malini (manager)</td><td>Six reports with chart, table and export</td></tr>
+<tr><td>A-80</td><td>Business profile</td><td><a href="prototype/index.html#business">#business</a></td><td>Dilan (owner)</td><td>Legal name and VAT number feed tax invoices</td></tr>
+<tr><td>A-81</td><td>Branches & registers</td><td><a href="prototype/index.html#branches">#branches</a></td><td>Dilan (owner)</td><td>Add a register: enrollment code and QR</td></tr>
+<tr><td>A-82</td><td>Users & roles</td><td><a href="prototype/index.html#staff">#staff</a></td><td>Malini (manager)</td><td>Reset PIN, turn off an account, permissions matrix</td></tr>
+<tr><td>A-83</td><td>Devices</td><td><a href="prototype/index.html#devices">#devices</a></td><td>Dilan (owner)</td><td>Needs-help filter, update, lock</td></tr>
+<tr><td>A-84</td><td>Receipts & templates</td><td><a href="prototype/index.html#receipts">#receipts</a></td><td>Dilan (owner)</td><td>Live receipt and tax invoice preview</td></tr>
+<tr><td>A-87</td><td>Audit log</td><td><a href="prototype/index.html#audit">#audit</a></td><td>Dilan (owner)</td><td>Everything above, hash-chained, with before/after</td></tr>
+<tr><td>A-90</td><td>My profile</td><td><a href="prototype/index.html#profile">#profile</a></td><td>Malini (manager)</td><td>Change PIN, sessions, two-step sign-in</td></tr>
+</tbody>
+</table>
+<h3 id="prototype-console">Platform console</h3>
+<table>
+<thead><tr><th>ID</th><th>Screen</th><th>Open</th><th>Signed in as</th><th>What to try</th></tr></thead>
+<tbody>
+<tr><td>P-01–P-05</td><td>DevCity console: tenants, tenant detail, fleet, register detail, support access</td><td><a href="prototype/index.html#console">#console</a></td><td>Nuwan (DevCity support)</td><td>Request access to City Pharmacy, approve it as Dilan in the shop, retry sale CMB01-R02-000147</td></tr>
+</tbody>
+</table>
+<h3 id="prototype-documents">Printed documents</h3>
+<table>
+<thead><tr><th>ID</th><th>Screen</th><th>Open</th><th>Signed in as</th><th>What to try</th></tr></thead>
+<tbody>
+<tr><td>D-01</td><td>Sales receipt</td><td><a href="prototype/index.html#sell">#sell</a></td><td>Sachini (cashier)</td><td>Preview on Sale complete; template in A-84</td></tr>
+<tr><td>D-02 / D-03</td><td>Tax invoice, credit note / return slip</td><td><a href="prototype/index.html#tax">#tax</a></td><td>Malini (manager)</td><td>Document preview; return slip after a refund in R-13</td></tr>
+<tr><td>D-04</td><td>Z-report</td><td><a href="prototype/index.html#cash">#cash</a></td><td>Sachini (cashier)</td><td>After closing a shift; reprint in A-55</td></tr>
+<tr><td>D-05</td><td>Customer statement</td><td><a href="prototype/index.html#customers">#customers</a></td><td>Malini (manager)</td><td>Perera Stores → Credit ledger → Print statement</td></tr>
+<tr><td>D-06</td><td>Goods received note</td><td><a href="prototype/index.html#grns">#grns</a></td><td>Malini (manager)</td><td>Select a receipt → Print</td></tr>
+</tbody>
+</table>
+<h3 id="prototype-journeys">Journeys that cross screens</h3>
+<ul>
+<li><b>Negative stock to fixed:</b> A-53 exception EX-1046 → resolve by posting draft GRN-2291 → A-42 shows it posted → A-40 shampoo stock rises → A-87 logs each step.</li>
+<li><b>New register:</b> A-81 Add register (enrollment code) → R-01 enter the code → A-81 and A-83 show it online.</li>
+<li><b>Support with consent:</b> P-02 request access → Dilan allows it in the shop bar → P-04 retry the stuck sale → R-14 and A-50 no longer show it as not synced → A-87 lists the support actions.</li>
+<li><b>Recall:</b> A-45 expiry board → A-41 batch detail → start a recall (SMS to consented buyers) → return the rest to the supplier.</li>
+<li><b>Credit customer:</b> sell on credit to Perera Stores (R-10) → A-61 ledger → record a settlement → D-05 statement.</li>
+<li><b>Limits:</b> change the cashier limit in A-32 → sign in as Sachini → a discount above it asks for a manager PIN (R-08).</li>
+</ul>
 
 <h2 id="build-order">Build order by phase</h2>
 <table>

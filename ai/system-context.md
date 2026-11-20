@@ -29,6 +29,7 @@ Register app (R-01..R-33): device setup, PIN sign-in, open shift, checkout (home
 Admin web (A-01..A-103): login/MFA, onboarding, dashboard, catalog, import wizard, pricing, stock, batches/recall, goods receipts, counts, expiry, sales, exceptions queue, shifts, customers/credit, tax documents, VAT report, report centre, settings, users/roles, devices, receipt templates, modules, audit log.
 Platform console (P-01..P-07) and printed documents (D-01..D-08: receipt, tax invoice, credit note, Z-report, statement, GRN, labels, PO).
 Shared `packages/ui` components; en/si/ta; touch + keyboard; WCAG 2.2 AA.
+Clickable prototype of every MVP screen: Doc/prototype/index.html (plain HTML/JS, no build; per-screen links and demo PINs in Doc/ui-screens.html#prototype). It is a behaviour and layout reference, not production code.
 
 ## Modules (backend)
 platform.tenancy, platform.iam, platform.audit, devices, catalog, pricing, inventory, purchasing, sales, payments, cash, customers, tax, sync, reporting, notifications, ext.pharmacy, ext.grocery.
