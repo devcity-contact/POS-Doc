@@ -85,6 +85,23 @@
   const DENOMS = [500000, 100000, 50000, 10000, 5000, 2000]; // Rs 5,000 … Rs 20 notes, in cents
   const NOTE_COLORS = { 500000: "#E8B54A", 100000: "#5BB98C", 50000: "#A08CFF", 10000: "#FF9F5B", 5000: "#5B8CFF", 2000: "#D9A0C8" };
   const MAX_PIN_TRIES = 5;
+  const REFUND_LIMIT = 200000;   // cashier refund limit Rs 2,000; above needs a manager (BR-06)
+  const RETURN_DAYS = 14;        // return window (BR-06)
+  const CS_THRESHOLD = 50000;    // shift difference above Rs 500 needs a reason (BR-08)
+  const daysAgo = (d, h = 10, m = 0) => { const x = new Date(); x.setDate(x.getDate() - d); x.setHours(h, m, 0, 0); return x; };
+  // Earlier sales on this branch, used by Returns (R-13). Lines keep the price/discount/batch snapshot (INV-10).
+  const SEED_SALES = [
+    { no: "CMB01-R02-000154", date: daysAgo(0, 9, 42), customer: 1, method: "cash", cashier: "Sachini K.", taxInvoice: "CMB01-R02-TI-000031",
+      lines: [{ pid: "pc", qty: 2, unit: 3200, batch: "B2", exp: "09/2027", disc: 0, returned: 0 }, { pid: "br", qty: 1, unit: 325000, disc: 0, returned: 0 },
+              { pid: "mp", qty: 2, unit: 115000, disc: 10, returned: 1 }, { pid: "sh", qty: 1, unit: 109000, disc: 0, returned: 0 }] },
+    { no: "CMB01-R02-000150", date: daysAgo(0, 8, 15), customer: 0, method: "card", cashier: "Sachini K.",
+      lines: [{ pid: "ct", qty: 1, unit: 76000, disc: 0, returned: 0 }, { pid: "bw", qty: 6, unit: 14000, disc: 0, returned: 0 }] },
+    { no: "CMB01-R02-000139", date: daysAgo(2, 17, 5), customer: 2, method: "qr", cashier: "Nimal P.",
+      lines: [{ pid: "am", qty: 1, unit: 45000, disc: 0, returned: 0 }, { pid: "tp", qty: 2, unit: 38000, disc: 0, returned: 0 }] },
+    { no: "CMB01-R01-000098", date: daysAgo(23, 11, 30), customer: 3, method: "cash", cashier: "Anushka D.",
+      lines: [{ pid: "eg", qty: 2, unit: 65000, disc: 0, returned: 0 }, { pid: "cc", qty: 1, unit: 52000, disc: 0, returned: 0 }] }
+  ];
+  const newShift = float => ({ float, start: Date.now(), cashSales: 0, cardSales: 0, qrSales: 0, creditSales: 0, refunds: 0, cashIn: 0, cashOut: 0, count: 0 });
   const DISCOUNT_LIMIT = 10; // cashier limit in %, BR-01
   const MANAGER_PIN = "1234";
   const byId = id => PRODUCTS.find(p => p.id === id);
@@ -114,10 +131,15 @@
     lang: "en", theme: store("retailos-proto-theme") || null, collapsed: false, tablet: false, touch: false, sheetOpen: false,
     loading: true, modal: null, pay: null, last: null, undo: null, protoOpen: false, countdown: 0,
     user: USERS[0],
-    shifts: { sk: { float: 500000, start: Date.now() - (3 * 60 + 12) * 60000 } }, // open cash session per cashier (BR-08)
-    su: { sel: 0, pin: "", err: false, tries: {}, locked: {} },                     // sign-in screen state
-    os: { counts: {}, coins: "" }                                                   // open-shift count
+    // Open cash session per cashier (BR-08). Sachini's shift already has a morning of trading.
+    shifts: { sk: { float: 500000, start: Date.now() - (3 * 60 + 12) * 60000, cashSales: 3124500, cardSales: 1856000, qrSales: 420000, creditSales: 950000, refunds: 45000, cashIn: 0, cashOut: 150000, count: 86 } },
+    su: { sel: 0, pin: "", err: false, tries: {}, locked: {} },   // sign-in screen state
+    os: { counts: {}, coins: "" },                                 // open-shift count
+    cs: { step: 1, counts: {}, coins: "", reason: "", note: "" },  // close-shift state
+    history: null,                                                 // sales on this branch (filled below)
+    ret: { query: "", sale: null, qty: {}, reason: "", pin: "", error: "", done: null }, retSeq: 12
   };
+  S.history = SEED_SALES.map(s => ({ ...s, customer: CUSTOMERS[s.customer], lines: s.lines.map(l => ({ ...l })) }));
 
   // ---------- Money ----------
   const lineGross = l => Math.round(l.qty * l.unit);
@@ -224,6 +246,10 @@
     const tt = totals();
     S.last = { no: `CMB01-R02-${String(S.seq).padStart(6, "0")}`, cart: S.cart, t: tt, method: S.pay.method, paid: S.pay.method === "cash" ? payAmount() : tt.net, customer: S.customer, time: new Date() };
     S.seq++; if (S.offline) S.waiting++;
+    S.history.unshift({ no: S.last.no, date: S.last.time, customer: S.customer, method: S.pay.method, cashier: S.user.short + " " + S.user.name.split(" ")[1][0] + ".",
+      taxInvoice: S.pay.taxInvoice ? S.last.no.replace(/-(\d+)$/, "-TI-$1") : null, lines: S.cart.map(l => ({ pid: l.pid, qty: l.qty, unit: l.unit, batch: l.batch, exp: l.exp, disc: l.disc, returned: 0 })) });
+    const sh = S.shifts[S.user.id];
+    if (sh) { sh.count++; const key = { cash: "cashSales", card: "cardSales", qr: "qrSales", credit: "creditSales" }[S.pay.method]; if (key) sh[key] += tt.net; }
     S.modal = null; S.view = "complete"; S.countdown = 8; renderModal(); render();
   }
   function applyDiscount(pct, approver) {
@@ -462,18 +488,24 @@
     if (S.su.tries[u.id] >= MAX_PIN_TRIES) { S.su.locked[u.id] = Date.now() + 5 * 60000; S.su.tries[u.id] = 0; S.su.err = false; }
     render();
   }
-  function signOut() { S.view = "signin"; S.su.sel = Math.max(0, USERS.indexOf(S.user)); S.su.pin = ""; S.su.err = false; S.modal = null; renderModal(); render(); }
+  function signOut() { if (S.cs.step === 3) resetCs(); S.view = "signin"; S.su.sel = Math.max(0, USERS.indexOf(S.user)); S.su.pin = ""; S.su.err = false; S.modal = null; renderModal(); render(); }
 
-  const floatTotal = () => DENOMS.reduce((a, d) => a + d * (S.os.counts[d] || 0), 0) + Math.round((parseFloat(S.os.coins) || 0) * 100);
+  const countTotal = st => DENOMS.reduce((a, d) => a + d * (st.counts[d] || 0), 0) + Math.round((parseFloat(st.coins) || 0) * 100);
+  const floatTotal = () => countTotal(S.os);
+  // Shared cash counter used by Open shift (scope "os") and Close shift (scope "cs")
+  function denomRows(st, scope) {
+    const coins = Math.round((parseFloat(st.coins) || 0) * 100);
+    return DENOMS.map(d => { const n = st.counts[d] || 0; return `<div class="den-row"><span class="note-chip"><i style="background:${NOTE_COLORS[d]}"></i><b>Rs ${(d / 100).toLocaleString("en-US")}</b></span>
+      <div class="stepper"><button data-act="den-dec" data-scope="${scope}" data-d="${d}" aria-label="One less Rs ${d / 100} note">${ic("minus", 16)}</button><input inputmode="numeric" data-den="${d}" data-scope="${scope}" data-fid="${scope}-den-${d}" value="${n}" aria-label="Number of Rs ${d / 100} notes"><button data-act="den-inc" data-scope="${scope}" data-d="${d}" aria-label="One more Rs ${d / 100} note">${ic("plus", 16)}</button></div>
+      <span class="amt ${n ? "on" : ""}">${fmt(d * n)}</span></div>`; }).join("") +
+      `<div class="den-row"><span class="note-chip"><i style="background:var(--text-3);border-radius:50%;width:18px"></i><b>Coins</b></span><label class="voucher" style="max-width:200px">Rs<input data-coins data-scope="${scope}" data-fid="${scope}-coins" inputmode="decimal" value="${esc(st.coins)}" placeholder="0.00" aria-label="Total value of coins"></label><span class="amt ${coins ? "on" : ""}">${fmt(coins)}</span></div>`;
+  }
   function openShiftView() {
-    const total = floatTotal(); const usual = 500000; const coins = Math.round((parseFloat(S.os.coins) || 0) * 100);
+    const total = floatTotal(); const usual = 500000;
     const diff = total - usual;
     return `<div class="shift">
       <section class="card" aria-labelledby="cf"><div class="card-head"><h2 id="cf">${esc(t("countFloat"))}</h2><span class="legend">Notes and coins placed in the drawer</span></div>
-        ${DENOMS.map(d => { const n = S.os.counts[d] || 0; return `<div class="den-row"><span class="note-chip"><i style="background:${NOTE_COLORS[d]}"></i><b>Rs ${(d / 100).toLocaleString("en-US")}</b></span>
-          <div class="stepper"><button data-act="os-dec" data-d="${d}" aria-label="One less Rs ${d / 100} note">${ic("minus", 16)}</button><input inputmode="numeric" data-den="${d}" data-fid="den-${d}" value="${n}" aria-label="Number of Rs ${d / 100} notes"><button data-act="os-inc" data-d="${d}" aria-label="One more Rs ${d / 100} note">${ic("plus", 16)}</button></div>
-          <span class="amt ${n ? "on" : ""}">${fmt(d * n)}</span></div>`; }).join("")}
-        <div class="den-row"><span class="note-chip"><i style="background:var(--text-3);border-radius:50%;width:18px"></i><b>Coins</b></span><label class="voucher" style="max-width:200px">Rs<input data-coins data-fid="coins" inputmode="decimal" value="${esc(S.os.coins)}" placeholder="0.00" aria-label="Total value of coins"></label><span class="amt ${coins ? "on" : ""}">${fmt(coins)}</span></div>
+        ${denomRows(S.os, "os")}
       </section>
       <aside class="card shift-sum" aria-label="Shift summary">
         <span class="sub">${esc(t("openingFloat"))}</span>
@@ -488,10 +520,203 @@
   }
   function openShiftNow() {
     const total = floatTotal(); if (total <= 0) { toast("Count the opening float first", { error: true }); return; }
-    S.shifts[S.user.id] = { float: total, start: Date.now() };
+    S.shifts[S.user.id] = newShift(total);
     S.os = { counts: {}, coins: "" };
     S.view = "sell"; S.cart = []; S.sel = 0; S.customer = CUSTOMERS[0];
     render(); toast(`Shift opened with ${fmt(total)} · CMB01 · R02`); focusSearch();
+  }
+
+  // ---------- Returns (R-13) ----------
+  const unitNet = l => Math.round(l.unit * (100 - l.disc) / 100);
+  const saleTotal = s => s.lines.reduce((a, l) => a + Math.round(l.qty * l.unit * (100 - l.disc) / 100), 0);
+  const ageDays = s => Math.floor((Date.now() - s.date.getTime()) / 86400000);
+  const fmtDate = d => d.toLocaleDateString("en-GB", { day: "numeric", month: "short" }) + ", " + d.toTimeString().slice(0, 5);
+  const METHOD = { cash: ["Cash", "cash"], card: ["Card", "card"], qr: ["LankaQR", "qr"], credit: ["Credit", "wallet"] };
+  const remaining = l => Math.round((l.qty - l.returned) * 1000) / 1000;
+  function findSale(q) {
+    const c = q.trim().toUpperCase().replace(/\s+/g, "");
+    if (!c) return null;
+    return S.history.find(s => s.no === c) || (c.length >= 3 ? S.history.find(s => s.no.endsWith(c.padStart(6, "0")) || s.no.endsWith(c)) : null);
+  }
+  function retTotals() {
+    const s = S.ret.sale; let items = 0, amount = 0;
+    if (s) s.lines.forEach((l, i) => { const q = S.ret.qty[i] || 0; if (q) { items += byId(l.pid).weighed ? 1 : q; amount += Math.round(unitNet(l) * q); } });
+    return { items, amount };
+  }
+  const needManager = () => { const s = S.ret.sale; return !!s && S.user.role !== "Manager" && (retTotals().amount > REFUND_LIMIT || ageDays(s) > RETURN_DAYS); };
+  function loadSale(q) {
+    const s = findSale(q);
+    if (!s) { S.ret.error = `No sale found for “${q}”. Check the number on the receipt, or scan its barcode.`; render(); return; }
+    S.ret = { query: "", sale: s, qty: {}, reason: "", pin: "", error: "", done: null };
+    render();
+    // Move focus off the receipt field so number keys go to quantities / manager PIN
+    setTimeout(() => { const b = app.querySelector('[data-act="ret-inc"], [data-act="ret-toggle"]'); if (b) b.focus(); else if (document.activeElement) document.activeElement.blur(); });
+  }
+  function returnsView() {
+    const r = S.ret, s = r.sale;
+    if (r.done) return returnDoneView();
+    const recent = S.history.slice(0, 6);
+    const left = `<section class="products" aria-label="Find the original sale">
+      <div class="search-row"><label class="search ${r.error ? "error" : ""}">${ic("receipt")}<span class="sr">Receipt number</span><input id="rsearch" data-fid="rsearch" autocomplete="off" placeholder="Scan the receipt barcode or type the receipt number (e.g. 154)" value="${esc(r.query)}">${ic("scan", 20, "scan")}<kbd>Enter</kbd></label></div>
+      ${r.error ? `<div class="scan-error" role="alert">${ic("alert", 18)}${esc(r.error)}</div>` : ""}
+      ${s ? saleDetail(s) : `<div class="card"><div class="card-head"><h2>Recent receipts</h2><span class="legend">This branch · newest first</span></div><div class="opt-list">${recent.map(x => `<button class="opt" data-act="ret-load" data-no="${x.no}"><span class="thumb tile-blue" style="width:40px;height:40px">${ic("receipt", 20)}</span><span class="grow"><b>${x.no}</b><small>${fmtDate(x.date)} · ${esc(x.customer.name)} · ${x.lines.length} items · ${METHOD[x.method][0]}</small></span>${ageDays(x) > RETURN_DAYS ? badge("warning", `${ageDays(x)} days old`, "clock") : ""}${x.lines.some(l => l.returned) ? badge("", "Part returned", "undo") : ""}<b>${fmt(saleTotal(x))}</b></button>`).join("")}</div></div>
+        <div class="note">${ic("help", 16)}No receipt? A manager can approve a return by scanning the product instead (not in this prototype).</div>`}
+    </section>`;
+    const right = s ? returnPanel(s) : `<aside class="order"><div class="empty" style="flex:1"><span class="circle">${ic("undo", 28)}</span><h3>Find the original sale</h3><span>Returns are always linked to the original receipt. The refund uses the price the customer paid, and the stock goes back to the same batch.</span></div></aside>`;
+    return `<div class="body">${left}${right}</div>`;
+  }
+  function saleDetail(s) {
+    const old = ageDays(s) > RETURN_DAYS;
+    return `<div class="card">
+      <div class="card-head"><h2>${s.no}</h2>${s.taxInvoice ? badge("info", "Tax invoice " + s.taxInvoice.split("-").pop(), "receipt") : ""}<button class="btn ghost s" data-act="ret-clear">${ic("x", 16)}Change receipt</button></div>
+      <dl class="kv sale-meta"><dt>Date</dt><dt>Customer</dt><dt>Paid by</dt><dt>Cashier</dt><dd>${fmtDate(s.date)}</dd><dd>${esc(s.customer.name)}</dd><dd>${METHOD[s.method][0]}</dd><dd>${esc(s.cashier)}</dd></dl>
+      ${old ? `<div class="banner">${ic("clock")}This sale is ${ageDays(s)} days old. The return window is ${RETURN_DAYS} days, so a manager PIN is needed.</div>` : ""}
+      <div class="rtable" role="table" aria-label="Items on the receipt">
+        <div class="rrow head" role="row"><span>Item</span><span class="c">Sold</span><span class="c">Returned</span><span class="c">Return now</span><span class="r">Refund</span></div>
+        ${s.lines.map((l, i) => { const p = byId(l.pid), left = remaining(l), q = S.ret.qty[i] || 0, w = p.weighed;
+          return `<div class="rrow ${q ? "on" : ""}" role="row"><span class="item"><span class="thumb tile-${p.tone}">${ic(p.icon, 20)}</span><span style="min-width:0"><b>${esc(p.name)}</b><small>${l.batch ? `Batch ${l.batch} · exp ${l.exp} · ` : ""}${fmt(unitNet(l))}${w ? " per line" : " each"}${l.disc ? ` (−${l.disc}%)` : ""}</small></span></span>
+            <span class="c">${w ? l.qty.toFixed(3) : l.qty}</span><span class="c ${l.returned ? "" : "muted"}">${l.returned ? (w ? l.returned.toFixed(3) : l.returned) : "—"}</span>
+            <span class="c">${left <= 0 ? `<span class="badge">All returned</span>` : w
+              ? `<button class="chip" data-act="ret-toggle" data-i="${i}" aria-pressed="${q > 0}">${q ? "Returning" : "Return all"}</button>`
+              : `<div class="stepper"><button data-act="ret-dec" data-i="${i}" aria-label="Return one less">${ic("minus", 16)}</button><span>${q}</span><button data-act="ret-inc" data-i="${i}" aria-label="Return one more" ${q >= left ? "disabled" : ""}>${ic("plus", 16)}</button></div>`}</span>
+            <span class="r">${q ? fmt(Math.round(unitNet(l) * q)) : "—"}</span></div>`; }).join("")}
+      </div>
+      <div style="display:flex;gap:8px"><button class="btn secondary s" data-act="ret-all">${ic("undo", 16)}Return everything left</button>${Object.values(S.ret.qty).some(Boolean) ? `<button class="btn ghost s" data-act="ret-none">Clear</button>` : ""}</div>
+    </div>`;
+  }
+  function returnPanel(s) {
+    const r = S.ret, tt = retTotals(), mgr = needManager(), m = METHOD[s.method];
+    const ready = tt.items > 0 && r.reason && (!mgr || r.pin.length === 4);
+    return `<aside class="order" aria-label="Refund">
+      <div class="order-head"><div class="order-title"><div style="flex:1"><h2>Refund</h2><div class="sub">Return against ${s.no}</div></div>
+        <div class="seg" role="group" aria-label="Sale or return"><button data-act="mode" data-mode="sale" aria-pressed="false">${esc(t("sale"))}</button><button aria-pressed="true">${esc(t("ret"))}</button></div></div></div>
+      <div class="panel-body">
+        <div class="field">Reason<div class="chips wrap">${["Damaged", "Expired", "Wrong item", "Changed mind", "Other"].map(x => `<button class="chip" data-act="ret-reason" data-v="${x}" aria-pressed="${r.reason === x}">${x}</button>`).join("")}</div></div>
+        <div class="field">Refund method<div class="opt-list">
+          <button class="opt" aria-selected="true">${ic(m[1])}<span class="grow"><b>Original payment · ${m[0]}</b><small>${s.method === "cash" ? "Pay back from the cash drawer" : s.method === "credit" ? "Reduce the customer's credit balance" : "Refund to the same card / account on the terminal"}</small></span></button>
+          <button class="opt" disabled>${ic("gift")}<span class="grow"><b>Store credit</b><small>Coming in release 3</small></span></button></div></div>
+        ${tt.items && mgr ? `<div class="mgr"><div class="head">${ic("lock", 18)}Manager approval needed · ${ageDays(s) > RETURN_DAYS ? "outside the return window" : "refund above " + fmt(REFUND_LIMIT)}</div>
+          <div class="pin-dots">${[0, 1, 2, 3].map(i => `<i class="${r.pin.length > i ? "on" : ""}"></i>`).join("")}</div>
+          <div class="keypad">${["1", "2", "3", "4", "5", "6", "7", "8", "9", "C", "0", "⌫"].map(k => `<button data-act="ret-pin" data-k="${k}" aria-label="${k === "⌫" ? "Backspace" : k === "C" ? "Clear" : k}">${k === "⌫" ? ic("backspace", 22) : k}</button>`).join("")}</div>
+          ${r.pinError ? `<div class="scan-error" role="alert">${ic("alert", 16)}Wrong manager PIN</div>` : `<div class="note">Demo manager PIN: 1234 (Malini)</div>`}</div>` : ""}
+        <div class="note">${ic("package", 16)}Items go back to their original batch${s.taxInvoice ? ` · a credit note is issued against ${s.taxInvoice}` : ""}</div>
+      </div>
+      <div class="summary-wrap"><div class="summary"><div class="r"><span>Items returned</span><b>${tt.items}</b></div><div class="r"><span>Refund to</span><b>${m[0]}</b></div><hr><div class="total"><span>Refund</span><span>${fmt(tt.amount)}</span></div></div></div>
+      <div class="order-foot"><button class="btn primary l block" data-act="ret-approve" ${ready ? "" : "disabled"}>${ic("check")}${mgr ? "Approve & refund" : "Refund"} ${fmt(tt.amount)} <kbd>Enter</kbd></button>
+        ${tt.items && !r.reason ? `<div class="note" style="justify-content:center">Choose a reason to continue</div>` : !tt.items ? `<div class="note" style="justify-content:center">Choose what the customer is returning</div>` : ""}</div>
+    </aside>`;
+  }
+  function approveReturn() {
+    const r = S.ret, s = r.sale; if (!s) return;
+    const tt = retTotals(), mgr = needManager();
+    if (!tt.items) { toast("Choose what the customer is returning", { error: true }); return; }
+    if (!r.reason) { toast("Choose a reason", { error: true }); return; }
+    if (mgr && r.pin !== MANAGER_PIN) { r.pin = ""; r.pinError = true; render(); return; }
+    const lines = [];
+    s.lines.forEach((l, i) => { const q = r.qty[i] || 0; if (q) { l.returned = Math.round((l.returned + q) * 1000) / 1000; lines.push({ ...l, q }); } });
+    const sh = S.shifts[S.user.id]; if (sh && s.method === "cash") sh.refunds += tt.amount;
+    S.retSeq++;
+    r.done = { no: `CMB01-R02-RT-${String(S.retSeq).padStart(6, "0")}`, creditNote: s.taxInvoice ? `CMB01-R02-CN-${String(S.retSeq).padStart(6, "0")}` : null, amount: tt.amount, items: tt.items, sale: s, lines, reason: r.reason, approver: mgr ? "Malini J. (Manager)" : null, time: new Date() };
+    if (S.offline) S.waiting++;
+    render(); toast(`Refund ${fmt(tt.amount)} recorded`);
+  }
+  function returnSlip(d) {
+    const W = 40, L2 = (l, r) => l + r.padStart(Math.max(1, W - l.length)), C = x => " ".repeat(Math.max(0, Math.floor((W - x.length) / 2))) + x, D = "-".repeat(W);
+    const n = c => (c / 100).toLocaleString("en-US", { minimumFractionDigits: 2 });
+    const out = [C("CITY PHARMACY & MART"), C(d.creditNote ? "CREDIT NOTE / RETURN" : "RETURN SLIP"), D, "Return:   " + d.no, ...(d.creditNote ? ["Credit note: " + d.creditNote, "For invoice: " + d.sale.taxInvoice] : []), "Original: " + d.sale.no, "Date: " + d.time.toLocaleDateString("en-GB") + " " + d.time.toTimeString().slice(0, 5), "Reason: " + d.reason, D];
+    for (const l of d.lines) { const p = byId(l.pid); out.push(p.name + (l.batch ? "  " + l.batch : "")); out.push(L2(byId(l.pid).weighed ? `  ${l.q.toFixed(3)} kg` : `  ${l.q} x ${n(unitNet(l))}`, "-" + n(Math.round(unitNet(l) * l.q)))); }
+    out.push(D, L2("REFUND", "Rs " + n(d.amount)), L2("Paid back by", METHOD[d.sale.method][0]), L2("  incl. VAT 18%", n(Math.round(d.amount * 18 / 118))));
+    if (d.approver) out.push("Approved by: " + d.approver);
+    out.push(D, "Customer signature:", "", "______________________________", "", C("Thank you"));
+    return out.join("\n");
+  }
+  function returnDoneView() {
+    const d = S.ret.done, cash = d.sale.method === "cash";
+    return `<div class="body"><section class="complete" aria-live="polite">
+      <div class="success-mark"><div>${ic("undo", 40)}</div></div>
+      <h1>Refund complete</h1><div class="sub">${d.no} · ${d.items} item${d.items === 1 ? "" : "s"} · ${esc(d.reason)}${d.approver ? " · approved by " + esc(d.approver) : ""}</div>
+      <div class="change-card"><span>${cash ? "Give back in cash" : "Refunded to " + METHOD[d.sale.method][0]}</span><b>${fmt(d.amount)}</b></div>
+      ${d.creditNote ? badge("info", "Credit note " + d.creditNote + " issued", "receipt") : ""}
+      <div class="actions"><button class="btn primary l" data-act="ret-new">New return <kbd>Enter</kbd></button><button class="btn secondary l" data-act="nav" data-view="sell">${ic("cart")}Back to Sell</button><button class="btn ghost l" data-act="reprint">${ic("printer")}Reprint slip</button></div>
+      <div>${S.offline ? badge("warning", "Saved offline · will sync automatically", "wifiOff") : badge("success", "Synced " + new Date().toTimeString().slice(0, 5), "cloudCheck")}</div>
+    </section><aside class="receipt-panel" aria-label="Return slip preview"><div class="head"><span>Return slip</span>${badge("", "80 mm", null)}</div><div class="paper">${esc(returnSlip(d))}</div></aside></div>`;
+  }
+  function goReturns() { S.view = "returns"; S.modal = null; renderModal(); render(); setTimeout(() => { const x = document.getElementById("rsearch"); if (x && !S.ret.sale) x.focus(); }); }
+
+  // ---------- Close shift (R-16) ----------
+  const expectedCash = sh => sh.float + sh.cashSales - sh.refunds + sh.cashIn - sh.cashOut;
+  function stepbar(step) {
+    return `<div class="stepbar" aria-label="Steps">${["Count cash", "Review", "Z-report"].map((x, i) => `<span class="${i + 1 === step ? "on" : i + 1 < step ? "done" : ""}"><i>${i + 1 < step ? "✓" : i + 1}</i>${x}</span>`).join("")}</div>`;
+  }
+  function closeShiftView() {
+    const cs = S.cs;
+    if (cs.step === 3 && cs.z) return zView();
+    const sh = S.shifts[S.user.id];
+    if (!sh) return `<div class="placeholder"><div class="empty"><span class="circle">${ic("wallet", 28)}</span><h3>No open shift for ${esc(S.user.short)}</h3><span>Open a shift to start selling.</span><button class="btn primary s" data-act="nav" data-view="openshift">${esc(t("openShift"))}</button></div></div>`;
+    const counted = countTotal(cs), exp = expectedCash(sh), diff = counted - exp;
+    const blockers = [];
+    if (S.cart.length) blockers.push(`<div class="banner">${ic("cart")}There is an unfinished sale with ${S.cart.length} item${S.cart.length === 1 ? "" : "s"}. Finish it or hold it before closing.<button class="btn secondary" data-act="nav" data-view="sell">Go to Sell</button><button class="btn secondary" data-act="hold">Hold it (F6)</button></div>`);
+    if (S.held.length) blockers.push(`<div class="banner">${ic("clock")}${S.held.length} held bill${S.held.length === 1 ? "" : "s"} on this register. Resume or discard ${S.held.length === 1 ? "it" : "them"} first.<button class="btn secondary" data-act="open-held">Held bills (F7)</button></div>`);
+    const head = `<div class="blockers">${stepbar(cs.step)}${blockers.join("")}</div>`;
+    if (cs.step === 1) {
+      return `<div class="shift">${head}
+        <section class="card" aria-labelledby="cc"><div class="card-head"><h2 id="cc">Count the cash in the drawer</h2><span class="legend">Blind count: the expected amount is hidden until you confirm</span></div>${denomRows(cs, "cs")}
+          <div class="note">${ic("card", 16)}Card and LankaQR totals come from the terminal settlement, so only cash is counted here.</div></section>
+        <aside class="card shift-sum"><span class="sub">Counted cash</span><div class="float ${counted ? "" : "zero"}">${fmt(counted)}</div>
+          <div class="blind">${ic("lock", 22)}Expected amount and difference appear after you confirm the count.</div>
+          <dl class="kv"><dt>Cashier</dt><dd>${esc(S.user.name)}</dd><dt>Shift started</dt><dd>${new Date(sh.start).toTimeString().slice(0, 5)} · ${shiftLabel().replace("Shift ", "")}</dd><dt>Sales</dt><dd>${sh.count}</dd></dl>
+          <button class="btn primary l block" data-act="cs-confirm" ${counted > 0 && !blockers.length ? "" : "disabled"}>Confirm count ${ic("arrowRight")}<kbd>Enter</kbd></button>
+          <button class="btn ghost block" data-act="nav" data-view="sell">Cancel · back to Sell</button></aside></div>`;
+    }
+    const big = Math.abs(diff) > CS_THRESHOLD;
+    const cls = diff === 0 ? "zero" : diff < 0 ? "short" : "over";
+    return `<div class="shift">${head}
+      <section style="display:flex;flex-direction:column;gap:20px;min-width:0">
+        <div class="card"><h2>Cash in the drawer</h2><div class="ledger">
+          <div><span>Opening float</span><b>${fmt(sh.float)}</b></div><div><span>Cash sales</span><b>${fmt(sh.cashSales)}</b></div>
+          <div class="neg"><span>Cash refunds</span><b>−${fmt(sh.refunds)}</b></div><div><span>Cash in</span><b>${fmt(sh.cashIn)}</b></div>
+          <div class="neg"><span>Cash out (petty cash, safe drops)</span><b>−${fmt(sh.cashOut)}</b></div>
+          <div class="sum"><span>Expected cash</span><b>${fmt(exp)}</b></div><div class="sum"><span>Counted cash</span><b>${fmt(counted)}</b></div></div></div>
+        <div class="card"><h2>All payments this shift</h2><div class="ledger">
+          <div><span>Cash</span><b>${fmt(sh.cashSales)}</b></div><div><span>Card</span><b>${fmt(sh.cardSales)}</b></div><div><span>LankaQR</span><b>${fmt(sh.qrSales)}</b></div><div><span>Customer credit</span><b>${fmt(sh.creditSales)}</b></div>
+          <div class="sum"><span>Total sales · ${sh.count} transactions</span><b>${fmt(sh.cashSales + sh.cardSales + sh.qrSales + sh.creditSales)}</b></div></div></div>
+      </section>
+      <aside class="card shift-sum"><span class="sub">Difference</span><div class="diff ${cls}">${diff === 0 ? "Exact" : (diff < 0 ? "−" : "+") + fmt(Math.abs(diff))}</div>
+        <div class="sub">${diff === 0 ? "The drawer matches the expected cash." : diff < 0 ? "The drawer is short." : "The drawer has more cash than expected."}</div>
+        ${big ? `<div class="banner ${diff < 0 ? "error" : ""}">${ic("alert")}Over ${fmt(CS_THRESHOLD)}. Give a reason; the manager reviews this shift.</div>
+          <div class="field">Reason<div class="chips wrap">${["Counting error", "Wrong change given", "Petty cash not recorded", "Other"].map(x => `<button class="chip" data-act="cs-reason" data-v="${x}" aria-pressed="${cs.reason === x}">${x}</button>`).join("")}</div></div>
+          <label class="field">Note (optional)<textarea id="csnote" data-fid="csnote" placeholder="What happened?">${esc(cs.note)}</textarea></label>` : ""}
+        <button class="btn primary l block" data-act="cs-close" ${big && !cs.reason ? "disabled" : ""}>${ic("printer")}Close shift &amp; print Z-report <kbd>Enter</kbd></button>
+        <button class="btn secondary block" data-act="cs-back">Recount</button></aside></div>`;
+  }
+  function closeShiftNow() {
+    const sh = S.shifts[S.user.id], cs = S.cs; if (!sh) return;
+    const counted = countTotal(cs), exp = expectedCash(sh), diff = counted - exp;
+    if (Math.abs(diff) > CS_THRESHOLD && !cs.reason) { toast("Choose a reason for the difference", { error: true }); return; }
+    cs.z = { sh: { ...sh }, counted, exp, diff, reason: cs.reason, note: cs.note, user: S.user, closed: new Date(), no: "Z-CMB01-R02-" + String(318 + Object.keys(S.shifts).length).padStart(4, "0") };
+    delete S.shifts[S.user.id];
+    cs.step = 3; render(); toast(`Shift closed · Z-report printed${Math.abs(diff) > CS_THRESHOLD ? " · sent for manager review" : ""}`);
+  }
+  function zText(z) {
+    const W = 40, L2 = (l, r) => l + r.padStart(Math.max(1, W - l.length)), C = x => " ".repeat(Math.max(0, Math.floor((W - x.length) / 2))) + x, D = "-".repeat(W);
+    const n = c => (c < 0 ? "-" : "") + (Math.abs(c) / 100).toLocaleString("en-US", { minimumFractionDigits: 2 });
+    const sh = z.sh, total = sh.cashSales + sh.cardSales + sh.qrSales + sh.creditSales;
+    return [C("CITY PHARMACY & MART"), C("Z-REPORT · SHIFT CLOSE"), D, "Report:   " + z.no, "Register: CMB01 · R02", "Cashier:  " + z.user.name,
+      "Opened:   " + new Date(sh.start).toLocaleString("en-GB", { dateStyle: "short", timeStyle: "short" }), "Closed:   " + z.closed.toLocaleString("en-GB", { dateStyle: "short", timeStyle: "short" }), D,
+      L2("Transactions", String(sh.count)), L2("Cash sales", n(sh.cashSales)), L2("Card", n(sh.cardSales)), L2("LankaQR", n(sh.qrSales)), L2("Customer credit", n(sh.creditSales)), L2("TOTAL SALES", "Rs " + n(total)),
+      L2("  incl. VAT 18%", n(Math.round(total * 18 / 118))), D, L2("Opening float", n(sh.float)), L2("Cash refunds", n(-sh.refunds)), L2("Cash in", n(sh.cashIn)), L2("Cash out", n(-sh.cashOut)),
+      L2("EXPECTED CASH", n(z.exp)), L2("COUNTED CASH", n(z.counted)), L2("DIFFERENCE", (z.diff > 0 ? "+" : "") + n(z.diff)), ...(z.reason ? ["Reason: " + z.reason] : []), D, "Cashier signature:", "", "______________________________", "", C("End of report")].join("\n");
+  }
+  function zView() {
+    const z = S.cs.z, cls = z.diff === 0 ? "zero" : z.diff < 0 ? "short" : "over";
+    return `<div class="body"><section class="complete">
+      ${stepbar(4)}
+      <div class="success-mark"><div>${ic("check", 44)}</div></div>
+      <h1>Shift closed</h1><div class="sub">${z.no} · ${esc(z.user.name)} · ${z.sh.count} sales</div>
+      <div class="change-card"><span>Difference</span><b class="diff ${cls}" style="font-size:40px">${z.diff === 0 ? "Exact" : (z.diff < 0 ? "−" : "+") + fmt(Math.abs(z.diff))}</b></div>
+      ${Math.abs(z.diff) > CS_THRESHOLD ? badge("warning", "Sent to the manager for review", "alert") : badge("success", "No review needed", "check")}
+      <div class="actions"><button class="btn primary l" data-act="logout">${ic("logout")}${esc(t("signOut"))} <kbd>Enter</kbd></button><button class="btn secondary l" data-act="reprint">${ic("printer")}Print again</button></div>
+    </section><aside class="receipt-panel" aria-label="Z-report preview"><div class="head"><span>Z-report</span>${badge("", "80 mm", null)}</div><div class="paper">${esc(zText(z))}</div></aside></div>`;
   }
 
   // ---------- Render: main ----------
@@ -511,6 +736,8 @@
     let main;
     if (S.view === "sell") main = topbar(t("sell"), null, `<span class="badge hide-t">${ic("store", 14)}CMB01 · Register 2</span>`) + `<div class="body">${productArea()}${orderPanel()}</div>${sheet ? `<button class="fab" data-act="camera" title="Scan with camera">${ic("camera", 24)}</button>` : ""}`;
     else if (S.view === "complete") main = topbar("Sale complete", null) + completeView();
+    else if (S.view === "returns") main = topbar(t("returns"), S.ret.done ? "Refund recorded" : S.ret.sale ? "Choose the items the customer is bringing back" : "Find the original sale") + returnsView();
+    else if (S.view === "cash") main = topbar("Close shift", `${S.user.name} · CMB01 · Register 2`) + closeShiftView();
     else if (S.view === "openshift") main = topbar(t("openShift"), `${greeting()}, ${S.user.short} · count the cash before you start selling`) + openShiftView();
     else if (S.view === "dashboard") main = topbar(t("overview"), "Thursday, 19 Nov 2026", `<span class="badge hide-t">${ic("store", 14)}All branches</span>`) + dashboard();
     else main = topbar(t(S.view) || "Settings", null) + `<div class="placeholder"><div class="empty"><span class="circle">${ic("package", 28)}</span><h3>${esc(t(S.view))} is not part of this prototype</h3><span>The prototype covers Sell, payment, sale complete and the Overview dashboard.</span><button class="btn primary s" data-act="nav" data-view="sell">Go to Sell</button></div></div>`;
@@ -608,13 +835,31 @@
     const a = el.dataset.act, i = el.dataset.i != null ? parseInt(el.dataset.i, 10) : null;
     if (a === "overlay" && e.target !== el) return; // clicks inside the modal
     switch (a) {
-      case "nav": { const v = el.dataset.view; S.view = v === "sell" && !S.shifts[S.user.id] ? "openshift" : v; S.modal = null; renderModal(); render(); break; }
+      case "nav": { const v = el.dataset.view;
+        if (v === "cash" && S.cs.step === 3) resetCs();
+        if (v === "returns" && S.ret.done) S.ret = emptyRet();
+        S.view = v === "sell" && !S.shifts[S.user.id] ? "openshift" : v; S.modal = null; renderModal(); render();
+        if (v === "returns" && !S.ret.sale) focusId("rsearch"); break; }
+      case "ret-load": loadSale(el.dataset.no); break;
+      case "ret-clear": case "ret-new": S.ret = emptyRet(); render(); focusId("rsearch"); break;
+      case "ret-inc": case "ret-dec": { const l = S.ret.sale.lines[i], cur = S.ret.qty[i] || 0; S.ret.qty[i] = Math.max(0, Math.min(remaining(l), cur + (a === "ret-inc" ? 1 : -1))); render(); break; }
+      case "ret-toggle": { const l = S.ret.sale.lines[i]; S.ret.qty[i] = S.ret.qty[i] ? 0 : remaining(l); render(); break; }
+      case "ret-all": S.ret.sale.lines.forEach((l, j) => { S.ret.qty[j] = Math.max(0, remaining(l)); }); render(); break;
+      case "ret-none": S.ret.qty = {}; render(); break;
+      case "ret-reason": S.ret.reason = el.dataset.v; render(); break;
+      case "ret-pin": retPin(el.dataset.k); break;
+      case "ret-approve": approveReturn(); break;
+      case "cs-confirm": if (countTotal(S.cs) > 0) { S.cs.step = 2; render(); } break;
+      case "cs-back": S.cs.step = 1; render(); break;
+      case "cs-reason": S.cs.reason = el.dataset.v; render(); break;
+      case "cs-close": closeShiftNow(); break;
+      case "open-held": openModal({ type: "held" }); break;
       case "collapse": S.collapsed = !S.collapsed; render(); break;
       case "logout": signOut(); break;
       case "su-pick": S.su.sel = i; S.su.pin = ""; S.su.err = false; render(); break;
       case "su-key": suKey(el.dataset.k); break;
       case "su-submit": suSubmit(); break;
-      case "os-inc": case "os-dec": { const d = el.dataset.d; S.os.counts[d] = Math.max(0, (S.os.counts[d] || 0) + (a === "os-inc" ? 1 : -1)); render(); break; }
+      case "den-inc": case "den-dec": { const st = S[el.dataset.scope], d = el.dataset.d; st.counts[d] = Math.max(0, (st.counts[d] || 0) + (a === "den-inc" ? 1 : -1)); render(); break; }
       case "os-last": S.os = { counts: { 100000: 3, 50000: 2, 10000: 10 }, coins: "" }; render(); break;
       case "os-open": openShiftNow(); break;
       case "lang": S.lang = el.dataset.lang; document.documentElement.lang = S.lang; render(); break;
@@ -643,7 +888,7 @@
       case "editline": S.sel = i; openQty(); break;
       case "customer": openModal({ type: "customer", back: S.modal && S.modal.type === "payment" ? "payment" : null }); break;
       case "pick-customer": { const back = S.modal && S.modal.back; S.customer = CUSTOMERS[i]; if (back === "payment") { S.modal = { type: "payment" }; renderModal(); render(); } else { closeModal(); render(); } break; }
-      case "mode": S.mode = el.dataset.mode; render(); break;
+      case "mode": if (el.dataset.mode === "return") goReturns(); else { S.mode = "sale"; S.view = S.shifts[S.user.id] ? "sell" : "openshift"; render(); } break;
       case "hold": hold(); break;
       case "discount": openDiscount(); break;
       case "note": toast("Notes are not in this prototype"); break;
@@ -676,11 +921,17 @@
   });
   document.addEventListener("input", e => {
     if (e.target.id === "search") { S.query = e.target.value; S.scanError = null; render(); }
-    if (e.target.dataset && e.target.dataset.den) { S.os.counts[e.target.dataset.den] = Math.max(0, parseInt(e.target.value.replace(/\D/g, ""), 10) || 0); render(); }
-    if (e.target.hasAttribute && e.target.hasAttribute("data-coins")) { S.os.coins = e.target.value.replace(/[^0-9.]/g, ""); render(); }
+    if (e.target.dataset && e.target.dataset.den) { S[e.target.dataset.scope].counts[e.target.dataset.den] = Math.max(0, parseInt(e.target.value.replace(/\D/g, ""), 10) || 0); render(); }
+    if (e.target.hasAttribute && e.target.hasAttribute("data-coins")) { S[e.target.dataset.scope].coins = e.target.value.replace(/[^0-9.]/g, ""); render(); }
+    if (e.target.id === "rsearch") { S.ret.query = e.target.value; S.ret.error = ""; }
+    if (e.target.id === "csnote") { S.cs.note = e.target.value; }
     if (e.target.id === "approval" && S.pay) { S.pay.approval = e.target.value; const b = modalRoot.querySelector('[data-act="complete"]'); if (b) b.disabled = !canComplete(); }
   });
 
+  const emptyRet = () => ({ query: "", sale: null, qty: {}, reason: "", pin: "", error: "", done: null });
+  function resetCs() { S.cs = { step: 1, counts: {}, coins: "", reason: "", note: "" }; }
+  function focusId(id) { setTimeout(() => { const x = document.getElementById(id); if (x) x.focus(); }); }
+  function retPin(k) { const r = S.ret; r.pinError = false; if (k === "⌫") r.pin = r.pin.slice(0, -1); else if (k === "C") r.pin = ""; else if (r.pin.length < 4) r.pin += k; render(); }
   function openQty() { const l = S.cart[S.sel]; if (!l) return; openModal({ type: "qty", value: byId(l.pid).weighed ? l.qty.toFixed(3) : String(l.qty) }); }
   function openDiscount() { const l = S.cart[S.sel]; if (!l) { toast("Select a line first", { error: true }); return; } openModal({ type: "discount", pct: l.disc && l.disc !== byId(l.pid).offer ? l.disc : 5, pin: "", tries: 0 }); }
   function modalKey(k) {
@@ -753,6 +1004,31 @@
       if ((e.ctrlKey || e.metaKey) && k.toLowerCase() === "p") { e.preventDefault(); toast(S.printerError ? "Printer still has no paper" : "Receipt reprinted", { error: S.printerError }); }
       return;
     }
+    if (S.view === "returns") {
+      const r = S.ret;
+      if (r.done) { if (k === "Enter") { e.preventDefault(); S.ret = emptyRet(); render(); focusId("rsearch"); } return; }
+      if (k === "F8") { e.preventDefault(); S.view = S.shifts[S.user.id] ? "sell" : "openshift"; render(); return; }
+      if (e.target.id === "rsearch") {
+        if (k === "Enter") { e.preventDefault(); if (r.query.trim()) loadSale(r.query); }
+        if (k === "Escape") { r.query = ""; r.error = ""; render(); focusId("rsearch"); }
+        return;
+      }
+      if (inInput) return;
+      if (r.sale && needManager() && /^[0-9]$/.test(k)) { retPin(k); return; }
+      if (r.sale && needManager() && k === "Backspace") { e.preventDefault(); retPin("⌫"); return; }
+      if (k === "Enter" && r.sale) { e.preventDefault(); approveReturn(); return; }
+      if (k === "Escape" && r.sale) { S.ret = emptyRet(); render(); focusId("rsearch"); return; }
+      if (!r.sale && k.length === 1 && /[0-9A-Za-z-]/.test(k) && !e.ctrlKey && !e.metaKey) { e.preventDefault(); r.query += k; render(); focusId("rsearch"); }
+      return;
+    }
+    if (S.view === "cash") {
+      if (k !== "Enter" || (e.target.tagName === "TEXTAREA")) return;
+      e.preventDefault();
+      if (S.cs.step === 1 && countTotal(S.cs) > 0 && !S.cart.length && !S.held.length) { S.cs.step = 2; render(); }
+      else if (S.cs.step === 2) closeShiftNow();
+      else if (S.cs.step === 3) signOut();
+      return;
+    }
     if (S.view !== "sell") return;
 
     switch (k) {
@@ -762,7 +1038,7 @@
       case "F5": openDiscount(); return;
       case "F6": hold(); return;
       case "F7": openModal({ type: "held" }); return;
-      case "F8": S.mode = S.mode === "sale" ? "return" : "sale"; render(); return;
+      case "F8": goReturns(); return;
       case "F10": openPayment(); return;
     }
 
@@ -818,7 +1094,7 @@
   let rz; window.addEventListener("resize", () => { clearTimeout(rz); rz = setTimeout(render, 120); });
   if (S.theme) document.documentElement.dataset.theme = S.theme;
   const hash = location.hash.replace("#", "");
-  if (["sell", "dashboard", "signin", "openshift"].includes(hash)) S.view = hash;
+  if (["sell", "dashboard", "signin", "openshift", "returns", "cash"].includes(hash)) S.view = hash;
   if (hash === "openshift") { S.user = USERS[1]; }            // Nimal has no open shift yet
   if (hash === "signin") { S.su.sel = 1; }
   render();
