@@ -601,7 +601,7 @@
           <button class="btn primary l block" data-act="su-submit" ${S.su.pin.length === 4 && !left ? "" : "disabled"}>${esc(t("signIn"))} <kbd>Enter</kbd></button>
         </section>
       </main>
-      <footer class="signin-foot">Device WIN-CMB01-02 · v1.6.0 · ← → choose staff · type PIN · ${MAX_PIN_TRIES} wrong PINs lock that user for 5 minutes · PINs are checked on this device, so sign-in works offline</footer>
+      <footer class="signin-foot"><button class="linkish" data-act="goto" data-view="login">Back-office sign-in</button> · <button class="linkish" data-act="goto" data-view="device">Set up a register</button> · Device WIN-CMB01-02 · v1.6.0 · ← → choose staff · type PIN · ${MAX_PIN_TRIES} wrong PINs lock that user for 5 minutes · PINs are checked on this device, so sign-in works offline</footer>
     </div>`;
   }
   function suKey(k) {
@@ -2507,7 +2507,7 @@ Yesterday 09:15  SYNC-003 Catalog cursor too old · catalog snapshot downloaded<
       && (!q || [d.no, d.ref, d.buyer.name, d.buyer.vat].join(" ").toLowerCase().includes(q)));
   }
   const taxTabs = cur => `<div class="seg tabs big" role="tablist">${[["tax", "Tax documents"], ["vat", "VAT report"], ["taxrates", "Tax rates"]].map(([v, l]) => `<button role="tab" data-act="nav" data-view="${v}" aria-pressed="${cur === v}" aria-selected="${cur === v}">${l}</button>`).join("")}</div>`;
-  function taxGuard() { return isMgr() ? null : `<div class="placeholder"><div class="empty"><span class="circle">${ic("lock", 28)}</span><h3>Tax documents are for managers and the accountant</h3><span>${esc(S.user.short)} is signed in as ${esc(S.user.role.toLowerCase())}. Cashiers issue tax invoices at the till with the sale.</span><button class="btn primary s" data-act="logout">Switch user</button></div></div>`; }
+  function taxGuard() { return ["Owner", "Manager", "Accountant"].includes(S.user.role) ? null : `<div class="placeholder"><div class="empty"><span class="circle">${ic("lock", 28)}</span><h3>Tax documents are for managers and the accountant</h3><span>${esc(S.user.short)} is signed in as ${esc(S.user.role.toLowerCase())}. Cashiers issue tax invoices at the till with the sale.</span><button class="btn primary s" data-act="logout">Switch user</button></div></div>`; }
   function taxView() {
     const g0 = taxGuard(); if (g0) return g0;
     const f = S.tax, list = taxList();
@@ -3357,7 +3357,7 @@ Yesterday 09:15  SYNC-003 Catalog cursor too old · catalog snapshot downloaded<
     return `<div class="modal" role="dialog" aria-modal="true" aria-labelledby="mt" style="width:min(460px,100%)">${head("Enroll a device", `${b.code}-${r.id} · ${b.name}`)}
       <div class="enroll">${qrSvg(r.code)}<div class="code mono">${r.code}</div><span class="sub">Valid until ${hm(r.exp)} tomorrow · single use</span></div>
       <ol class="steps-ol"><li>Install RetailOS Register on the Windows PC or Android tablet.</li><li>Choose <b>Enroll this device</b> and scan the code, or type it.</li><li>The register downloads products, prices and staff, then is ready to sell.</li></ol>
-      <div style="display:flex;gap:8px;justify-content:flex-end"><button class="btn secondary" data-act="toast" data-msg="Enrollment code sent by e-mail to the branch manager">${ic("mail", 18)}E-mail code</button><button class="btn primary" data-act="close">Done</button></div></div>`;
+      <div style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap"><button class="btn ghost" data-act="ds-from" data-v="${r.code}">Enroll on this screen (demo)</button><button class="btn secondary" data-act="toast" data-msg="Enrollment code sent by e-mail to the branch manager">${ic("mail", 18)}E-mail code</button><button class="btn primary" data-act="close">Done</button></div></div>`;
   }
   function branchModal(m, head) {
     const code = m.code.trim().toUpperCase(), e = !/^[A-Z]{3}\d{2}$/.test(code) ? "Three letters and two digits, e.g. NEG01" : S.br.list.some(b => b.code === code) ? "This code is taken" : "";
@@ -3689,11 +3689,219 @@ Yesterday 09:15  SYNC-003 Catalog cursor too old · catalog snapshot downloaded<
         </div></div></div>`;
   }
 
+  // ---------- Full-screen shell for setup and back-office sign-in ----------
+  const FULL_VIEWS = ["device", "login", "onboard"];
+  const fullTop = sub => `<header class="signin-top"><span class="mark">R</span><b>RetailOS</b><span class="sub">${sub}</span><div class="spacer"></div>${S.offline ? badge("warning", "Offline", "wifiOff") : badge("success", "Online", "cloudCheck")}${langSeg()}
+    <button class="icon-btn" data-act="theme" title="Toggle dark mode">${ic(document.documentElement.dataset.theme === "dark" ? "sun" : "moon")}</button></header>`;
+  const wizSteps = (labels, cur) => `<ol class="wiz-steps" aria-label="Steps">${labels.map((l, i) => `<li class="${i < cur ? "done" : i === cur ? "on" : ""}" ${i === cur ? 'aria-current="step"' : ""}><i>${i < cur ? ic("check", 14) : i + 1}</i><span>${l}</span></li>`).join("")}</ol>`;
+
+  // ---------- R-01 Device setup ----------
+  const DS_STEPS = ["Start", "Enrollment code", "Download", "Test hardware", "Ready"];
+  S.ds = { step: 0, lang: "en", kind: "Windows PC", code: "", err: "", target: null, prog: {}, scan: "", tested: {}, timer: null };
+  function dsFindCode(code) {
+    for (const b of S.br.list) for (const r of b.regs) if (r.status === "pending" && r.code === code) return { b, r };
+    return null;
+  }
+  function dsStartDownload() {
+    const D = S.ds; D.step = 2; D.prog = { products: 0, prices: 0, staff: 0, customers: 0, tax: 0, batches: 0 }; render();
+    clearInterval(D.timer);
+    D.timer = setInterval(() => {
+      let all = true;
+      for (const k of Object.keys(D.prog)) { if (D.prog[k] < 100) { D.prog[k] = Math.min(100, D.prog[k] + 9 + (hashOf(k + D.prog[k]) % 24)); all = false; break; } }
+      if (all) { clearInterval(D.timer); D.step = 3; }
+      if (S.view === "device") render();
+    }, 160);
+  }
+  function dsSubmitCode() {
+    const D = S.ds, code = D.code.trim().toUpperCase();
+    if (S.offline) { D.err = "This register needs the internet once to enroll. Connect, then try again."; render(); return; }
+    if (!/^[A-Z0-9]{4}-[A-Z0-9]{4}$/.test(code)) { D.err = "The code has 8 letters and numbers, like KQ7M-3XPA."; render(); return; }
+    const hit = dsFindCode(code) || (code === "DEMO-2026" ? { b: S.br.list[0], r: null } : null);
+    if (!hit) { D.err = "That code is not valid or has expired. Ask the owner for a new code in Branches & registers."; render(); return; }
+    D.err = ""; D.target = { branch: hit.b.code, name: hit.b.name, reg: hit.r ? hit.r.id : "R04", real: !!hit.r }; dsStartDownload();
+  }
+  function dsFinish() {
+    const D = S.ds, t = D.target;
+    if (t && t.real) { const b = S.br.list.find(x => x.code === t.branch), r = b.regs.find(x => x.id === t.reg); if (r) Object.assign(r, { status: "online", device: `${D.kind === "Windows PC" ? "WIN" : "AND"}-${t.branch}-${t.reg.slice(1)}`, kind: D.kind === "Windows PC" ? "Windows" : "Android tablet", ver: "1.6.0", seen: new Date(), code: null }); auditAdd("Settings", `${t.branch}-${t.reg}`, "Device enrolled and ready"); }
+    S.ds = { step: 0, lang: "en", kind: "Windows PC", code: "", err: "", target: null, prog: {}, scan: "", tested: {}, timer: null };
+    S.view = "signin"; S.su.pin = ""; render(); toast(t && t.real ? `${t.branch}-${t.reg} is enrolled · it shows as online in Branches & registers` : "Register ready (demo code) · sign in to start");
+  }
+  function deviceView() {
+    const D = S.ds, s = D.step;
+    let body = "";
+    if (s === 0) body = `<h1>Set up this register</h1><p class="lead">This takes about five minutes. You need the internet once, then the register works offline.</p>
+      <div class="field">This device is a<div class="seg big-seg" role="group">${["Windows PC", "Android tablet"].map(k => `<button data-act="ds-kind" data-v="${k}" aria-pressed="${D.kind === k}">${ic(k === "Windows PC" ? "monitor" : "grid", 18)}${k}</button>`).join("")}</div></div>
+      <div class="ds-checks"><div>${ic(S.offline ? "wifiOff" : "wifi", 18)}<span>Internet</span>${S.offline ? badge("error", "No connection", null) : badge("success", "Connected", "check")}</div><div>${ic("clock", 18)}<span>Clock</span>${badge("success", "Correct (Asia/Colombo)", "check")}</div><div>${ic("disk", 18)}<span>Free space</span>${badge("success", "18 GB", "check")}</div></div>
+      <button class="btn primary l block" data-act="ds-next" ${S.offline ? "disabled" : ""}>Start ${ic("arrowRight")}</button>`;
+    else if (s === 1) body = `<h1>Enter the enrollment code</h1><p class="lead">The owner creates it in <b>Setup › Branches & registers › Add register</b>. It works once and expires after 24 hours.</p>
+      <label class="field">Code<input id="dscode" data-ds="code" data-fid="dscode" class="code-in ${D.err ? "bad" : ""}" maxlength="9" autocomplete="off" spellcheck="false" placeholder="XXXX-XXXX" value="${esc(D.code)}"></label>
+      ${D.err ? `<div class="scan-error" role="alert">${ic("alert", 18)}${esc(D.err)}</div>` : `<div class="note">${ic("camera", 16)}On a tablet you can also scan the QR code with the camera.</div>`}
+      <div class="row-btns"><button class="btn secondary l" data-act="ds-back">Back</button><button class="btn primary l" data-act="ds-code" ${D.code.length === 9 ? "" : "disabled"}>Enroll <kbd>Enter</kbd></button></div>
+      <div class="demo-tip">${ic("help", 16)}<span>Demo: use <button class="linkish" data-act="ds-demo">DEMO-2026</button>${S.br.list.some(b => b.regs.some(r => r.status === "pending")) ? `, or the code you created: ${S.br.list.flatMap(b => b.regs.filter(r => r.status === "pending").map(r => `<button class="linkish" data-act="ds-use" data-v="${r.code}">${r.code}</button>`)).join(", ")}` : ". To try a real code, add a register in Branches & registers first."}</span></div>`;
+    else if (s === 2) { const L = [["products", "Products and barcodes", "1,248"], ["prices", "Prices and offers", "3 lists"], ["staff", "Staff and PINs", `${USERS.length} people`], ["customers", "Customers", `${CUSTOMERS.length - 1}`], ["tax", "Tax rules", "VAT 18% · exempt"], ["batches", "Batches and expiry", "34"]];
+      body = `<h1>Downloading ${esc(D.target.branch)} · ${esc(D.target.name)}</h1><p class="lead">Register <b>${D.target.branch}-${D.target.reg}</b>. Everything it needs to sell offline is saved on this device, encrypted.</p>
+        <div class="dl-list">${L.map(([k, l, n]) => `<div class="dl"><span>${D.prog[k] >= 100 ? ic("check", 18) : `<span class="spinner s"></span>`}</span><b>${l}</b><small>${n}</small><span class="bar"><i style="width:${D.prog[k] || 0}%"></i></span></div>`).join("")}</div>`; }
+    else if (s === 3) { const T = D.tested, all = T.printer && T.drawer && T.scanner;
+      body = `<h1>Test the hardware</h1><p class="lead">Check each device once. You can change printers later in Settings.</p>
+        <div class="hw"><div class="hw-item ${T.printer ? "ok" : ""}"><span class="thumb tile-blue">${ic("printer", 20)}</span><span class="grow"><b>Receipt printer</b><small>USB · ESC/POS · 80 mm</small></span><button class="btn secondary" data-act="ds-test" data-v="printer">${T.printer ? ic("check", 16) + "Printed" : "Print test page"}</button></div>
+          <div class="hw-item ${T.drawer ? "ok" : ""}"><span class="thumb tile-green">${ic("cash", 20)}</span><span class="grow"><b>Cash drawer</b><small>Opens through the printer</small></span><button class="btn secondary" data-act="ds-test" data-v="drawer">${T.drawer ? ic("check", 16) + "Opened" : "Open drawer"}</button></div>
+          <div class="hw-item ${T.scanner ? "ok" : ""}"><span class="thumb tile-purple">${ic("scan", 20)}</span><span class="grow"><b>Barcode scanner</b><small>${T.scanner ? `Read ${esc(T.scanner)}` : "Scan any product barcode into the box"}</small></span><input id="dsscan" data-ds="scan" data-fid="dsscan" placeholder="Scan here" value="${esc(D.scan)}" autocomplete="off"></div></div>
+        <button class="btn primary l block" data-act="ds-next" ${all ? "" : "disabled"}>${all ? "Finish" : "Test all three to finish"} ${ic("arrowRight")}</button><button class="btn ghost block" data-act="ds-skip">Skip for now (no printer yet)</button>`; }
+    else body = `<div class="success-mark"><div>${ic("check", 40)}</div></div><h1 style="text-align:center">Register ${esc(D.target.branch)}-${esc(D.target.reg)} is ready</h1><p class="lead" style="text-align:center">Staff can sign in with their PIN. Updates arrive automatically while it is online.</p>
+      <button class="btn primary l block" data-act="ds-finish">Go to staff sign-in ${ic("arrowRight")}</button>`;
+    return `<div class="signin full">${fullTop("Register setup")}<main class="full-body"><div class="full-card wide">${wizSteps(DS_STEPS, s)}${body}</div></main>
+      <footer class="signin-foot">RetailOS Register v1.6.0 · ${esc(D.kind)} · enrollment links this device to one branch and register (R-01)</footer></div>`;
+  }
+
+  // ---------- A-01 / A-02 / A-03 Back-office sign-in ----------
+  const BO_PASS = "Colombo#2026";
+  const BO_ACCOUNTS = { "dilan@citypharmacy.lk": "dw", "malini@citypharmacy.lk": "mj", "priyanka@citypharmacy.lk": "ac" };
+  S.lg = { mode: "login", email: "", pass: "", show: false, err: "", tries: 0, lockUntil: 0, code: "", mfaCode: "", trust: true, uid: null, newPass: "", newPass2: "", sent: false, setupSecret: "", recovery: [], saved: false, useRec: false };
+  const userById = id => USERS.find(u => u.id === id) || STAFF_OTHER.find(u => u.id === id);
+  function passScore(p, email, name) {
+    const lc = p.toLowerCase(), bad = ["password", "123456", "qwerty", "retailos", "colombo", "srilanka"];
+    let sc = 0; if (p.length >= 12) sc++; if (p.length >= 16) sc++; if (/[a-z]/.test(p) && /[A-Z]/.test(p)) sc++; if (/\d/.test(p)) sc++; if (/[^A-Za-z0-9]/.test(p)) sc++;
+    const issues = [];
+    if (p.length < 12) issues.push("at least 12 characters");
+    if (bad.some(b => lc.includes(b))) { sc = Math.min(sc, 1); issues.push("no common words like “password”"); }
+    if (email && lc.includes(email.split("@")[0].toLowerCase())) { sc = Math.min(sc, 1); issues.push("not your name or e-mail"); }
+    if (name && name.split(" ").some(w => w.length > 2 && lc.includes(w.toLowerCase()))) { sc = Math.min(sc, 1); if (!issues.includes("not your name or e-mail")) issues.push("not your name or e-mail"); }
+    return { sc: Math.min(4, sc), label: ["Too weak", "Weak", "Fair", "Good", "Strong"][Math.min(4, sc)], ok: p.length >= 12 && sc >= 3, issues };
+  }
+  const newCode = () => String(100000 + Math.floor(Math.random() * 900000));
+  const recCodes = () => Array.from({ length: 8 }, () => enrollCode());
+  function lgLogin() {
+    const L = S.lg, now = Date.now();
+    if (L.lockUntil > now) return;
+    const uid = BO_ACCOUNTS[L.email.trim().toLowerCase()];
+    if (!uid || L.pass !== ((S.lg.pwds || {})[uid] || BO_PASS) || uid === "ac") {
+      L.tries++; L.pass = "";
+      L.err = L.tries >= 5 ? "" : "E-mail or password is not right."; if (L.tries >= 5) { L.lockUntil = now + 15 * 60000; L.tries = 0; }
+      S.audit.unshift({ id: "AU-" + (auditSeq++), when: new Date(), who: "System", kind: "Sign-in", entity: L.email || "unknown", what: "Back-office sign-in failed" });
+      render(); return;
+    }
+    L.err = ""; L.uid = uid; L.mode = "mfa"; L.code = newCode(); L.mfaCode = ""; render(); focusId("mfacode");
+  }
+  function lgMfa() {
+    const L = S.lg, v = L.mfaCode.replace(/\s/g, "").toUpperCase();
+    const ok = L.useRec ? /^[A-Z0-9]{4}-[A-Z0-9]{4}$/.test(v) : v === L.code;
+    if (!ok) { L.err = L.useRec ? "That recovery code is not right or was used." : "That code is not right. Codes change every 30 seconds."; L.mfaCode = ""; render(); return; }
+    lgDone(L.uid);
+  }
+  function lgDone(uid) {
+    const u = userById(uid), L = S.lg;
+    S.user = u; u.last = new Date();
+    S.audit.unshift({ id: "AU-" + (auditSeq++), when: new Date(), who: `${u.short} ${u.name.split(" ")[1][0]}.`, kind: "Sign-in", entity: u.name, what: `Signed in to the back office${L.trust ? " · browser trusted for 30 days" : ""}` });
+    S.lg = { ...S.lg, mode: "login", email: "", pass: "", err: "", code: "", mfaCode: "", uid: null, newPass: "", newPass2: "", sent: false, useRec: false };
+    S.view = u.role === "Accountant" ? "tax" : "dashboard"; render(); toast(`Welcome, ${u.short} · back office`);
+  }
+  function loginView() {
+    const L = S.lg, locked = L.lockUntil > Date.now(), mins = Math.ceil((L.lockUntil - Date.now()) / 60000), u = L.uid ? userById(L.uid) : null;
+    let card = "";
+    if (L.mode === "login") card = `<h1>Sign in to the back office</h1><p class="lead">City Pharmacy & Mart · for owners, managers and the accountant. Cashiers sign in on the register with a PIN.</p>
+      <label class="field">Work e-mail<input id="lgemail" data-lg="email" data-fid="lgemail" type="email" autocomplete="username" value="${esc(L.email)}" placeholder="you@citypharmacy.lk" ${locked ? "disabled" : ""}></label>
+      <label class="field"><span class="lbl-row">Password<button class="linkish" data-act="lg-mode" data-v="forgot">Forgot password?</button></span><span class="pw"><input id="lgpass" data-lg="pass" data-fid="lgpass" type="${L.show ? "text" : "password"}" autocomplete="current-password" value="${esc(L.pass)}" ${locked ? "disabled" : ""}><button class="btn ghost s" data-act="lg-show" aria-label="${L.show ? "Hide" : "Show"} password">${L.show ? "Hide" : "Show"}</button></span></label>
+      ${locked ? `<div class="banner error">${ic("lock")}Too many tries. Sign-in is paused for ${mins} minute${mins === 1 ? "" : "s"}. Or reset your password.</div>` : L.err ? `<div class="scan-error" role="alert">${ic("alert", 18)}${esc(L.err)}</div>` : ""}
+      <button class="btn primary l block" data-act="lg-login" ${L.email && L.pass && !locked ? "" : "disabled"}>Continue <kbd>Enter</kbd></button>
+      <div class="demo-tip">${ic("help", 16)}<span>Demo: <button class="linkish" data-act="lg-fill" data-v="dilan@citypharmacy.lk">dilan@…</button> (owner) or <button class="linkish" data-act="lg-fill" data-v="malini@citypharmacy.lk">malini@…</button> (manager) · password <span class="mono">${BO_PASS}</span>${S.lg.pwds && Object.keys(S.lg.pwds).length ? " (or the one you reset)" : ""} · <button class="linkish" data-act="lg-mode" data-v="invite">open Priyanka's invitation</button></span></div>`;
+    else if (L.mode === "mfa") card = `<h1>Two-step sign-in</h1><p class="lead">${esc(u.name)} · enter the 6-digit code from your authenticator app.</p>
+      <label class="field">${L.useRec ? "Recovery code" : "Code"}<input id="mfacode" data-lg="mfaCode" data-fid="mfacode" class="code-in" inputmode="${L.useRec ? "text" : "numeric"}" autocomplete="one-time-code" maxlength="${L.useRec ? 9 : 7}" placeholder="${L.useRec ? "XXXX-XXXX" : "123 456"}" value="${esc(L.mfaCode)}"></label>
+      ${L.err ? `<div class="scan-error" role="alert">${ic("alert", 18)}${esc(L.err)}</div>` : ""}
+      <label class="check-row"><input type="checkbox" data-act="lg-trust" ${L.trust ? "checked" : ""}><span><b>Trust this browser for 30 days</b><small>Only on your own computer.</small></span></label>
+      <button class="btn primary l block" data-act="lg-mfa" ${L.mfaCode.replace(/\s/g, "").length >= 6 ? "" : "disabled"}>Verify and sign in <kbd>Enter</kbd></button>
+      <div class="row-links"><button class="linkish" data-act="lg-rec">${L.useRec ? "Use the app code instead" : "Lost your phone? Use a recovery code"}</button><button class="linkish" data-act="lg-mode" data-v="login">Back</button></div>
+      ${L.useRec ? "" : `<div class="demo-tip">${ic("help", 16)}<span>Demo: the app now shows <b class="mono">${L.code.slice(0, 3)} ${L.code.slice(3)}</b></span></div>`}`;
+    else if (L.mode === "forgot") card = L.sent ? `<h1>Check your e-mail</h1><p class="lead">If <b>${esc(L.email)}</b> has an account, a reset link is on its way. It works for 30 minutes.</p>
+        <div class="note">${ic("lock", 16)}For your safety we show the same message whether or not the address has an account.</div>
+        <button class="btn primary l block" data-act="lg-mode" data-v="reset">Open the reset link (demo)</button><button class="btn ghost block" data-act="lg-mode" data-v="login">Back to sign-in</button>`
+      : `<h1>Reset your password</h1><p class="lead">Enter your work e-mail. We will send a link to set a new password.</p>
+        <label class="field">Work e-mail<input id="lgemail" data-lg="email" data-fid="lgemail" type="email" value="${esc(L.email)}" placeholder="you@citypharmacy.lk"></label>
+        <button class="btn primary l block" data-act="lg-send" ${/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(L.email) ? "" : "disabled"}>Send reset link <kbd>Enter</kbd></button><button class="btn ghost block" data-act="lg-mode" data-v="login">Back to sign-in</button>`;
+    else if (L.mode === "reset" || L.mode === "invite") {
+      const inv = L.mode === "invite", pu = inv ? userById("ac") : userById(BO_ACCOUNTS[L.email.trim().toLowerCase()] || "mj"), em = inv ? "priyanka@citypharmacy.lk" : L.email, ps = passScore(L.newPass, em, pu ? pu.name : ""), match = L.newPass && L.newPass === L.newPass2;
+      card = `<h1>${inv ? "Join City Pharmacy & Mart" : "Choose a new password"}</h1><p class="lead">${inv ? `Dilan Wickrama invited <b>${esc(pu.name)}</b> as <b>Accountant</b> for all branches. Set a password to accept.` : `For ${esc(em)}. Your other sessions will be signed out.`}</p>
+        <label class="field">New password<span class="pw"><input id="np1" data-lg="newPass" data-fid="np1" type="${L.show ? "text" : "password"}" autocomplete="new-password" value="${esc(L.newPass)}"><button class="btn ghost s" data-act="lg-show" aria-label="Show password">${L.show ? "Hide" : "Show"}</button></span></label>
+        <div class="meter s${ps.sc}" aria-label="Strength: ${ps.label}"><i></i><i></i><i></i><i></i></div><div class="meter-l"><b>${L.newPass ? ps.label : "Strength"}</b>${L.newPass && ps.issues.length ? ` · needs ${ps.issues.join(", ")}` : L.newPass ? " · good to go" : " · 12+ characters; a short sentence works well"}</div>
+        <label class="field">Type it again<input data-lg="newPass2" data-fid="np2" type="${L.show ? "text" : "password"}" autocomplete="new-password" value="${esc(L.newPass2)}" class="${L.newPass2 && !match ? "bad" : ""}">${L.newPass2 && !match ? `<span class="err">Does not match</span>` : ""}</label>
+        <button class="btn primary l block" data-act="lg-setpass" ${ps.ok && match ? "" : "disabled"}>${inv ? "Accept and continue" : "Save new password"} <kbd>Enter</kbd></button>
+        <div class="demo-tip">${ic("help", 16)}<span>Try “password123” to see it refused, then something like “Tea leaves at 4 in Kandy”.</span></div>`;
+    } else if (L.mode === "mfasetup") card = `<h1>Turn on two-step sign-in</h1><p class="lead">Required for back-office accounts. Scan this with Google Authenticator, Microsoft Authenticator or similar.</p>
+      <div class="mfa-setup">${qrSvg(L.setupSecret)}<div><span class="sub">Or type this key</span><b class="mono key">${L.setupSecret.replace(/(.{4})/g, "$1 ").trim()}</b></div></div>
+      <label class="field">Code from the app<input id="mfacode" data-lg="mfaCode" data-fid="mfacode" class="code-in" inputmode="numeric" maxlength="7" placeholder="123 456" value="${esc(L.mfaCode)}"></label>
+      ${L.err ? `<div class="scan-error" role="alert">${ic("alert", 18)}${esc(L.err)}</div>` : ""}
+      <button class="btn primary l block" data-act="lg-mfaset" ${L.mfaCode.replace(/\s/g, "").length >= 6 ? "" : "disabled"}>Verify <kbd>Enter</kbd></button>
+      <div class="demo-tip">${ic("help", 16)}<span>Demo: the app shows <b class="mono">${L.code.slice(0, 3)} ${L.code.slice(3)}</b></span></div>`;
+    else card = `<h1>Save your recovery codes</h1><p class="lead">Each code works once if you lose your phone. Keep them somewhere safe, not on this computer's desktop.</p>
+      <div class="rec-codes mono">${L.recovery.map(c => `<span>${c}</span>`).join("")}</div>
+      <div class="row-btns"><button class="btn secondary" data-act="lg-recdl">${ic("upload", 18)}Download</button><button class="btn secondary" data-act="lg-recdl">${ic("printer", 18)}Print</button></div>
+      <label class="check-row"><input type="checkbox" data-act="lg-saved" ${L.saved ? "checked" : ""}><span><b>I have saved these codes</b></span></label>
+      <button class="btn primary l block" data-act="lg-finish" ${L.saved ? "" : "disabled"}>Finish and open the back office</button>`;
+    return `<div class="signin full">${fullTop("Back office")}<main class="full-body"><div class="full-card">${card}</div></main>
+      <footer class="signin-foot"><button class="linkish" data-act="goto" data-view="signin">Register sign-in with PIN</button> · Sessions end after 12 hours · Every sign-in is in the audit log</footer></div>`;
+  }
+
+  // ---------- A-05 Onboarding wizard ----------
+  const OB_STEPS = ["Business", "VAT", "First branch", "First register", "Products", "Done"];
+  const IND = { pharmacy: ["Pharmacy", "pill", "Batches and expiry on every medicine, Rx flags, generic-name search"], grocery: ["Supermarket / grocery", "wheat", "Weighed items, scale barcodes, fast checkout"], general: ["General retail", "package", "Variants such as size and colour, simple stock"] };
+  S.ob = { step: 0, name: "", ind: "pharmacy", phone: "", vatReg: "yes", vat: "", brName: "", brCode: "", brAddr: "", kind: "Windows PC", width: "80", prod: "", code: "", err: {} };
+  const obCode = n => { const w = n.trim().toUpperCase().replace(/[^A-Z]/g, ""); return w.length >= 3 ? w.slice(0, 3) + "01" : ""; };
+  function obValid(step) {
+    const O = S.ob, e = {};
+    if (step === 0) { if (O.name.trim().length < 2) e.name = "Enter the business name"; if (O.phone && O.phone.replace(/\D/g, "").length !== 10) e.phone = "Use a 10-digit number"; }
+    if (step === 1 && O.vatReg === "yes" && !VAT_RE.test(O.vat.trim())) e.vat = "Looks like 114128890-7000";
+    if (step === 2) { if (!O.brName.trim()) e.brName = "Name the branch"; if (!/^[A-Z]{3}\d{2}$/.test(O.brCode)) e.brCode = "Three letters and two digits"; }
+    if (step === 4 && !O.prod) e.prod = "Choose one";
+    return e;
+  }
+  function obNext() {
+    const O = S.ob, e = obValid(O.step);
+    if (Object.keys(e).length) { O.err = e; render(); toast(Object.values(e)[0], { error: true }); return; }
+    O.err = {}; if (O.step === 3 && !O.code) O.code = enrollCode(); O.step = Math.min(5, O.step + 1); render();
+  }
+  function onboardView() {
+    const O = S.ob, s = O.step, er = O.err;
+    const fld = (k, l, ph, extra = "") => `<label class="field">${l}<input data-ob="${k}" data-fid="ob-${k}" id="ob-${k}" value="${esc(O[k])}" placeholder="${ph}" class="${er[k] ? "bad" : ""}" ${extra}>${er[k] ? `<span class="err">${esc(er[k])}</span>` : ""}</label>`;
+    let body = "";
+    if (s === 0) body = `<h2>Tell us about the business</h2>${fld("name", "Business name", "e.g. Sunrise Pharmacy")}
+      <div class="field">What do you sell?<div class="ind-grid">${Object.entries(IND).map(([k, [l, i, d]]) => `<button class="ind ${O.ind === k ? "on" : ""}" data-act="ob-ind" data-v="${k}" aria-pressed="${O.ind === k}">${ic(i, 22)}<b>${l}</b><small>${d}</small></button>`).join("")}</div></div>${fld("phone", "Phone (optional)", "077 123 4567", 'inputmode="tel"')}`;
+    else if (s === 1) body = `<h2>VAT</h2><div class="field">Is the business VAT registered?<div class="seg big-seg" role="group">${[["yes", "Yes"], ["no", "No, not yet"]].map(([v, l]) => `<button data-act="ob-vat" data-v="${v}" aria-pressed="${O.vatReg === v}">${l}</button>`).join("")}</div></div>
+      ${O.vatReg === "yes" ? `${fld("vat", "VAT registration number", "114128890-7000")}<div class="note">${ic("help", 16)}Standard rate 18% is set up for you, with exempt items for medicines and basic foods. You can change rates later in Tax.</div>` : `<div class="note">${ic("help", 16)}Receipts will not show VAT and you cannot issue tax invoices. Turn VAT on later when you register.</div>`}`;
+    else if (s === 2) body = `<h2>Your first branch</h2>${fld("brName", "Branch name", "e.g. Negombo")}
+      <div class="form-2">${fld("brCode", "Branch code", "NEG01", 'maxlength="5"')}<div class="field"><span>&nbsp;</span><div class="note">${ic("lock", 16)}Part of every receipt number. Cannot change later.</div></div></div>${fld("brAddr", "Address", "Street, town")}`;
+    else if (s === 3) body = `<h2>Your first register</h2><div class="field">Device<div class="seg big-seg" role="group">${["Windows PC", "Android tablet"].map(k => `<button data-act="ob-kind" data-v="${k}" aria-pressed="${O.kind === k}">${k}</button>`).join("")}</div></div>
+      <div class="field">Receipt paper<div class="seg big-seg" role="group">${[["80", "80 mm"], ["58", "58 mm"]].map(([v, l]) => `<button data-act="ob-width" data-v="${v}" aria-pressed="${O.width === v}">${l}</button>`).join("")}</div></div>
+      <div class="note">${ic("help", 16)}Next we create an enrollment code. Type it on the register in Register setup.</div>`;
+    else if (s === 4) body = `<h2>Products</h2><div class="opt-list">${[["import", "Import from Excel", "Use our template, or your own file. Best if you have more than 50 products.", "upload"], ["sample", `Start with a sample ${IND[O.ind][0].toLowerCase()} catalogue`, "40 common items with barcodes. Edit prices before you open.", "package"], ["later", "Add products later", "Add them one by one, or scan at the till and fill in details.", "clock"]].map(([v, l, d, i]) => `<button class="opt" data-act="ob-prod" data-v="${v}" aria-selected="${O.prod === v}">${ic(i, 20)}<span class="grow"><b>${l}</b><small>${d}</small></span></button>`).join("")}</div>${er.prod ? `<span class="err">${er.prod}</span>` : ""}`;
+    else body = `<div class="success-mark"><div>${ic("check", 40)}</div></div><h2 style="text-align:center">${esc(O.name)} is set up</h2>
+      <div class="ob-sum"><div>${ic(IND[O.ind][1], 18)}<span>${IND[O.ind][0]} · modules on: ${O.ind === "pharmacy" ? "batches, expiry, Rx" : O.ind === "grocery" ? "weighed items, scale barcodes" : "variants"}</span></div><div>${ic("landmark", 18)}<span>${O.vatReg === "yes" ? `VAT ${esc(O.vat)} · 18% standard` : "Not VAT registered"}</span></div>
+        <div>${ic("store", 18)}<span>${esc(O.brCode)} · ${esc(O.brName)}</span></div><div>${ic("monitor", 18)}<span>Register ${esc(O.brCode)}-R01 · ${O.kind} · ${O.width} mm · code <b class="mono">${O.code}</b></span></div>
+        <div>${ic("package", 18)}<span>${O.prod === "import" ? "Import products next" : O.prod === "sample" ? "Sample catalogue added" : "Products later"}</span></div></div>
+      <div class="note">${ic("help", 16)}This is a demo: it does not change City Pharmacy & Mart. In the real product, the dashboard opens with a checklist of what is left.</div>`;
+    const nav = s < 5 ? `<div class="row-btns">${s > 0 ? `<button class="btn secondary l" data-act="ob-back">Back</button>` : `<button class="btn ghost l" data-act="goto" data-view="login">Cancel</button>`}<button class="btn primary l" data-act="ob-next">${s === 4 ? "Finish" : "Continue"} <kbd>Enter</kbd></button></div>`
+      : `<div class="row-btns"><button class="btn secondary l" data-act="ob-restart">Start again</button><button class="btn primary l" data-act="ob-open">Open the demo shop</button></div>`;
+    return `<div class="signin full">${fullTop("New shop setup")}<main class="full-body ob"><aside class="ob-side">${wizSteps(OB_STEPS, s)}<div class="note">${ic("clock", 16)}About 10 minutes. You can stop and come back.</div></aside><div class="full-card wide">${body}${nav}</div></main>
+      <footer class="signin-foot">Step ${s + 1} of ${OB_STEPS.length} · onboarding (A-05)</footer></div>`;
+  }
+  function fullEnter(e) {
+    if (S.view === "device") { if (S.ds.step === 1) dsSubmitCode(); else if (S.ds.step === 0 && !S.offline) { S.ds.step = 1; render(); focusId("dscode"); } return; }
+    if (S.view === "onboard") { if (S.ob.step < 5) obNext(); return; }
+    const L = S.lg;
+    if (L.mode === "login") lgLogin(); else if (L.mode === "mfa") lgMfa(); else if (L.mode === "forgot" && !L.sent) app.querySelector('[data-act="lg-send"]') && app.querySelector('[data-act="lg-send"]').click();
+    else if (L.mode === "reset" || L.mode === "invite") app.querySelector('[data-act="lg-setpass"]') && app.querySelector('[data-act="lg-setpass"]').click();
+    else if (L.mode === "mfasetup") app.querySelector('[data-act="lg-mfaset"]') && app.querySelector('[data-act="lg-mfaset"]').click();
+  }
+
   // ---------- Render: main ----------
   function render() {
     const fid = document.activeElement && document.activeElement.dataset ? document.activeElement.dataset.fid : null;
     const ae = document.activeElement;
     const caret = ae && ((ae.tagName === "INPUT" && ae.type !== "checkbox") || ae.tagName === "TEXTAREA") ? ae.selectionStart : null;
+    if (FULL_VIEWS.includes(S.view)) {
+      document.body.classList.remove("sheet-mode");
+      app.innerHTML = (S.view === "device" ? deviceView() : S.view === "login" ? loginView() : onboardView()) + protoControls();
+      if (fid) { const el = app.querySelector(`[data-fid="${fid}"]`); if (el) { el.focus({ preventScroll: true }); if (caret != null && el.setSelectionRange) try { el.setSelectionRange(caret, caret); } catch (er) {} } }
+      return;
+    }
     if (S.view === "signin") {
       document.body.classList.remove("sheet-mode");
       app.innerHTML = signinView() + protoControls();
@@ -3762,6 +3970,9 @@ Yesterday 09:15  SYNC-003 Catalog cursor too old · catalog snapshot downloaded<
       <button class="btn secondary" data-act="replay-loading">Replay loading skeleton</button>
       <button class="btn secondary" data-act="reset">Reset demo</button>
       <button class="btn secondary" data-act="logout">Go to sign-in screen</button>
+      <button class="btn secondary" data-act="goto" data-view="device">Register setup (R-01)</button>
+      <button class="btn secondary" data-act="goto" data-view="login">Back-office login (A-01)</button>
+      <button class="btn secondary" data-act="goto" data-view="onboard">New shop onboarding (A-05)</button>
       <small>Staff PINs: ${USERS.filter(u => u.active !== false).map(u => `${u.short} ${u.pin}${u.role === "Manager" ? " (manager)" : ""}`).join(" · ")}. Try barcodes 4791111000011, 2012340012507 (1.250 kg carrots), 9999999999999 (unknown).</small></div>` : ""}
       <button class="proto-btn" data-act="proto">${ic("sliders", 16)}Prototype</button></div>`;
   }
@@ -3907,6 +4118,38 @@ Yesterday 09:15  SYNC-003 Catalog cursor too old · catalog snapshot downloaded<
       case "pc-pick": S.pc.pid = el.dataset.pid; S.pc.error = ""; render(); break;
       case "pc-clear": S.pc.pid = null; S.pc.error = ""; S.pc.query = ""; render(); focusId("pcsearch"); break;
       case "pc-add": { const p = byId(S.pc.pid); if (!p) break; if (!S.shifts[S.user.id]) { S.view = "openshift"; render(); toast("Open a shift first", { error: true }); break; } S.view = "sell"; render(); addProduct(p); break; }
+      case "ds-from": S.ds = { ...S.ds, step: 1, code: el.dataset.v, err: "" }; S.modal = null; renderModal(); S.view = "device"; render(); focusId("dscode"); break;
+      case "ds-kind": S.ds.kind = el.dataset.v; render(); break;
+      case "ds-next": if (S.ds.step === 0) { S.ds.step = 1; render(); focusId("dscode"); } else if (S.ds.step === 3) { S.ds.step = 4; render(); } break;
+      case "ds-back": S.ds.step = Math.max(0, S.ds.step - 1); S.ds.err = ""; render(); break;
+      case "ds-code": dsSubmitCode(); break;
+      case "ds-demo": S.ds.code = "DEMO-2026"; S.ds.err = ""; render(); focusId("dscode"); break;
+      case "ds-use": S.ds.code = el.dataset.v; S.ds.err = ""; render(); focusId("dscode"); break;
+      case "ds-test": S.ds.tested[el.dataset.v] = true; render(); toast(el.dataset.v === "printer" ? "Test page printed · check it is readable" : "Drawer opened"); if (!S.ds.tested.scanner) focusId("dsscan"); break;
+      case "ds-skip": S.ds.step = 4; render(); toast("Hardware test skipped · run it later from Settings › Printer"); break;
+      case "ds-finish": dsFinish(); break;
+      case "lg-mode": { const L = S.lg, v = el.dataset.v; L.mode = v; L.err = ""; L.show = false; if (v === "forgot") L.sent = false; if (v === "reset" || v === "invite") { L.newPass = ""; L.newPass2 = ""; } if (v === "login") { L.pass = ""; L.mfaCode = ""; L.useRec = false; } render(); focusId(v === "login" || v === "forgot" ? "lgemail" : v === "reset" || v === "invite" ? "np1" : "mfacode"); break; }
+      case "lg-show": S.lg.show = !S.lg.show; render(); break;
+      case "lg-fill": S.lg.email = el.dataset.v; S.lg.pass = (S.lg.pwds || {})[BO_ACCOUNTS[el.dataset.v]] || BO_PASS; S.lg.err = ""; render(); focusId("lgpass"); break;
+      case "lg-login": lgLogin(); break;
+      case "lg-mfa": lgMfa(); break;
+      case "lg-rec": S.lg.useRec = !S.lg.useRec; S.lg.mfaCode = ""; S.lg.err = ""; render(); focusId("mfacode"); break;
+      case "lg-trust": S.lg.trust = el.checked; break;
+      case "lg-send": S.lg.sent = true; S.audit.unshift({ id: "AU-" + (auditSeq++), when: new Date(), who: "System", kind: "Sign-in", entity: S.lg.email, what: "Password reset requested" }); render(); break;
+      case "lg-setpass": { const L = S.lg; if (L.mode === "reset") { const rid = BO_ACCOUNTS[L.email.trim().toLowerCase()]; if (rid) (L.pwds = L.pwds || {})[rid] = L.newPass; S.audit.unshift({ id: "AU-" + (auditSeq++), when: new Date(), who: "System", kind: "Sign-in", entity: L.email, what: "Password changed with a reset link · other sessions signed out" }); L.mode = "login"; L.pass = ""; L.newPass = ""; L.newPass2 = ""; L.tries = 0; L.lockUntil = 0; render(); toast("Password changed · sign in with the new one"); focusId("lgpass"); } else { L.mode = "mfasetup"; L.setupSecret = Array.from({ length: 16 }, () => "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567"[Math.floor(Math.random() * 32)]).join(""); L.code = newCode(); L.mfaCode = ""; L.err = ""; render(); focusId("mfacode"); } break; }
+      case "lg-mfaset": { const L = S.lg; if (L.mfaCode.replace(/\s/g, "") !== L.code) { L.err = "That code is not right. Check the time on your phone and try again."; L.mfaCode = ""; render(); break; } L.err = ""; L.recovery = recCodes(); L.saved = false; L.mode = "recovery"; render(); break; }
+      case "lg-recdl": toast("retailos-recovery-codes.txt saved"); break;
+      case "lg-saved": S.lg.saved = el.checked; render(); break;
+      case "lg-finish": { const u = userById("ac"); u.invited = false; S.audit.unshift({ id: "AU-" + (auditSeq++), when: new Date(), who: "Priyanka R.", kind: "Staff", entity: u.name, what: "Invitation accepted · password and two-step sign-in set" }); S.lg.trust = true; lgDone("ac"); break; }
+      case "ob-ind": S.ob.ind = el.dataset.v; render(); break;
+      case "ob-vat": S.ob.vatReg = el.dataset.v; S.ob.err = {}; render(); if (el.dataset.v === "yes") focusId("ob-vat"); break;
+      case "ob-kind": S.ob.kind = el.dataset.v; render(); break;
+      case "ob-width": S.ob.width = el.dataset.v; render(); break;
+      case "ob-prod": S.ob.prod = el.dataset.v; S.ob.err = {}; render(); break;
+      case "ob-next": obNext(); { const first = { 1: "ob-vat", 2: "ob-brName" }[S.ob.step]; if (first) focusId(first); } break;
+      case "ob-back": S.ob.step = Math.max(0, S.ob.step - 1); S.ob.err = {}; render(); break;
+      case "ob-restart": S.ob = { step: 0, name: "", ind: "pharmacy", phone: "", vatReg: "yes", vat: "", brName: "", brCode: "", brAddr: "", kind: "Windows PC", width: "80", prod: "", code: "", err: {} }; render(); focusId("ob-name"); break;
+      case "ob-open": S.user = USERS.find(u => u.id === "dw"); S.view = "dashboard"; render(); toast("This is the demo shop, City Pharmacy & Mart"); break;
       case "goto": S.view = el.dataset.view; if (S.view === "returns" && S.ret.done) S.ret = emptyRet(); render(); if (S.view === "returns") focusId("rsearch"); if (S.view === "receiving") focusId("gsearch"); break;
       case "sa-period": S.sa.period = el.dataset.v; S.sa.limit = 30; render(); break;
       case "sa-flag": S.sa.flag = el.dataset.v; S.sa.limit = 30; render(); break;
@@ -4225,6 +4468,9 @@ Yesterday 09:15  SYNC-003 Catalog cursor too old · catalog snapshot downloaded<
     if (e.target.id === "tdsearch") { S.tax.q = e.target.value; render(); }
     if (e.target.id === "bpsearch") { S.bp.q = e.target.value; render(); }
     if (e.target.id === "catname") { S.cat2.rename = e.target.value; }
+    if (e.target.dataset && e.target.dataset.ds) { const k = e.target.dataset.ds; if (k === "code") { let v = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 8); if (v.length > 4) v = v.slice(0, 4) + "-" + v.slice(4); S.ds.code = v; S.ds.err = ""; render(); setTimeout(() => { const x = document.getElementById("dscode"); if (x) { x.focus(); x.setSelectionRange(v.length, v.length); } }); } else S.ds[k] = e.target.value; }
+    if (e.target.dataset && e.target.dataset.lg) { const k = e.target.dataset.lg; let v = e.target.value; if (k === "mfaCode" && !S.lg.useRec) { v = v.replace(/\D/g, "").slice(0, 6); if (v.length > 3) v = v.slice(0, 3) + " " + v.slice(3); } if (k === "mfaCode" && S.lg.useRec) { v = v.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 8); if (v.length > 4) v = v.slice(0, 4) + "-" + v.slice(4); } S.lg[k] = v; S.lg.err = ""; render(); if (k === "mfaCode") setTimeout(() => { const x = document.getElementById("mfacode"); if (x) { x.focus(); x.setSelectionRange(v.length, v.length); } }); }
+    if (e.target.dataset && e.target.dataset.ob) { const k = e.target.dataset.ob, O = S.ob; let v = e.target.value; if (k === "brCode") { v = v.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 5); O.codeTouched = true; } O[k] = v; if (k === "brName" && !O.codeTouched) O.brCode = obCode(v); if (O.err[k]) delete O.err[k]; render(); }
     if (e.target.id === "sasearch") { S.sa.q = e.target.value; S.sa.limit = 30; render(); }
     if (e.target.dataset && e.target.dataset.sa) { S.sa[e.target.dataset.sa] = e.target.value; S.sa.limit = 30; render(); }
     if (e.target.id === "rlsearch") { S.rl.q = e.target.value; render(); }
@@ -4352,6 +4598,7 @@ Yesterday 09:15  SYNC-003 Catalog cursor too old · catalog snapshot downloaded<
       if (k === "Enter" && !(e.target.closest && e.target.closest('[data-act="su-pick"]'))) { e.preventDefault(); suSubmit(); }
       return;
     }
+    if (FULL_VIEWS.includes(S.view) && !S.modal) { if (k === "Enter" && e.target.tagName === "INPUT" && e.target.type !== "checkbox") { e.preventDefault(); if (e.target.id === "dsscan") { if (e.target.value.trim()) { S.ds.tested.scanner = e.target.value.trim(); S.ds.scan = ""; render(); toast("Scanner works"); } } else fullEnter(e); } return; }
     if (S.view === "openshift" && !S.modal) { if (k === "Enter") { e.preventDefault(); openShiftNow(); } return; }
 
     if (S.modal) {
@@ -4658,7 +4905,7 @@ Yesterday 09:15  SYNC-003 Catalog cursor too old · catalog snapshot downloaded<
   let rz; window.addEventListener("resize", () => { clearTimeout(rz); rz = setTimeout(render, 120); });
   if (S.theme) document.documentElement.dataset.theme = S.theme;
   const hash = location.hash.replace("#", "");
-  if (["sell", "dashboard", "signin", "openshift", "returns", "cash", "orders", "receiving", "pricecheck", "status", "settings", "products", "stock", "expiry", "counts", "import", "exceptions", "suppliers", "customers", "shifts", "tax", "vat", "batch", "pricing", "discounts", "taxrates", "categories", "pricelists", "staff", "reports", "business", "branches", "receipts", "audit", "sales", "returnslist", "grns", "profile"].includes(hash)) S.view = hash;
+  if (["sell", "dashboard", "signin", "openshift", "returns", "cash", "orders", "receiving", "pricecheck", "status", "settings", "products", "stock", "expiry", "counts", "import", "exceptions", "suppliers", "customers", "shifts", "tax", "vat", "batch", "pricing", "discounts", "taxrates", "categories", "pricelists", "staff", "reports", "business", "branches", "receipts", "audit", "sales", "returnslist", "grns", "profile", "device", "login", "onboard"].includes(hash)) S.view = hash;
   if (hash === "stock" || hash === "expiry" || hash === "counts") S.user = USERS[4]; // Kasun, stock keeper
   if (hash === "import" || hash === "exceptions" || hash === "suppliers" || hash === "customers" || hash === "shifts" || hash === "tax" || hash === "vat" || hash === "batch" || hash === "pricing" || hash === "discounts" || hash === "taxrates" || hash === "categories" || hash === "pricelists" || hash === "staff" || hash === "reports" || hash === "sales" || hash === "returnslist" || hash === "grns" || hash === "profile") S.user = USERS[3];
   if (["business", "branches", "receipts", "audit"].includes(hash)) S.user = USERS.find(u => u.id === "dw"); // Dilan, owner // Malini, manager
