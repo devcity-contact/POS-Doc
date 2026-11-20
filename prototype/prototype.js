@@ -399,7 +399,7 @@
     ["setup", [["business", "landmark"], ["branches", "monitor"], ["receipts", "printer"], ["audit", "lock"]]]
   ];
   function sidebar() {
-    const cur = S.view === "complete" ? "sell" : S.view === "product" || S.view === "import" ? "products" : S.view === "counts" ? "stock" : S.view === "customer" ? "customers" : S.view === "shifts" ? "cash" : S.view === "vat" || S.view === "taxrates" ? "tax" : S.view === "batch" ? "stock" : S.view === "discounts" || S.view === "pricelists" ? "pricing" : S.view === "categories" ? "products" : S.view;
+    const cur = S.view === "complete" ? "sell" : S.view === "product" || S.view === "import" ? "products" : S.view === "counts" ? "stock" : S.view === "customer" ? "customers" : S.view === "shifts" ? "cash" : S.view === "vat" || S.view === "taxrates" ? "tax" : S.view === "batch" ? "stock" : S.view === "discounts" || S.view === "pricelists" ? "pricing" : S.view === "categories" ? "products" : S.view === "sales" || S.view === "sale" ? "orders" : S.view === "returnslist" ? "returns" : S.view === "grns" ? "receiving" : S.view;
     let h = `<aside class="sidebar" aria-label="Main navigation"><div class="brand"><span class="mark">R</span><span class="brand-name">RetailOS</span><button class="icon-btn" data-act="collapse" title="Collapse sidebar">${ic("panel")}</button></div><nav>`;
     for (const [g, items] of NAV) {
       h += `<div class="nav-label">${t(g)}</div>`;
@@ -412,7 +412,7 @@
       <button class="nav-item ${cur === "status" ? "active" : ""}" data-act="nav" data-view="status" title="Status & diagnostics">${ic("activity")}<span class="lbl">Status</span>${S.history.some(s => s.sync === "error") ? `<span class="count" style="background:var(--error);color:#fff">!</span>` : ""}</button>
       <button class="nav-item ${cur === "settings" ? "active" : ""}" data-act="nav" data-view="settings" title="${esc(t("settings"))}">${ic("settings")}<span class="lbl">${esc(t("settings"))}</span>${S.dev.training ? `<span class="count">TRAINING</span>` : ""}</button>
       <button class="nav-item danger" data-act="logout" title="${esc(t("logout"))}">${ic("logout")}<span class="lbl">${esc(t("logout"))}</span></button>
-      <button class="user-card" data-act="logout" title="Switch user / sign out"><span class="avatar">${S.user.initials}</span><span class="who"><b>${esc(S.user.name)}</b><span>${esc(S.user.role)} · CMB01</span></span>${ic("chevDown", 16)}</button></aside>`;
+      <button class="user-card ${S.view === "profile" ? "active" : ""}" data-act="nav" data-view="profile" title="My profile"><span class="avatar">${S.user.initials}</span><span class="who"><b>${esc(S.user.name)}</b><span>${esc(S.user.role)} · CMB01</span></span>${ic("chevDown", 16)}</button></aside>`;
     return h;
   }
   function langSeg() {
@@ -754,6 +754,7 @@
     const sh = S.shifts[S.user.id]; if (sh && s.method === "cash") sh.refunds += tt.amount;
     S.retSeq++;
     r.done = { no: `CMB01-R02-RT-${String(S.retSeq).padStart(6, "0")}`, creditNote: s.taxInvoice ? `CMB01-R02-CN-${String(S.retSeq).padStart(6, "0")}` : null, amount: tt.amount, items: tt.items, sale: s, lines, reason: r.reason, approver: mgr ? "Malini J. (Manager)" : null, time: new Date() };
+    (s.returns = s.returns || []).push({ no: r.done.no, date: r.done.time, amount: tt.amount, items: tt.items, reason: r.reason, approver: r.done.approver, creditNote: r.done.creditNote, by: meShort(), method: s.method, lines: lines.map(l => ({ pid: l.pid, q: l.q, unit: l.unit, disc: l.disc })) });
     if (r.done.creditNote) S.tax.docs.push({ no: r.done.creditNote, type: "CN", date: new Date(), fromReturn: true, buyer: s.buyer || { name: s.customer.name, vat: s.customer.vat || "", address: s.customer.address || "" }, ref: s.taxInvoice, reason: "Goods returned · " + r.reason, by: meShort(),
       lines: s.lines.map((l, i) => r.qty[i] ? { pid: l.pid, name: byId(l.pid).name, qty: r.qty[i], unit: l.unit, disc: l.disc, tax: byId(l.pid).tax, src: i } : null).filter(Boolean) });
     if (S.offline) S.waiting++;
@@ -1026,7 +1027,7 @@
     const total = g.lines.reduce((a, l) => a + glCost(l), 0);
     g.posted = { no: `GRN-${S.grnSeq++}`, supplier: g.supplier, invoice: g.invoice, total, updates, time: new Date(), by: S.user.name };
     const sx = SUP.find(x => x.name === g.supplier);
-    if (sx) { sx.grns.unshift({ no: g.posted.no, date: new Date(), invoice: g.invoice, total, paid: sx.terms === "cod" }); for (const u of updates) if (!sx.pids.includes(u.p.id)) sx.pids.push(u.p.id); }
+    if (sx) { sx.grns.unshift({ no: g.posted.no, date: new Date(), invoice: g.invoice, total, paid: sx.terms === "cod", by: meShort(), lines: updates.map(u => ({ pid: u.p.id, qty: u.base, batch: u.batch, exp: u.exp })) }); for (const u of updates) if (!sx.pids.includes(u.p.id)) sx.pids.push(u.p.id); }
     render(); toast(`${g.posted.no} posted · stock updated`);
   }
   function receivingView() {
@@ -1999,7 +2000,7 @@ Yesterday 09:15  SYNC-003 Catalog cursor too old · catalog snapshot downloaded<
     if (!e || e.status !== "open") return;
     if (!f.action || f.note.trim().length < 5) { f.err = true; render(); toast(!f.action ? "Choose an action" : "Write a short note (at least 5 characters)", { error: true }); return; }
     const a = e.actions.find(x => x[0] === f.action), by = meShort(), p = e.pid ? byId(e.pid) : null;
-    if (f.action === "grn" && p) { p.stock = Math.round((p.stock + 12) * 1000) / 1000; S.moves.unshift({ when: new Date(), product: p.name, lot: "", qty: 12, reason: "Goods receipt GRN-2291 posted", note: e.id, who: by, approver: null }); }
+    if (f.action === "grn" && p) { if (!grnDraftPost("GRN-2291", true)) { p.stock = Math.round((p.stock + 12) * 1000) / 1000; S.moves.unshift({ when: new Date(), product: p.name, lot: "", qty: 12, reason: "Goods receipt GRN-2291 posted", note: e.id, who: by, approver: null }); } }
     if (f.action === "adjust" && p) { p.stock = Math.round((p.stock + 2) * 1000) / 1000; S.moves.unshift({ when: new Date(), product: p.name, lot: "", qty: 2, reason: "Found in store", note: e.id, who: by, approver: null }); }
     if (f.action === "block" && p) { const l = lotsOf(p).find(x => x.id === e.lot); if (l) l.blocked = true; }
     if (p) p.log.unshift({ when: new Date(), who: by, what: `Exception ${e.id} resolved: ${a[1]}` });
@@ -3466,6 +3467,228 @@ Yesterday 09:15  SYNC-003 Catalog cursor too old · catalog snapshot downloaded<
     </div>`;
   }
 
+  // ---------- Back-office sales (A-50 / A-51) ----------
+  const BO_CASHIERS = { CMB01: [["R01", "Anushka D."], ["R02", "Sachini K."], ["R03", "Nimal P."]], KDY01: [["R01", "Chamari W."], ["R02", "Ruwan B."]], GAL01: [["R01", "Roshan F."], ["R02", "Ishara P."]] };
+  const BO_PIDS = ["mp", "br", "pc", "am", "tp", "sh", "cc", "eg", "bw", "ct", "co"];
+  S.boSales = []; S.boSeq = { "CMB01-R01": 140, "CMB01-R03": 60, "KDY01-R01": 380, "KDY01-R02": 210, "GAL01-R01": 290, "GAL01-R02": 300 };
+  for (let d = 6; d >= 0; d--) for (const br of ["CMB01", "KDY01", "GAL01"]) {
+    if (br === "CMB01" && d < 2) continue;                                         // CMB01 today and yesterday come from the registers (S.history)
+    for (let k = 0; k < (br === "CMB01" ? 3 : 4); k++) {
+      const h = hashOf(br + d + "-" + k), [regId, cashier] = BO_CASHIERS[br][h % BO_CASHIERS[br].length], key = `${br}-${regId}`;
+      if (br === "CMB01" && regId === "R02") continue;
+      const n = 1 + h % 4, lines = [];
+      for (let j = 0; j < n; j++) { const p = byId(BO_PIDS[(h >>> (j * 3)) % BO_PIDS.length]); if (lines.some(l => l.pid === p.id)) continue; const b = p.batches ? p.batches[1] : null; lines.push({ pid: p.id, qty: 1 + ((h >>> (j + 5)) % 3), unit: b ? b.price : p.price, batch: b ? b.id : null, exp: b ? b.exp : null, disc: p.offer || 0, returned: 0 }); }
+      const m = ["cash", "cash", "card", "qr", "cash", "card"][h % 6], cust = h % 5 === 0 ? CUSTOMERS[2] : h % 7 === 0 ? CUSTOMERS[1] : CUSTOMERS[0];
+      S.boSales.push({ no: `${key}-${String(S.boSeq[key]++).padStart(6, "0")}`, date: daysAgo(d, d === 0 ? Math.min(8 + h % 10, Math.max(8, new Date().getHours() - 1)) : 9 + (h % 10), (h >>> 4) % 60), customer: cust, method: cust.credit && h % 2 ? "credit" : m, cashier, sync: "synced", lines, returns: [] });
+    }
+  }
+  { const s = S.boSales.find(x => x.no.startsWith("KDY01") && x.lines.length > 1); if (s) { s.lines[0].returned = 1; s.returns.push({ no: `${s.no.slice(0, 9)}-RT-000041`, date: new Date(Math.min(Date.now() - 600000, s.date.getTime() + 26 * 3600000)), amount: Math.round(s.lines[0].unit * (100 - s.lines[0].disc) / 100), items: 1, reason: "Wrong item bought", approver: null, creditNote: null, by: s.cashier, method: s.method, lines: [{ pid: s.lines[0].pid, q: 1, unit: s.lines[0].unit, disc: s.lines[0].disc }] }); } }
+  { const s = S.history.find(x => x.no === "CMB01-R02-000154"); if (s) s.returns = [{ no: "CMB01-R02-RT-000012", date: daysAgo(0, 11, 32), amount: Math.round(115000 * 0.9), items: 1, reason: "Damaged packaging", approver: null, creditNote: null, by: "Sachini K.", method: "cash", lines: [{ pid: "mp", q: 1, unit: 115000, disc: 10 }] }]; }
+  const boAll = () => [...S.history.filter(s => !s.training), ...S.boSales].sort((a, b) => b.date - a.date);
+  const brOf = s => s.no.slice(0, 5), regOf = s => s.no.split("-")[1];
+  S.sa = { q: "", period: "7d", branch: "all", method: "all", cashier: "all", flag: "all", limit: 30, open: null };
+  function saList() {
+    const f = S.sa, q = f.q.trim().toLowerCase(), days = f.period === "today" ? 0 : f.period === "yesterday" ? 1 : 6;
+    return boAll().filter(s => (f.period === "yesterday" ? dayDiff(s.date) === 1 : dayDiff(s.date) <= days) && (f.branch === "all" || brOf(s) === f.branch) && (f.method === "all" || s.method === f.method) && (f.cashier === "all" || s.cashier === f.cashier)
+      && (f.flag === "all" || (f.flag === "returns" && s.lines.some(l => l.returned)) || (f.flag === "tax" && s.taxInvoice) || (f.flag === "disc" && s.lines.some(l => l.approver)) || (f.flag === "sync" && s.sync !== "synced"))
+      && (!q || [s.no, s.customer.name, s.cashier, s.taxInvoice || ""].join(" ").toLowerCase().includes(q)));
+  }
+  const goBtn = (view, label, icon) => `<button class="btn secondary" data-act="goto" data-view="${view}">${icon ? ic(icon, 18) : ""}${label}</button>`;
+  function salesView() {
+    if (!["Owner", "Manager", "Accountant"].includes(S.user.role)) return historyView();
+    const f = S.sa, list = saList(), total = list.reduce((a, s) => a + saleTotal(s), 0), cashiers = [...new Set(boAll().map(s => s.cashier))].sort();
+    const chip = (v, l) => `<button class="chip" data-act="sa-flag" data-v="${v}" aria-pressed="${f.flag === v}">${l}</button>`;
+    const sel = (k, opts, label) => `<select data-sa="${k}" data-fid="sa-${k}" aria-label="${label}">${opts.map(([v, l]) => `<option value="${v}" ${f[k] === v ? "selected" : ""}>${esc(l)}</option>`).join("")}</select>`;
+    return `<div class="page bo">
+      <div class="page-actions"><label class="search">${ic("search")}<span class="sr">Search sales</span><input id="sasearch" data-fid="sasearch" autocomplete="off" placeholder="Receipt number, customer, cashier or tax invoice…" value="${esc(f.q)}"><kbd>/</kbd></label>
+        <div class="seg" role="group" aria-label="Period">${[["today", "Today"], ["yesterday", "Yesterday"], ["7d", "Last 7 days"]].map(([v, l]) => `<button data-act="sa-period" data-v="${v}" aria-pressed="${f.period === v}">${l}</button>`).join("")}</div>
+        <span class="spacer"></span>${goBtn("orders", "This register", "receipt")}<button class="btn secondary" data-act="toast" data-msg="sales-${f.period}.xlsx exported (${list.length} receipts)">Export</button></div>
+      <div class="filters">${sel("branch", [["all", "All branches"], ...BRANCHES.map(b => [b[0], b[1]])], "Branch")}${sel("method", [["all", "Any payment"], ["cash", "Cash"], ["card", "Card"], ["qr", "LankaQR"], ["credit", "Credit"]], "Payment")}${sel("cashier", [["all", "All cashiers"], ...cashiers.map(c => [c, c])], "Cashier")}
+        <div class="chips">${chip("all", "All")}${chip("returns", "With returns")}${chip("tax", "Tax invoice")}${chip("disc", "Discount approved")}${chip("sync", "Not synced")}</div></div>
+      <div class="stats4"><div class="stat"><span>Receipts</span><b>${list.length}</b></div><div class="stat"><span>Sales incl. VAT</span><b>${fmt(total)}</b></div><div class="stat"><span>Average basket</span><b>${fmt(list.length ? Math.round(total / list.length) : 0)}</b></div><div class="stat"><span>Returned</span><b>${fmt(list.reduce((a, s) => a + (s.returns || []).reduce((x, r) => x + r.amount, 0), 0))}</b></div></div>
+      <div class="ctable" role="table" aria-label="Sales">
+        <div class="sarow head" role="row"><span>Time</span><span>Receipt</span><span>Cashier</span><span>Customer</span><span>Paid by</span><span class="r">Total</span><span>Status</span></div>
+        ${list.slice(0, f.limit).map(s => `<div class="sarow" role="row" tabindex="0" data-act="sa-open" data-no="${s.no}"><span class="muted">${dayDiff(s.date) === 0 ? "" : s.date.toLocaleDateString("en-GB", { day: "numeric", month: "short" }) + " "}${hm(s.date)}</span>
+          <span><b class="mono">${s.no}</b></span><span>${esc(s.cashier)}</span><span class="muted">${esc(s.customer.name)}</span><span class="pm">${ic(METHOD[s.method][1], 16)}${METHOD[s.method][0]}</span><span class="r"><b>${fmt(saleTotal(s))}</b></span>
+          <span class="st">${s.lines.some(l => l.returned) ? badge("", retState(s) || "Returned", "undo") : ""}${s.taxInvoice ? badge("info", "TI", "receipt") : ""}${s.sync && s.sync !== "synced" ? syncBadge(s) : ""}</span></div>`).join("")
+          || `<div class="empty"><span class="circle">${ic("receipt", 28)}</span><h3>No sales match</h3><span>Try another period or clear the filters.</span></div>`}
+      </div>
+      ${list.length > f.limit ? `<button class="btn secondary" data-act="sa-more">Show more · ${list.length - f.limit} left</button>` : `<div class="table-foot"><span>${list.length} receipts</span><span>Click a receipt for lines, batches, payments and the audit trail</span></div>`}
+    </div>`;
+  }
+  function batchFor(s, l) {
+    if (l.batch) return { id: l.batch, exp: l.exp };
+    const p = byId(l.pid), lots = lotsOf(p).filter(x => x.exp).sort((a, b) => a.exp.localeCompare(b.exp)), ok = lots.find(x => x.exp >= isoDate(s.date)) || lots[0];
+    return ok ? { id: ok.id, exp: fmtExpIso(ok.exp) } : null;
+  }
+  function saleDetailView() {
+    const s = boAll().find(x => x.no === S.sa.open); if (!s) return salesView();
+    const gross = s.lines.reduce((a, l) => a + Math.round(l.qty * l.unit), 0), net = saleTotal(s), h = hashOf(s.no), local = !!S.history.find(x => x.no === s.no);
+    const vat = s.lines.reduce((a, l) => byId(l.pid).tax === "exempt" ? a : a + Math.round(Math.round(l.qty * l.unit * (100 - l.disc) / 100) * 18 / 118), 0);
+    const pay = s.method === "cash" ? [["Cash received", fmt(Math.ceil(net / 50000) * 50000)], ["Change given", fmt(Math.ceil(net / 50000) * 50000 - net)]] : s.method === "card" ? [["Card", `VISA ****${String(1000 + h % 9000)}`], ["Approval code", String(100000 + h % 900000)]] : s.method === "qr" ? [["LankaQR reference", `LQ${String(h).slice(0, 10)}`]] : [["Customer credit", `${esc(s.customer.name)} · due in 30 days`]];
+    const trail = [[s.date, `Sale completed at ${brOf(s)}-${regOf(s)}`, s.cashier], ...(s.sync === "synced" || !s.sync ? [[new Date(s.date.getTime() + (60 + h % 180) * 1000), "Received by the server", "System"]] : [[s.date, s.sync === "error" ? "Sync failed: " + (s.syncError || "") : "Waiting to sync", "Register"]]),
+      ...s.lines.filter(l => l.approver).map(l => [s.date, `Discount ${l.disc}% on ${byId(l.pid).name} approved`, l.approver]), ...(s.taxInvoice ? [[s.tiDate || s.date, `Tax invoice ${s.taxInvoice} issued`, s.cashier]] : []),
+      ...(s.returns || []).map(r => [r.date, `Return ${r.no} · ${fmt(r.amount)} · ${r.reason}`, r.by + (r.approver ? ` · approved by ${r.approver.replace(/ \(.*\)/, "")}` : "")])].sort((a, b) => a[0] - b[0]);
+    return `<div class="page bo">
+      <div class="cust-head"><button class="btn ghost" data-act="sa-back">${ic("arrowRight", 18)}All sales</button><div class="grow"><h2 class="mono">${s.no}</h2><span class="sub">${s.date.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", year: "numeric" })} ${hm(s.date)} · ${esc(BRANCHES.find(b => b[0] === brOf(s))[1])} · Register ${regOf(s)} · ${esc(s.cashier)}</span></div>
+        ${syncBadge(s)}${s.taxInvoice ? badge("info", "Tax invoice", "receipt") : ""}</div>
+      <div class="bd-grid">
+        <section class="card"><h2>Lines</h2>
+          <div class="ledger" role="table"><div class="slrow head" role="row"><span>Item</span><span>Batch</span><span class="r">Qty</span><span class="r">Price</span><span class="r">Total</span></div>
+          ${s.lines.map(l => { const p = byId(l.pid), b = batchFor(s, l); return `<div class="slrow" role="row"><span class="pname"><span class="thumb tile-${p.tone}">${ic(p.icon, 18)}</span><span style="min-width:0"><b>${esc(p.name)}</b><small>${p.tax === "exempt" ? "VAT exempt" : "VAT 18%"}${l.disc ? ` · −${l.disc}%${l.approver ? " approved" : " offer"}` : ""}${l.returned ? ` · ${l.returned} returned` : ""}</small></span></span>
+            <span class="mono muted">${b ? `${esc(b.id)}<small>exp ${esc(b.exp)}</small>` : "—"}</span><span class="r">${p.weighed ? l.qty.toFixed(3) + " kg" : l.qty}</span><span class="r">${fmt(l.unit)}</span><span class="r"><b>${fmt(Math.round(l.qty * l.unit * (100 - l.disc) / 100))}</b></span></div>`; }).join("")}</div>
+          <div class="summary"><div class="r"><span>Subtotal</span><b>${fmt(gross)}</b></div><div class="r disc"><span>Discounts</span><b>${gross - net ? "−" : ""}${fmt(gross - net)}</b></div><div class="r"><span>VAT included</span><b>${fmt(vat)}</b></div><hr><div class="total"><span>Total</span><span>${fmt(net)}</span></div></div>
+          <div class="note">${ic("lock", 16)}Sales are never edited (INV-02). Corrections are returns, credit notes or exception notes, all linked here.</div></section>
+        <div class="bd-side">
+          <section class="card"><h2>Payment</h2><dl class="kv exc-kv"><dt>Method</dt><dd>${METHOD[s.method][0]}</dd>${pay.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join("")}<dt>Customer</dt><dd>${esc(s.customer.name)}</dd></dl></section>
+          ${(s.returns || []).length || s.taxInvoice ? `<section class="card"><h2>Linked documents</h2><div class="dlines">${(s.returns || []).map(r => `<div class="dline"><span class="grow"><b class="mono">${r.no}</b><small>Return · ${r.items} item${r.items === 1 ? "" : "s"} · ${esc(r.reason)}</small></span><b>−${fmt(r.amount)}</b></div>`).join("")}${s.taxInvoice ? `<div class="dline"><span class="grow"><b class="mono">${s.taxInvoice}</b><small>Tax invoice</small></span><button class="btn ghost s" data-act="sa-ti" data-no="${s.taxInvoice}">Open</button></div>` : ""}</div></section>` : ""}
+          <section class="card"><h2>Audit trail</h2><div class="dlines">${trail.map(([w, what, who]) => `<div class="dline"><span class="grow"><b>${esc(what)}</b><small>${w.toLocaleDateString("en-GB", { day: "numeric", month: "short" })} ${w.toTimeString().slice(0, 8)} · ${esc(who)}</small></span></div>`).join("")}</div></section>
+          <section class="card"><button class="btn secondary block" data-act="toast" data-msg="Copy of ${s.no} printed · marked COPY">${ic("printer", 18)}Reprint copy</button>
+            <button class="btn secondary block" data-act="sa-return" ${local && retState(s) !== "Returned" ? "" : "disabled"}>${ic("undo", 18)}Start a return</button>${local ? "" : `<div class="note">${ic("store", 16)}Returns are taken at the branch that made the sale, or any branch with the receipt.</div>`}</section>
+        </div></div></div>`;
+  }
+
+  // ---------- Returns (A-52) ----------
+  S.rl = { q: "", period: "7d", branch: "all", sel: null };
+  function rlList() {
+    const f = S.rl, q = f.q.trim().toLowerCase(), days = f.period === "today" ? 0 : f.period === "7d" ? 7 : 30;
+    return boAll().flatMap(s => (s.returns || []).map(r => ({ ...r, sale: s }))).filter(r => dayDiff(r.date) <= days && (f.branch === "all" || brOf(r.sale) === f.branch)
+      && (!q || [r.no, r.sale.no, r.reason, r.sale.customer.name, r.by].join(" ").toLowerCase().includes(q))).sort((a, b) => b.date - a.date);
+  }
+  function returnsListView() {
+    if (!isMgr()) return returnsView();
+    const f = S.rl, list = rlList(), tot = list.reduce((a, r) => a + r.amount, 0), sales = boAll().filter(s => dayDiff(s.date) <= (f.period === "today" ? 0 : f.period === "7d" ? 7 : 30) && (f.branch === "all" || brOf(s) === f.branch)).reduce((a, s) => a + saleTotal(s), 0);
+    const reasons = {}; list.forEach(r => { reasons[r.reason] = (reasons[r.reason] || 0) + 1; }); const top = Object.entries(reasons).sort((a, b) => b[1] - a[1])[0];
+    if (!list.some(r => r.no === f.sel)) f.sel = list[0] ? list[0].no : null;
+    const sel = list.find(r => r.no === f.sel);
+    const left = `<section class="products" aria-label="Returns">
+      <div class="search-row"><label class="search">${ic("search")}<span class="sr">Search returns</span><input id="rlsearch" data-fid="rlsearch" autocomplete="off" placeholder="Return or receipt number, reason, customer…" value="${esc(f.q)}"></label>${goBtn("returns", "New return", "plus")}</div>
+      <div class="filters"><div class="seg" role="group">${[["today", "Today"], ["7d", "7 days"], ["30d", "30 days"]].map(([v, l]) => `<button data-act="rl-period" data-v="${v}" aria-pressed="${f.period === v}">${l}</button>`).join("")}</div>
+        <select data-rl="branch" data-fid="rl-branch" aria-label="Branch"><option value="all">All branches</option>${BRANCHES.map(b => `<option value="${b[0]}" ${f.branch === b[0] ? "selected" : ""}>${b[1]}</option>`).join("")}</select></div>
+      <div class="stats"><div class="stat"><span>Refunded</span><b>${fmt(tot)}</b></div><div class="stat"><span>Of sales</span><b>${sales ? Math.round(tot / sales * 1000) / 10 : 0}%</b></div><div class="stat"><span>Top reason</span><b style="font-size:15px">${top ? esc(top[0]) : "—"}</b></div></div>
+      ${list.length ? `<div class="htable" role="listbox" aria-label="Returns list"><div class="rlrow head" aria-hidden="true"><span>When</span><span>Return</span><span>Reason</span><span class="amt">Refund</span></div>
+        ${list.map(r => `<button class="rlrow" role="option" aria-selected="${r.no === f.sel}" data-act="rl-sel" data-no="${r.no}"><span class="muted">${dayDiff(r.date) === 0 ? "Today" : r.date.toLocaleDateString("en-GB", { day: "numeric", month: "short" })} ${hm(r.date)}</span><span class="no"><b class="mono">${r.no}</b><small>from ${r.sale.no} · ${esc(r.by)}</small></span><span>${esc(r.reason)}${r.approver ? ` ${badge("warning", "Approved", "lock")}` : ""}</span><span class="amt">−${fmt(r.amount)}</span></button>`).join("")}</div>`
+        : `<div class="empty card"><span class="circle">${ic("undo", 28)}</span><h3>No returns in this period</h3><span>Returns taken at the registers appear here with their original sale.</span></div>`}
+    </section>`;
+    const right = sel ? `<aside class="order rl-panel" aria-label="Return details"><div class="order-head"><div class="order-title"><div style="flex:1;min-width:0"><h2 class="mono">${sel.no}</h2><div class="sub">${sel.date.toLocaleDateString("en-GB", { day: "numeric", month: "short" })} ${hm(sel.date)} · ${esc(sel.by)}</div></div>${badge("", METHOD[sel.method][0], METHOD[sel.method][1])}</div>
+        <dl class="kv"><dt>Original sale</dt><dd><button class="linkish" data-act="sa-open" data-no="${sel.sale.no}">${sel.sale.no}</button></dd><dt>Customer</dt><dd>${esc(sel.sale.customer.name)}</dd><dt>Reason</dt><dd>${esc(sel.reason)}</dd>${sel.approver ? `<dt>Approved by</dt><dd>${esc(sel.approver.replace(/ \(.*\)/, ""))}</dd>` : ""}${sel.creditNote ? `<dt>Credit note</dt><dd><button class="linkish" data-act="sa-ti" data-no="${sel.creditNote}">${sel.creditNote}</button></dd>` : ""}</dl></div>
+      <div class="panel-body"><div class="dlines">${sel.lines.map(l => { const p = byId(l.pid); return `<div class="dline"><span class="thumb tile-${p.tone}">${ic(p.icon, 18)}</span><span class="grow"><b>${esc(p.name)}</b><small>${l.q} × ${fmt(Math.round(l.unit * (100 - l.disc) / 100))} · back to stock</small></span><b>−${fmt(Math.round(l.q * l.unit * (100 - l.disc) / 100))}</b></div>`; }).join("")}</div>
+        <div class="summary"><div class="total"><span>Refunded</span><span>−${fmt(sel.amount)}</span></div></div></div>
+      <div class="order-foot"><button class="btn secondary l block" data-act="toast" data-msg="Return slip ${sel.no} reprinted">${ic("printer")}Reprint return slip</button></div></aside>`
+      : `<aside class="order rl-panel"><div class="empty" style="flex:1"><span class="circle">${ic("undo", 28)}</span><h3>Select a return</h3></div></aside>`;
+    return `<div class="body">${left}${right}</div>`;
+  }
+
+  // ---------- Goods receipts (A-42) ----------
+  S.grnDrafts = [
+    { no: "GRN-2291", supplier: "Cargills Distribution", invoice: "CD-99501", date: daysAgo(1, 15, 20), by: "Kasun S.", status: "draft", lines: [{ pid: "sh", qty: 12, batch: "SH2611", exp: isoDate(inDays(720)) }, { pid: "co", qty: 24, batch: "CO2702", exp: isoDate(inDays(300)) }] },
+    { no: "GRN-2292", supplier: "Lanka Milk Foods", invoice: "", date: daysAgo(0, 9, 40), by: "Kasun S.", status: "draft", lines: [{ pid: "mp", qty: 24, batch: "MP7802", exp: isoDate(inDays(380)) }] }
+  ];
+  S.grnSeq = Math.max(S.grnSeq, 2293);
+  S.gl = { q: "", status: "all", sup: "all", sel: "GRN-2291" };
+  const grnLineTotal = l => Math.round(l.qty * byId(l.pid).cost);
+  function grnListAll() {
+    const posted = SUP.flatMap(sx => sx.grns.map(r => ({ no: r.no, supplier: sx.name, invoice: r.invoice, date: r.date, total: r.total, status: "posted", paid: grnState(sx, r), lines: r.lines || null, by: r.by || "Kasun S.", sx })));
+    const drafts = S.grnDrafts.filter(d => d.status === "draft").map(d => ({ ...d, total: d.lines.reduce((a, l) => a + grnLineTotal(l), 0), draft: d }));
+    return [...drafts, ...posted].sort((a, b) => (a.status === "draft") - (b.status === "draft") ? (a.status === "draft" ? -1 : 1) : b.date - a.date);
+  }
+  function grnLinesOf(g) {
+    if (g.lines) return g.lines;
+    const pids = g.sx.pids.length ? g.sx.pids : ["br"], h = hashOf(g.no); let left = g.total;
+    return pids.map((pid, i) => { const p = byId(pid), share = i === pids.length - 1 ? left : Math.round(g.total / pids.length), qty = Math.max(1, Math.round(share / p.cost)); left -= share; return { pid, qty, batch: `${p.sku.split("-")[0]}${2600 + (h + i * 7) % 99}`, exp: isoDate(inDays(120 + (h + i * 31) % 500)) }; });
+  }
+  function grnDraftPost(no, silent) {
+    const d = S.grnDrafts.find(x => x.no === no && x.status === "draft"); if (!d) return false;
+    const by = meShort(), sx = SUP.find(x => x.name === d.supplier);
+    for (const l of d.lines) {
+      const p = byId(l.pid); p.stock = Math.round((p.stock + l.qty) * 1000) / 1000; p.lots = p.lots || []; p.lots.unshift({ id: l.batch, exp: l.exp, qty: l.qty, fresh: true });
+      S.moves.unshift({ when: new Date(), product: p.name, lot: l.batch, qty: l.qty, reason: `Goods receipt ${d.no} posted`, note: "", who: by, approver: null });
+    }
+    const total = d.lines.reduce((a, l) => a + grnLineTotal(l), 0);
+    if (sx) { sx.grns.unshift({ no: d.no, date: new Date(), invoice: d.invoice, total, paid: sx.terms === "cod", lines: d.lines.map(l => ({ ...l })), by }); for (const l of d.lines) if (!sx.pids.includes(l.pid)) sx.pids.push(l.pid); }
+    d.status = "posted"; S.gl.sel = d.no;
+    if (!silent) { render(); toast(`${d.no} posted · ${d.lines.length} line${d.lines.length === 1 ? "" : "s"} added to stock`); }
+    return true;
+  }
+  function grnsView() {
+    if (!isMgr()) return receivingView();
+    const f = S.gl, all = grnListAll(), q = f.q.trim().toLowerCase();
+    const list = all.filter(g => (f.status === "all" || g.status === f.status || (f.status === "unpaid" && g.status === "posted" && g.paid !== "paid")) && (f.sup === "all" || g.supplier === f.sup) && (!q || [g.no, g.supplier, g.invoice].join(" ").toLowerCase().includes(q)));
+    if (!list.some(g => g.no === f.sel)) f.sel = list[0] ? list[0].no : null;
+    const g = all.find(x => x.no === f.sel);
+    const chip = (v, l) => `<button class="chip" data-act="gl-status" data-v="${v}" aria-pressed="${f.status === v}">${l}</button>`;
+    const left = `<section class="products" aria-label="Goods receipts">
+      <div class="search-row"><label class="search">${ic("search")}<span class="sr">Search receipts</span><input id="glsearch" data-fid="glsearch" autocomplete="off" placeholder="GRN, supplier or invoice number…" value="${esc(f.q)}"></label>${goBtn("receiving", "New receipt", "truck")}</div>
+      <div class="filters"><div class="chips">${chip("all", `All · ${all.length}`)}${chip("draft", `Drafts · ${all.filter(x => x.status === "draft").length}`)}${chip("posted", "Posted")}${chip("unpaid", "Not paid")}</div>
+        <select data-gl2="sup" data-fid="gl-sup" aria-label="Supplier"><option value="all">All suppliers</option>${SUP.map(s => `<option ${f.sup === s.name ? "selected" : ""}>${esc(s.name)}</option>`).join("")}</select></div>
+      ${list.length ? `<div class="htable" role="listbox" aria-label="Receipts"><div class="grow2 head" aria-hidden="true"><span>Receipt</span><span>Supplier</span><span>Date</span><span class="amt">Cost total</span><span>Status</span></div>
+        ${list.map(x => `<button class="grow2" role="option" aria-selected="${x.no === f.sel}" data-act="gl-sel" data-no="${x.no}"><span class="no"><b class="mono">${x.no}</b><small>Invoice ${esc(x.invoice || "not entered")}</small></span><span class="nm">${esc(x.supplier)}</span><span class="muted">${dayDiff(x.date) === 0 ? "Today" : x.date.toLocaleDateString("en-GB", { day: "numeric", month: "short" })}</span><span class="amt">${fmt(x.total)}</span>
+          <span>${x.status === "draft" ? badge("warning", "Draft", "pencil") : x.paid === "paid" ? badge("success", "Paid", "check") : x.paid === "overdue" ? badge("error", "Overdue", "alert") : badge("", "Posted · due", "clock")}</span></button>`).join("")}</div>`
+        : `<div class="empty card"><span class="circle">${ic("truck", 28)}</span><h3>No receipts match</h3></div>`}
+    </section>`;
+    let right = `<aside class="order gl-panel"><div class="empty" style="flex:1"><span class="circle">${ic("truck", 28)}</span><h3>Select a receipt</h3></div></aside>`;
+    if (g) {
+      const lines = grnLinesOf(g), tot = lines.reduce((a, l) => a + grnLineTotal(l), 0), d = g.status === "draft";
+      right = `<aside class="order gl-panel" aria-label="Receipt details"><div class="order-head"><div class="order-title"><div style="flex:1;min-width:0"><h2 class="mono">${g.no}</h2><div class="sub">${esc(g.supplier)} · ${g.date.toLocaleDateString("en-GB", { day: "numeric", month: "short" })} ${hm(g.date)} · ${esc(g.by)}</div></div>${d ? badge("warning", "Draft", "pencil") : badge("success", "Posted", "check")}</div>
+        <dl class="kv"><dt>Supplier invoice</dt><dd>${esc(g.invoice || "—")}</dd><dt>Lines</dt><dd>${lines.length}</dd>${!d ? `<dt>Payment</dt><dd>${g.paid === "paid" ? "Paid" : g.paid === "overdue" ? "Overdue" : "Due"}</dd>` : ""}</dl>
+        ${d ? `<div class="banner">${ic("alert")}<span>Not posted yet: this stock is not counted.${g.no === "GRN-2291" ? " It is why Shampoo went below zero (exception EX-1046)." : ""}</span></div>` : ""}</div>
+        <div class="panel-body"><div class="dlines">${lines.map(l => { const p = byId(l.pid); return `<div class="dline"><span class="thumb tile-${p.tone}">${ic(p.icon, 18)}</span><span class="grow"><b>${esc(p.name)}</b><small>Batch ${esc(l.batch || "—")}${l.exp ? " · exp " + fmtExpIso(l.exp) : ""} · ${fq(p, l.qty)} × ${fmt(p.cost)}</small></span><b>${fmt(grnLineTotal(l))}</b></div>`; }).join("")}</div>
+          <div class="summary"><div class="total"><span>Cost total</span><span>${fmt(g.lines ? tot : g.total)}</span></div></div>
+          ${!g.invoice && d ? `<div class="note">${ic("help", 16)}Add the supplier invoice number before posting, so payments can be matched.</div>` : ""}</div>
+        <div class="order-foot">${d ? `<button class="btn primary l block" data-act="gl-post" data-no="${g.no}" ${g.invoice ? "" : "disabled"}>${ic("check")}Post receipt · add to stock</button><div class="two"><button class="btn secondary" data-act="gl-inv" data-no="${g.no}">Add invoice no.</button><button class="btn ghost" data-act="gl-del" data-no="${g.no}">Delete draft</button></div>`
+          : `<div class="two"><button class="btn secondary" data-act="toast" data-msg="${g.no} printed">${ic("printer", 18)}Print</button><button class="btn secondary" data-act="gl-sup" data-sup="${esc(g.supplier)}">${ic("store", 18)}Supplier</button></div>`}</div></aside>`;
+    }
+    return `<div class="body">${left}${right}</div>`;
+  }
+
+  // ---------- My profile (A-90) ----------
+  S.me = { cur: "", n1: "", n2: "", err: "", ok: false, mfa: {}, sessions: {} };
+  const sessionsOf = u => S.me.sessions[u.id] = S.me.sessions[u.id] || [
+    { id: "s1", what: "Register CMB01-R02 · Windows", where: "Colombo 03", when: new Date(), cur: true },
+    ...(["Owner", "Manager", "Accountant"].includes(u.role) ? [{ id: "s2", what: "Back office · Chrome on Windows", where: "Colombo, Sri Lanka", when: minsAgo(70) }, { id: "s3", what: "RetailOS app · Android phone", where: "Kandy, Sri Lanka", when: minsAgo(60 * 26) }] : [])];
+  function pinProblem(p) {
+    if (!/^\d{4}$/.test(p)) return "Use exactly 4 digits";
+    if (/^(\d)\1{3}$/.test(p)) return "Not the same digit four times";
+    if ("0123456789".includes(p) || "9876543210".includes(p)) return "Not a run like 1234";
+    if (p === S.user.pin) return "Must differ from your current PIN";
+    return "";
+  }
+  function pinSave() {
+    const m = S.me;
+    if (m.cur !== S.user.pin) { m.err = "Your current PIN is not right"; m.ok = false; render(); return; }
+    const pr = pinProblem(m.n1); if (pr) { m.err = pr; m.ok = false; render(); return; }
+    if (m.n1 !== m.n2) { m.err = "The new PINs do not match"; m.ok = false; render(); return; }
+    S.user.pin = m.n1; auditAdd("Sign-in", S.user.name, "Changed own PIN"); S.me = { ...S.me, cur: "", n1: "", n2: "", err: "", ok: true }; render(); toast("PIN changed · use it next time you sign in");
+  }
+  function profileView() {
+    const u = S.user, m = S.me, ss = sessionsOf(u), back = ["Owner", "Manager", "Accountant"].includes(u.role), mfaOn = u.role === "Owner" || m.mfa[u.id] !== false && back;
+    const mine = (typeof auditEntries === "function" ? auditEntries() : []).filter(e => e.who === meShort()).slice(0, 6);
+    const pinIn = (k, l) => `<label class="field">${l}<input type="password" inputmode="numeric" maxlength="4" autocomplete="off" data-me="${k}" data-fid="me-${k}" value="${esc(m[k])}" placeholder="••••"></label>`;
+    return `<div class="page setup">
+      <div class="cust-head"><span class="avatar l">${esc(u.initials)}</span><div class="grow"><h2>${esc(u.name)}</h2><span class="sub">${esc(u.role)} · ${esc((u.branches || ["CMB01"]).join(", "))} · last sign-in ${u.last ? (dayDiff(u.last) === 0 ? "today " + hm(u.last) : dayDiff(u.last) + " days ago") : "—"}</span></div><button class="btn secondary" data-act="logout">${ic("logout", 18)}Sign out</button></div>
+      <div class="setup-grid">
+        <div class="cat-side">
+          <section class="card"><h2>Display</h2>
+            <div class="field">Language<div class="seg big-seg" role="group">${[["en", "English"], ["si", "සිංහල"], ["ta", "தமிழ்"]].map(([v, l]) => `<button data-act="me-lang" data-v="${v}" aria-pressed="${S.lang === v}">${l}</button>`).join("")}</div></div>
+            <div class="field">Theme<div class="seg big-seg" role="group">${[["auto", "Match device"], ["light", "Light"], ["dark", "Dark"]].map(([v, l]) => `<button data-act="me-theme" data-v="${v}" aria-pressed="${(document.documentElement.dataset.theme || "auto") === v}">${l}</button>`).join("")}</div></div>
+            <div class="note">${ic("help", 16)}These follow you on any register you sign in to.</div></section>
+          <section class="card"><h2>Change PIN</h2>
+            <div class="form-3">${pinIn("cur", "Current PIN")}${pinIn("n1", "New PIN")}${pinIn("n2", "New PIN again")}</div>
+            ${m.err ? `<div class="scan-error" role="alert">${ic("alert", 16)}${esc(m.err)}</div>` : m.ok ? `<div class="note" style="color:var(--success-text)">${ic("check", 16)}PIN changed</div>` : `<div class="note">${ic("lock", 16)}4 digits, not a run like 1234 and not one digit repeated. Never share your PIN.</div>`}
+            <div class="card-actions"><button class="btn primary" data-act="me-pin" ${m.cur.length === 4 && m.n1.length === 4 && m.n2.length === 4 ? "" : "disabled"}>${ic("check", 18)}Change PIN</button></div></section>
+          ${back ? `<section class="card"><h2>Back-office sign-in</h2>
+            <dl class="kv exc-kv"><dt>E-mail</dt><dd>${esc(u.short.toLowerCase())}@citypharmacy.lk</dd><dt>Password</dt><dd>Changed 41 days ago</dd></dl>
+            <label class="check-row"><input type="checkbox" data-act="me-mfa" ${mfaOn ? "checked" : ""} ${u.role === "Owner" ? "disabled" : ""}><span><b>Two-step sign-in</b><small>${u.role === "Owner" ? "Always on for the owner." : "A code from an authenticator app at each new browser."}</small></span></label>
+            <div class="card-actions" style="justify-content:flex-start"><button class="btn secondary" data-act="toast" data-msg="Password reset link sent to ${esc(u.short.toLowerCase())}@citypharmacy.lk">Change password</button></div></section>` : ""}
+        </div>
+        <div class="cat-side">
+          <section class="card"><div class="card-head"><h2>Where you are signed in</h2>${ss.length > 1 ? `<button class="btn ghost s" data-act="me-out-all">Sign out of others</button>` : ""}</div>
+            <div class="dlines">${ss.map(x => `<div class="dline"><span class="thumb tile-${x.cur ? "green" : "blue"}">${ic(/phone|Android/.test(x.what) ? "grid" : "monitor", 18)}</span><span class="grow"><b>${esc(x.what)}</b><small>${esc(x.where)} · ${x.cur ? "this device, now" : "active " + ageOf(x.when) + " ago"}</small></span>${x.cur ? badge("success", "This device", null) : `<button class="btn ghost s" data-act="me-out" data-v="${x.id}">Sign out</button>`}</div>`).join("")}</div></section>
+          <section class="card"><h2>Your recent activity</h2>${mine.length ? `<div class="dlines">${mine.map(e => `<div class="dline"><span class="grow"><b>${esc(e.entity)}</b><small>${esc(e.what)} · ${dayDiff(e.when) === 0 ? "today" : e.when.toLocaleDateString("en-GB", { day: "numeric", month: "short" })} ${hm(e.when)}</small></span></div>`).join("")}</div>` : `<div class="note">${ic("clock", 16)}Nothing yet today.</div>`}
+            <div class="note">${ic("lock", 16)}From the audit log. If something here was not you, tell the owner and change your PIN.</div></section>
+        </div></div></div>`;
+  }
+
   // ---------- Render: main ----------
   function render() {
     const fid = document.activeElement && document.activeElement.dataset ? document.activeElement.dataset.fid : null;
@@ -3486,6 +3709,11 @@ Yesterday 09:15  SYNC-003 Catalog cursor too old · catalog snapshot downloaded<
     else if (S.view === "returns") main = topbar(t("returns"), S.ret.done ? "Refund recorded" : S.ret.sale ? "Choose the items the customer is bringing back" : "Find the original sale") + returnsView();
     else if (S.view === "stock") main = topbar(t("stock"), "Stock on hand by product and batch") + stockView();
     else if (S.view === "expiry") main = topbar(t("expiry"), "Batches expiring in the next 90 days · act before they are lost") + expiryView();
+    else if (S.view === "sales") main = topbar("Sales", "Every receipt from every branch · read-only, sales are never edited") + salesView();
+    else if (S.view === "sale") main = topbar("Sales", "Sale detail · lines, batches, payments, documents and audit trail") + saleDetailView();
+    else if (S.view === "returnslist") main = topbar(t("returns"), "Refunds on every branch, each linked to its original sale") + returnsListView();
+    else if (S.view === "grns") main = topbar("Goods receipts", "Drafts and posted receipts from suppliers") + grnsView();
+    else if (S.view === "profile") main = topbar("My profile", "Your language, PIN and sign-ins") + profileView();
     else if (S.view === "business") main = topbar(t("setup"), "Business profile · used on tax invoices and reports") + businessView();
     else if (S.view === "branches") main = topbar(t("setup"), "Branches, registers and device enrollment") + branchesView();
     else if (S.view === "receipts") main = topbar(t("setup"), "Receipt and tax invoice templates for every register") + receiptsView();
@@ -3668,7 +3896,7 @@ Yesterday 09:15  SYNC-003 Catalog cursor too old · catalog snapshot downloaded<
         if (S.view === "product") S.pe = null;
         if (v === "cash" && S.cs.step === 3) resetCs();
         if (v === "returns" && S.ret.done) S.ret = emptyRet();
-        S.view = v === "sell" && !S.shifts[S.user.id] ? "openshift" : v === "cash" && isMgr() ? "shifts" : v; S.modal = null; renderModal(); render();
+        S.view = v === "sell" && !S.shifts[S.user.id] ? "openshift" : v === "cash" && isMgr() ? "shifts" : v === "orders" && ["Owner", "Manager", "Accountant"].includes(S.user.role) ? "sales" : v === "returns" && isMgr() ? "returnslist" : v === "receiving" && isMgr() ? "grns" : v; S.modal = null; renderModal(); render();
         if (v === "returns" && !S.ret.sale) focusId("rsearch"); break; }
       case "grn-demo": grnScan(el.dataset.code); break;
       case "grn-del": { const id = +el.dataset.id; S.grn.lines = S.grn.lines.filter(l => l.id !== id); render(); break; }
@@ -3679,6 +3907,28 @@ Yesterday 09:15  SYNC-003 Catalog cursor too old · catalog snapshot downloaded<
       case "pc-pick": S.pc.pid = el.dataset.pid; S.pc.error = ""; render(); break;
       case "pc-clear": S.pc.pid = null; S.pc.error = ""; S.pc.query = ""; render(); focusId("pcsearch"); break;
       case "pc-add": { const p = byId(S.pc.pid); if (!p) break; if (!S.shifts[S.user.id]) { S.view = "openshift"; render(); toast("Open a shift first", { error: true }); break; } S.view = "sell"; render(); addProduct(p); break; }
+      case "goto": S.view = el.dataset.view; if (S.view === "returns" && S.ret.done) S.ret = emptyRet(); render(); if (S.view === "returns") focusId("rsearch"); if (S.view === "receiving") focusId("gsearch"); break;
+      case "sa-period": S.sa.period = el.dataset.v; S.sa.limit = 30; render(); break;
+      case "sa-flag": S.sa.flag = el.dataset.v; S.sa.limit = 30; render(); break;
+      case "sa-more": S.sa.limit += 30; render(); break;
+      case "sa-open": S.sa.open = el.dataset.no; S.view = "sale"; render(); app.querySelector(".page") && app.querySelector(".page").scrollTo(0, 0); break;
+      case "sa-back": S.view = "sales"; render(); break;
+      case "sa-ti": { const no = el.dataset.no; S.tax.type = "all"; S.tax.period = "all"; S.tax.q = ""; S.tax.branch = "all"; S.tax.sel = no; S.view = "tax"; render(); break; }
+      case "sa-return": startReturnFrom(S.sa.open); break;
+      case "rl-period": S.rl.period = el.dataset.v; render(); break;
+      case "rl-sel": S.rl.sel = el.dataset.no; render(); break;
+      case "gl-status": S.gl.status = el.dataset.v; render(); break;
+      case "gl-sel": S.gl.sel = el.dataset.no; render(); break;
+      case "gl-post": grnDraftPost(el.dataset.no); break;
+      case "gl-inv": { const d = S.grnDrafts.find(x => x.no === el.dataset.no); d.invoice = d.invoice || (d.supplier.split(" ").map(w => w[0]).join("").slice(0, 3).toUpperCase() + "-" + (20000 + hashOf(d.no) % 9999)); render(); toast(`Invoice ${d.invoice} added from the delivery note`); break; }
+      case "gl-del": { const d = S.grnDrafts.find(x => x.no === el.dataset.no); d.status = "deleted"; auditAdd("Stock", d.no, "Draft goods receipt deleted"); S.gl.sel = null; render(); toast(`${d.no} draft deleted · no stock changed`); break; }
+      case "gl-sup": { const sx = SUP.find(x => x.name === el.dataset.sup); if (sx) { S.sup.sel = sx.id; S.sup.draft = supDraft(sx); S.sup.tab = "purchases"; } S.view = "suppliers"; render(); break; }
+      case "me-lang": S.lang = el.dataset.v; render(); toast("Language changed"); break;
+      case "me-theme": { const v = el.dataset.v; if (v === "auto") { delete document.documentElement.dataset.theme; store("retailos-proto-theme", ""); } else { document.documentElement.dataset.theme = v; store("retailos-proto-theme", v); } render(); break; }
+      case "me-pin": pinSave(); break;
+      case "me-mfa": S.me.mfa[S.user.id] = el.checked; auditAdd("Sign-in", S.user.name, `Two-step sign-in turned ${el.checked ? "on" : "off"}`); render(); toast(`Two-step sign-in ${el.checked ? "on" : "off"}`); break;
+      case "me-out": { const ss = sessionsOf(S.user); S.me.sessions[S.user.id] = ss.filter(x => x.id !== el.dataset.v); auditAdd("Sign-in", S.user.name, "Signed out another session"); render(); toast("That session is signed out"); break; }
+      case "me-out-all": S.me.sessions[S.user.id] = sessionsOf(S.user).filter(x => x.cur); auditAdd("Sign-in", S.user.name, "Signed out of all other sessions"); render(); toast("Signed out everywhere else"); break;
       case "biz-demo-logo": S.bizDraft.logo = DEMO_LOGO; render(); break;
       case "biz-logo-del": S.bizDraft.logo = null; render(); break;
       case "biz-lang": { const d = S.bizDraft; d[el.dataset.k] = el.checked; if (!d[d.def]) d.def = "en"; render(); break; }
@@ -3975,6 +4225,13 @@ Yesterday 09:15  SYNC-003 Catalog cursor too old · catalog snapshot downloaded<
     if (e.target.id === "tdsearch") { S.tax.q = e.target.value; render(); }
     if (e.target.id === "bpsearch") { S.bp.q = e.target.value; render(); }
     if (e.target.id === "catname") { S.cat2.rename = e.target.value; }
+    if (e.target.id === "sasearch") { S.sa.q = e.target.value; S.sa.limit = 30; render(); }
+    if (e.target.dataset && e.target.dataset.sa) { S.sa[e.target.dataset.sa] = e.target.value; S.sa.limit = 30; render(); }
+    if (e.target.id === "rlsearch") { S.rl.q = e.target.value; render(); }
+    if (e.target.dataset && e.target.dataset.rl) { S.rl[e.target.dataset.rl] = e.target.value; render(); }
+    if (e.target.id === "glsearch") { S.gl.q = e.target.value; render(); }
+    if (e.target.dataset && e.target.dataset.gl2) { S.gl[e.target.dataset.gl2] = e.target.value; render(); }
+    if (e.target.dataset && e.target.dataset.me) { S.me[e.target.dataset.me] = e.target.value.replace(/\D/g, "").slice(0, 4); S.me.err = ""; S.me.ok = false; render(); }
     if (e.target.dataset && e.target.dataset.biz && S.bizDraft) { S.bizDraft[e.target.dataset.biz] = e.target.value; render(); }
     if (e.target.dataset && e.target.dataset.brf && S.br.draft) { S.br.draft[e.target.dataset.brf] = e.target.value; render(); }
     if (e.target.dataset && e.target.dataset.tpl && S.tplDraft) { S.tplDraft[e.target.dataset.tpl] = e.target.value; render(); }
@@ -4185,6 +4442,10 @@ Yesterday 09:15  SYNC-003 Catalog cursor too old · catalog snapshot downloaded<
       if ((e.ctrlKey || e.metaKey) && k.toLowerCase() === "s") { e.preventDefault(); saveSettings(); }
       return;
     }
+    if (S.view === "sales") { if (e.target.id === "sasearch") { if (k === "Escape") { S.sa.q = ""; render(); focusId("sasearch"); } return; } if (inInput || e.target.tagName === "SELECT") return; if (k === "/") { e.preventDefault(); focusId("sasearch"); return; } if (k === "Enter" && e.target.dataset && e.target.dataset.act === "sa-open") { e.preventDefault(); e.target.click(); return; } if (k === "ArrowDown" || k === "ArrowUp") { const rows = [...app.querySelectorAll(".sarow[data-act]")]; if (!rows.length) return; e.preventDefault(); const i0 = rows.indexOf(document.activeElement); rows[Math.max(0, Math.min(rows.length - 1, i0 < 0 ? 0 : i0 + (k === "ArrowDown" ? 1 : -1)))].focus(); } return; }
+    if (S.view === "sale") { if (k === "Escape" && !inInput) { S.view = "sales"; render(); } return; }
+    if (S.view === "returnslist" || S.view === "grns") { if (inInput || e.target.tagName === "SELECT") return; if (k === "ArrowDown" || k === "ArrowUp") { e.preventDefault(); const rows = [...app.querySelectorAll(S.view === "grns" ? ".grow2[data-act]" : ".rlrow[data-act]")], st = S.view === "grns" ? S.gl : S.rl, i0 = rows.findIndex(r => r.dataset.no === st.sel), nx = rows[Math.max(0, Math.min(rows.length - 1, i0 + (k === "ArrowDown" ? 1 : -1)))]; if (nx) { st.sel = nx.dataset.no; render(); } } return; }
+    if (S.view === "profile") { if (k === "Enter" && e.target.dataset && e.target.dataset.me) { e.preventDefault(); pinSave(); } return; }
     if (S.view === "business" || S.view === "receipts") { if ((e.ctrlKey || e.metaKey) && k.toLowerCase() === "s") { e.preventDefault(); if (S.view === "business") bizSave(); else tplSave(); } return; }
     if (S.view === "branches") return;
     if (S.view === "audit") { if (e.target.id === "ausearch") { if (k === "Escape") { S.au.q = ""; render(); focusId("ausearch"); } return; } if (inInput || e.target.tagName === "SELECT") return; if (k === "/") { e.preventDefault(); focusId("ausearch"); return; } if ((k === "Enter" || k === " ") && e.target.dataset && e.target.dataset.act === "au-open") { e.preventDefault(); e.target.click(); } return; }
@@ -4397,9 +4658,9 @@ Yesterday 09:15  SYNC-003 Catalog cursor too old · catalog snapshot downloaded<
   let rz; window.addEventListener("resize", () => { clearTimeout(rz); rz = setTimeout(render, 120); });
   if (S.theme) document.documentElement.dataset.theme = S.theme;
   const hash = location.hash.replace("#", "");
-  if (["sell", "dashboard", "signin", "openshift", "returns", "cash", "orders", "receiving", "pricecheck", "status", "settings", "products", "stock", "expiry", "counts", "import", "exceptions", "suppliers", "customers", "shifts", "tax", "vat", "batch", "pricing", "discounts", "taxrates", "categories", "pricelists", "staff", "reports", "business", "branches", "receipts", "audit"].includes(hash)) S.view = hash;
+  if (["sell", "dashboard", "signin", "openshift", "returns", "cash", "orders", "receiving", "pricecheck", "status", "settings", "products", "stock", "expiry", "counts", "import", "exceptions", "suppliers", "customers", "shifts", "tax", "vat", "batch", "pricing", "discounts", "taxrates", "categories", "pricelists", "staff", "reports", "business", "branches", "receipts", "audit", "sales", "returnslist", "grns", "profile"].includes(hash)) S.view = hash;
   if (hash === "stock" || hash === "expiry" || hash === "counts") S.user = USERS[4]; // Kasun, stock keeper
-  if (hash === "import" || hash === "exceptions" || hash === "suppliers" || hash === "customers" || hash === "shifts" || hash === "tax" || hash === "vat" || hash === "batch" || hash === "pricing" || hash === "discounts" || hash === "taxrates" || hash === "categories" || hash === "pricelists" || hash === "staff" || hash === "reports") S.user = USERS[3];
+  if (hash === "import" || hash === "exceptions" || hash === "suppliers" || hash === "customers" || hash === "shifts" || hash === "tax" || hash === "vat" || hash === "batch" || hash === "pricing" || hash === "discounts" || hash === "taxrates" || hash === "categories" || hash === "pricelists" || hash === "staff" || hash === "reports" || hash === "sales" || hash === "returnslist" || hash === "grns" || hash === "profile") S.user = USERS[3];
   if (["business", "branches", "receipts", "audit"].includes(hash)) S.user = USERS.find(u => u.id === "dw"); // Dilan, owner // Malini, manager
   // File picker and drag-and-drop for the import wizard (A-23)
   document.addEventListener("change", e => { if (e.target.id !== "logofile" || !e.target.files || !e.target.files[0] || !S.bizDraft) return; const fl = e.target.files[0]; if (fl.size > 500 * 1024) { toast("The logo is over 500 KB. Use a smaller file.", { error: true }); return; } if (!/^image\/(png|jpeg|svg\+xml)$/.test(fl.type)) { toast("Use a PNG, JPG or SVG file", { error: true }); return; } const rd = new FileReader(); rd.onload = () => { S.bizDraft.logo = rd.result; render(); }; rd.readAsDataURL(fl); });
