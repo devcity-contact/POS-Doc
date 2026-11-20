@@ -1285,3 +1285,40 @@ details.card > summary::-webkit-details-marker { display: none; }
 .sorth { font-family: inherit; font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--text-2); text-decoration: none; }
 .sorth.on { color: var(--primary-text); text-decoration: underline; }
 @media (max-width: 1180px) { .cat-grid, .pl-grid, .rep-grid { grid-template-columns: 1fr; } .rep-nav { position: static; flex-direction: row; flex-wrap: wrap; } .rep-item { width: auto; } .plrow { grid-template-columns: minmax(0, 1fr) 90px 120px 110px; } .plrow > :nth-child(2), .plrow > :nth-child(5) { display: none; } .urow { grid-template-columns: minmax(0, 1fr) 110px 100px; } .urow > :nth-child(3), .urow > :nth-child(4) { display: none; } .st-panel { width: 340px; } .hb { grid-template-columns: 120px minmax(0, 1fr) 100px; } }
+
+/* ---------- Setup: business, branches, receipts, audit (A-80 / A-81 / A-84 / A-87) ---------- */
+.page.setup > * { width: 100%; max-width: 1180px; margin-left: auto; margin-right: auto; }
+.setup-grid, .br-grid { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(320px, 1fr); gap: 16px; align-items: start; }
+.br-grid { grid-template-columns: 320px minmax(0, 1fr); }
+.setup .field input:not([type=checkbox]):not([type=file]), .setup .field select { width: 100%; min-width: 0; box-sizing: border-box; }
+.setup .field input:not([type=checkbox]):disabled, .setup .field select:disabled { background: var(--subtle); color: var(--text-2); }
+.logo-box { height: 120px; border: 2px dashed var(--border); border-radius: 12px; display: grid; place-items: center; background: var(--subtle); }
+.logo-box img { max-height: 96px; max-width: 80%; }
+.dline.reg { flex-wrap: wrap; }
+.dline.reg .btn.s { height: 30px; font-size: 12px; padding: 0 10px; }
+.enroll { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 8px 0; }
+.qr { width: 180px; height: 180px; border-radius: 8px; box-shadow: var(--shadow-card); shape-rendering: crispEdges; }
+.enroll .code { font-size: 26px; font-weight: 700; letter-spacing: .12em; color: var(--text); }
+.enroll .sub { color: var(--text-2); font-size: 13px; }
+.steps-ol { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; font-size: 14px; color: var(--text-2); }
+.tpl-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+.tpl-prev { position: sticky; top: 0; }
+.prev-stage { background: var(--subtle); border-radius: 12px; padding: 20px; display: flex; justify-content: center; max-height: 640px; overflow: auto; }
+.paper-wrap { display: flex; flex-direction: column; align-items: center; background: #fff; border-radius: 4px; box-shadow: var(--shadow-card); padding-top: 14px; }
+.paper-wrap .paper { box-shadow: none; padding-top: 8px; }
+.paper-wrap.narrow .paper { font-size: 11px; }
+.rlogo { max-height: 48px; max-width: 120px; filter: grayscale(1) contrast(1.4); }
+.rlogo.ph { border: 1px dashed #B8BCC8; color: #8A8D99; font: 600 11px var(--mono); padding: 8px 16px; filter: none; }
+.aurow { display: grid; grid-template-columns: 120px 110px 100px minmax(0, 1fr) 90px; align-items: center; gap: 12px; padding: 8px 16px; border-bottom: 1px solid var(--divider); font-size: 14px; cursor: pointer; outline: none; }
+.aurow:last-child { border-bottom: 0; }
+.aurow.head { font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--text-2); background: var(--subtle); cursor: default; }
+.aurow:not(.head):hover { background: var(--hover); }
+.aurow:focus-visible { box-shadow: inset 0 0 0 2px var(--primary); }
+.aurow.open { background: var(--primary-tint); }
+.aurow .what b { display: block; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.aurow .what small { display: block; font-size: 12.5px; color: var(--text-2); }
+.aurow .mono { font-size: 11.5px; }
+.au-detail { grid-column: 1 / -1; cursor: default; }
+.chg-b { text-decoration: line-through; color: var(--text-3); }
+.chg-a { color: var(--text); font-weight: 600; }
+@media (max-width: 1180px) { .setup-grid, .br-grid, .tpl-grid { grid-template-columns: 1fr; } .tpl-prev { position: static; } .aurow { grid-template-columns: 90px 90px minmax(0, 1fr); } .aurow > :nth-child(3), .aurow > :nth-child(5) { display: none; } }
