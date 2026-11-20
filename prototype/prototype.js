@@ -397,7 +397,7 @@
     ["management", [["suppliers", "store"], ["promotions", "percent"], ["staff", "userCog"]]]
   ];
   function sidebar() {
-    const cur = S.view === "complete" ? "sell" : S.view === "product" || S.view === "import" ? "products" : S.view === "counts" ? "stock" : S.view === "customer" ? "customers" : S.view === "shifts" ? "cash" : S.view;
+    const cur = S.view === "complete" ? "sell" : S.view === "product" || S.view === "import" ? "products" : S.view === "counts" ? "stock" : S.view === "customer" ? "customers" : S.view === "shifts" ? "cash" : S.view === "vat" ? "tax" : S.view;
     let h = `<aside class="sidebar" aria-label="Main navigation"><div class="brand"><span class="mark">R</span><span class="brand-name">RetailOS</span><button class="icon-btn" data-act="collapse" title="Collapse sidebar">${ic("panel")}</button></div><nav>`;
     for (const [g, items] of NAV) {
       h += `<div class="nav-label">${t(g)}</div>`;
@@ -751,6 +751,8 @@
     const sh = S.shifts[S.user.id]; if (sh && s.method === "cash") sh.refunds += tt.amount;
     S.retSeq++;
     r.done = { no: `CMB01-R02-RT-${String(S.retSeq).padStart(6, "0")}`, creditNote: s.taxInvoice ? `CMB01-R02-CN-${String(S.retSeq).padStart(6, "0")}` : null, amount: tt.amount, items: tt.items, sale: s, lines, reason: r.reason, approver: mgr ? "Malini J. (Manager)" : null, time: new Date() };
+    if (r.done.creditNote) S.tax.docs.push({ no: r.done.creditNote, type: "CN", date: new Date(), fromReturn: true, buyer: s.buyer || { name: s.customer.name, vat: s.customer.vat || "", address: s.customer.address || "" }, ref: s.taxInvoice, reason: "Goods returned · " + r.reason, by: meShort(),
+      lines: s.lines.map((l, i) => r.qty[i] ? { pid: l.pid, name: byId(l.pid).name, qty: r.qty[i], unit: l.unit, disc: l.disc, tax: byId(l.pid).tax, src: i } : null).filter(Boolean) });
     if (S.offline) S.waiting++;
     render(); toast(`Refund ${fmt(tt.amount)} recorded`);
   }
@@ -2183,7 +2185,7 @@ Yesterday 09:15  SYNC-003 Catalog cursor too old · catalog snapshot downloaded<
   }
   const CUST_LEDGER = {
     ps: [[34, "sale", "CMB01-R01-000044", 2140000], [20, "pay", "Bank transfer · PAY-0039", -1500000], [12, "sale", "CMB01-R02-000101", 2430000], [6, "sale", "CMB01-R02-000122", 1176000]],
-    ln: [[40, "sale", "CMB01-R01-000012", 3250000], [25, "pay", "Cheque 004512 · PAY-0037", -3250000], [9, "sale", "CMB01-R01-000176", 1820000]]
+    ln: [[40, "sale", "CMB01-R01-000012", 3240000], [25, "pay", "Cheque 004512 · PAY-0037", -3240000], [9, "sale", "CMB01-R01-000176", 1810000]]
   };
   const PAY_TERMS_DAYS = 30;
   S.custPays = {}; S.paySeq = 42;
@@ -2452,6 +2454,235 @@ Yesterday 09:15  SYNC-003 Catalog cursor too old · catalog snapshot downloaded<
     </aside>`;
   }
 
+  // ---------- Tax documents (A-65) ----------
+  const SELLER = { name: "City Pharmacy & Mart (Pvt) Ltd", vat: "114128890-7000", address: "No. 12, Galle Road, Colombo 03", phone: "011 250 4411" };
+  const VAT_RE = /^\d{9}-7000$/;
+  Object.assign(custOf("ps"), { vat: "114567321-7000" });
+  Object.assign(custOf("ln"), { vat: "409876543-7000" });
+  const TD_BUYERS = { hch: { name: "Hill Country Hotel (Pvt) Ltd", vat: "114223344-7000", address: "Lake Road, Kandy" }, spl: { name: "Southern Pharmacy (Pvt) Ltd", vat: "114998877-7000", address: "Matara Road, Galle" } };
+  const bOf = id => { const c = custOf(id); return c ? { name: c.name, vat: c.vat || "", address: c.address || "" } : { ...TD_BUYERS[id] }; };
+  const tdLine = ([pid, qty, unit, disc = 0]) => { const p = byId(pid); return { pid, name: p.name, qty, unit, disc, tax: p.tax }; };
+  S.tax = { q: "", type: "all", period: "cur", branch: "all", sel: null, cnSeq: { CMB01: 8, KDY01: 5, GAL01: 2 }, dnSeq: { CMB01: 1, KDY01: 3, GAL01: 1 }, tiSeq: { "CMB01-R01": 15, "CMB01-R02": 32 },
+    docs: [
+      { no: "CMB01-R01-TI-000014", type: "TI", date: daysAgo(9, 15, 40), buyer: bOf("ln"), ref: "CMB01-R01-000176", lines: [["pc", 100, 3200], ["am", 20, 45000], ["tp", 10, 38000], ["bw", 15, 14000]].map(tdLine) },
+      { no: "GAL01-R02-TI-000019", type: "TI", date: daysAgo(5, 11, 5), buyer: bOf("spl"), ref: "GAL01-R02-000311", lines: [["pc", 300, 3200], ["tp", 24, 38000]].map(tdLine) },
+      { no: "KDY01-R01-TI-000044", type: "TI", date: daysAgo(8, 10, 20), buyer: bOf("hch"), ref: "KDY01-R01-000402", lines: [["ct", 24, 76000], ["bw", 48, 14000], ["cc", 12, 52000]].map(tdLine) },
+      { no: "CMB01-R02-TI-000027", type: "TI", date: daysAgo(16, 9, 30), buyer: bOf("ps"), ref: "CMB01-R02-000071", lines: [["br", 4, 325000], ["co", 3, 98000], ["sh", 2, 109000]].map(tdLine) },
+      { no: "CMB01-CN-000007", type: "CN", date: daysAgo(14, 12, 0), buyer: bOf("ps"), ref: "CMB01-R02-TI-000027", reason: "Damaged on delivery", by: "Malini J.", lines: [["sh", 2, 109000]].map(tdLine) },
+      { no: "CMB01-R01-TI-000011", type: "TI", date: daysAgo(40, 14, 10), buyer: bOf("ln"), ref: "CMB01-R01-000012", lines: [["am", 50, 45000], ["pc", 250, 3200], ["tp", 5, 38000]].map(tdLine) },
+      { no: "KDY01-R01-TI-000039", type: "TI", date: daysAgo(35, 16, 0), buyer: bOf("hch"), ref: "KDY01-R01-000355", lines: [["ct", 20, 76000], ["mp", 6, 115000]].map(tdLine) },
+      { no: "KDY01-CN-000004", type: "CN", date: daysAgo(31, 10, 0), buyer: bOf("hch"), ref: "KDY01-R01-TI-000039", reason: "Goods returned", by: "Chamari W.", lines: [["ct", 4, 76000]].map(tdLine) },
+      { no: "KDY01-DN-000002", type: "DN", date: daysAgo(30, 11, 30), buyer: bOf("hch"), ref: "KDY01-R01-TI-000039", reason: "Delivery charge not invoiced", by: "Chamari W.", lines: [{ pid: null, name: "Delivery to Lake Road, Kandy", qty: 1, unit: 150000, disc: 0, tax: "std" }] }
+    ] };
+  const branchOf = no => no.slice(0, 5);
+  function docTotals(d) {
+    let net = 0, vat = 0, exempt = 0;
+    for (const l of d.lines) { const g = Math.round(l.qty * l.unit * (100 - (l.disc || 0)) / 100); if (l.tax === "exempt") { exempt += g; net += g; } else { const n = Math.round(g * 100 / 118); net += n; vat += g - n; } }
+    return { net, vat, exempt, std: net - exempt, total: net + vat };
+  }
+  function saleDocs() {
+    return S.history.filter(s => s.taxInvoice && !s.training).map(s => ({ no: s.taxInvoice, type: "TI", date: s.tiDate || s.date, buyer: s.buyer || { name: s.customer.name, vat: s.customer.vat || "", address: s.customer.address || "" }, ref: s.no, sale: s,
+      lines: s.lines.map(l => { const p = byId(l.pid); return { pid: l.pid, name: p.name, qty: l.qty, unit: l.unit, disc: l.disc, tax: p.tax }; }) }));
+  }
+  const allDocs = () => [...saleDocs(), ...S.tax.docs].sort((a, b) => b.date - a.date);
+  const monthKey = d => d.getFullYear() * 12 + d.getMonth();
+  const periodKey = p => { const n = new Date(); return monthKey(n) - (p === "prev" ? 1 : 0); };
+  const periodLabel = p => { const n = new Date(); n.setDate(1); if (p === "prev") n.setMonth(n.getMonth() - 1); return n.toLocaleDateString("en-GB", { month: "long", year: "numeric" }); };
+  const creditedQty = (ti, i) => S.tax.docs.concat(saleDocs()).filter(d => d.type === "CN" && d.ref === ti.no).reduce((a, d) => a + d.lines.filter(l => l.src === i || (l.src == null && l.pid && l.pid === ti.lines[i].pid)).reduce((x, l) => x + l.qty, 0), 0);
+  function tiStatus(d) {
+    if (d.type !== "TI") return null;
+    const tot = d.lines.reduce((a, l) => a + l.qty, 0), cr = d.lines.reduce((a, l, i) => a + Math.min(l.qty, creditedQty(d, i)), 0);
+    return cr <= 0 ? "issued" : cr >= tot ? "credited" : "part";
+  }
+  const TD_TYPE = { TI: ["Tax invoice", "receipt", "info"], CN: ["Credit note", "undo", "warning"], DN: ["Debit note", "plus", ""] };
+  function taxList() {
+    const f = S.tax, q = f.q.trim().toLowerCase(), pk = periodKey(f.period);
+    return allDocs().filter(d => (f.period === "all" || monthKey(d.date) === pk) && (f.type === "all" || d.type === f.type) && (f.branch === "all" || branchOf(d.no) === f.branch)
+      && (!q || [d.no, d.ref, d.buyer.name, d.buyer.vat].join(" ").toLowerCase().includes(q)));
+  }
+  const taxTabs = cur => `<div class="seg tabs big" role="tablist">${[["tax", "Tax documents"], ["vat", "VAT report"]].map(([v, l]) => `<button role="tab" data-act="nav" data-view="${v}" aria-pressed="${cur === v}" aria-selected="${cur === v}">${l}</button>`).join("")}</div>`;
+  function taxGuard() { return S.user.role === "Manager" ? null : `<div class="placeholder"><div class="empty"><span class="circle">${ic("lock", 28)}</span><h3>Tax documents are for managers and the accountant</h3><span>${esc(S.user.short)} is signed in as ${esc(S.user.role.toLowerCase())}. Cashiers issue tax invoices at the till with the sale.</span><button class="btn primary s" data-act="logout">Switch user</button></div></div>`; }
+  function taxView() {
+    const g0 = taxGuard(); if (g0) return g0;
+    const f = S.tax, list = taxList();
+    if (!list.some(d => d.no === f.sel)) f.sel = list[0] ? list[0].no : null;
+    const chip = (v, l) => `<button class="chip" data-act="td-type" data-v="${v}" aria-pressed="${f.type === v}">${l}</button>`;
+    const sum = list.reduce((a, d) => { const t = docTotals(d), s = d.type === "CN" ? -1 : 1; a.net += s * t.net; a.vat += s * t.vat; return a; }, { net: 0, vat: 0 });
+    const left = `<section class="products" aria-label="Tax documents">
+      ${taxTabs("tax")}
+      <div class="search-row"><label class="search">${ic("search")}<span class="sr">Search documents</span><input id="tdsearch" data-fid="tdsearch" autocomplete="off" placeholder="Document no., receipt, buyer or VAT number…" value="${esc(f.q)}"><kbd>/</kbd></label>
+        <button class="btn primary" data-act="ti-new">${ic("plus", 18)}Tax invoice for a receipt</button></div>
+      <div class="filters">
+        <select data-tf="period" data-fid="tf-period" aria-label="Period">${[["cur", periodLabel("cur")], ["prev", periodLabel("prev")], ["all", "All periods"]].map(([v, l]) => `<option value="${v}" ${f.period === v ? "selected" : ""}>${l}</option>`).join("")}</select>
+        <select data-tf="branch" data-fid="tf-branch" aria-label="Branch"><option value="all">All branches</option>${BRANCHES.map(b => `<option value="${b[0]}" ${f.branch === b[0] ? "selected" : ""}>${b[1]}</option>`).join("")}</select>
+        <div class="chips">${chip("all", "All")}${chip("TI", "Tax invoices")}${chip("CN", "Credit notes")}${chip("DN", "Debit notes")}</div>
+      </div>
+      ${list.length ? `<div class="htable" role="listbox" aria-label="Documents">
+        <div class="trow head" aria-hidden="true"><span>Document</span><span>Buyer</span><span class="amt">Total</span><span>Status</span></div>
+        ${list.map(d => { const t = docTotals(d), s = d.type === "CN" ? "−" : "", st = tiStatus(d), [tl, ti, tt] = TD_TYPE[d.type]; return `<button class="trow" role="option" aria-selected="${d.no === f.sel}" data-act="td-sel" data-no="${d.no}">
+          <span class="no"><b>${d.no}</b><small>${badge(tt, tl, ti)} ${d.date.toLocaleDateString("en-GB", { day: "numeric", month: "short" })}</small></span>
+          <span class="no"><b>${esc(d.buyer.name)}</b><small>${d.buyer.vat ? "VAT " + esc(d.buyer.vat) : `<span class="late">No buyer VAT number</span>`}</small></span>
+          <span class="amt">${s}${fmt(t.total)}<small>VAT ${s}${fmt(t.vat)}</small></span>
+          <span>${st === "credited" ? badge("", "Credited", "undo") : st === "part" ? badge("warning", "Part credited", "undo") : badge("success", "Issued", "check")}</span></button>`; }).join("")}</div>
+        <div class="table-foot"><span>${list.length} document${list.length === 1 ? "" : "s"} · net ${fmt(sum.net)} excl. VAT · VAT ${fmt(sum.vat)}</span><span>Credit notes count as negative</span></div>`
+        : `<div class="empty card"><span class="circle">${ic("receipt", 28)}</span><h3>No documents match</h3><span>Try another period or branch, or clear the search.</span></div>`}
+      <div class="banner" style="background:var(--primary-tint);color:var(--primary-text)">${ic("landmark")}<span>Documents are never changed after they are issued. Corrections are new credit or debit notes. Sending to IRD RAMIS (e-invoicing) arrives in release 3; each document will then show its fiscal status here.</span></div>
+    </section>`;
+    return `<div class="body">${left}${tdPanel(allDocs().find(d => d.no === f.sel))}</div>`;
+  }
+  function tdPaper(d) {
+    const t = docTotals(d), [tl] = TD_TYPE[d.type], neg = d.type === "CN";
+    return `<div class="taxdoc">
+      <div class="td-top"><div><b>${esc(SELLER.name)}</b><span>${esc(SELLER.address)}</span><span>Tel ${SELLER.phone}</span><span>VAT reg. no. ${SELLER.vat}</span></div><div class="td-title">${tl.toUpperCase()}<small>${d.type === "TI" ? "Original" : "Against " + esc(d.ref)}</small></div></div>
+      <div class="td-meta"><div><span>Number</span><b>${d.no}</b></div><div><span>Date</span><b>${d.date.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}</b></div><div><span>${d.type === "TI" ? "Receipt" : "Invoice"}</span><b>${esc(d.ref)}</b></div></div>
+      <div class="td-buyer"><span>Buyer</span><b>${esc(d.buyer.name)}</b>${d.buyer.address ? `<span>${esc(d.buyer.address)}</span>` : ""}<span>VAT reg. no. ${d.buyer.vat ? esc(d.buyer.vat) : "—"}</span></div>
+      <table class="td-lines"><thead><tr><th>Description</th><th>Qty</th><th>Unit excl. VAT</th><th>Amount</th></tr></thead><tbody>
+        ${d.lines.map(l => { const g = Math.round(l.qty * l.unit * (100 - (l.disc || 0)) / 100), ex = l.tax === "exempt", n = ex ? g : Math.round(g * 100 / 118); return `<tr><td>${esc(l.name)}${ex ? " <i>(exempt)</i>" : ""}${l.disc ? ` <i>−${l.disc}%</i>` : ""}</td><td>${l.qty}</td><td>${(Math.round((ex ? l.unit : l.unit * 100 / 118))/100).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td><td>${(n / 100).toLocaleString("en-US", { minimumFractionDigits: 2 })}</td></tr>`; }).join("")}
+      </tbody></table>
+      <div class="td-sum"><div><span>Value of standard-rated supplies</span><b>${fmt(t.std)}</b></div><div><span>VAT 18%</span><b>${fmt(t.vat)}</b></div>${t.exempt ? `<div><span>Value of exempt supplies</span><b>${fmt(t.exempt)}</b></div>` : ""}<div class="tot"><span>${neg ? "Total credited" : "Total"}</span><b>${neg ? "−" : ""}${fmt(t.total)}</b></div></div>
+      ${d.reason ? `<div class="td-reason">Reason: ${esc(d.reason)}${d.by ? ` · issued by ${esc(d.by)}` : ""}</div>` : ""}
+      <div class="td-foot">Issued with RetailOS · ${d.type === "TI" ? "Keep this invoice for your VAT records" : "This note adjusts the invoice above"}</div>
+    </div>`;
+  }
+  function tdPanel(d) {
+    if (!d) return `<aside class="order td-panel"><div class="empty" style="flex:1"><span class="circle">${ic("receipt", 28)}</span><h3>Select a document</h3><span>Click a row, or use ↑ ↓.</span></div></aside>`;
+    const st = tiStatus(d), t = docTotals(d), locked = S.vatLocks[monthKey(d.date)];
+    return `<aside class="order td-panel" aria-label="Document preview">
+      <div class="order-head"><div class="order-title"><div style="flex:1;min-width:0"><h2>${d.no}</h2><div class="sub">${TD_TYPE[d.type][0]} · ${esc(d.buyer.name)} · ${fmt(t.total)}</div></div>${badge("", "RAMIS · R3", "landmark")}</div>
+        ${locked ? `<div class="note">${ic("lock", 16)}This month is locked for VAT. New notes are dated today and count in the current month.</div>` : ""}</div>
+      <div class="panel-body"><div class="td-scroll">${tdPaper(d)}</div></div>
+      <div class="order-foot"><div class="two"><button class="btn secondary" data-act="toast" data-msg="${d.no}.pdf downloaded">${ic("upload", 18)}PDF</button><button class="btn secondary" data-act="toast" data-msg="${d.no} e-mailed${d.buyer.vat ? " to the buyer" : ""}">${ic("mail", 18)}E-mail</button></div>
+        ${d.type === "TI" ? `<div class="two"><button class="btn primary" data-act="cn-open" data-no="${d.no}" ${st === "credited" ? "disabled" : ""}>${ic("undo", 18)}Credit note</button><button class="btn secondary" data-act="dn-open" data-no="${d.no}">${ic("plus", 18)}Debit note</button></div>`
+          : `<button class="btn secondary block" data-act="td-sel" data-no="${d.ref}">${ic("receipt", 18)}Open ${esc(d.ref)}</button>`}</div>
+    </aside>`;
+  }
+  S.vatLocks = {};
+  function cnModal(m, head) {
+    const ti = allDocs().find(d => d.no === m.no), lines = ti.lines.map((l, i) => ({ l, i, left: Math.max(0, l.qty - creditedQty(ti, i)) }));
+    const pick = { ...ti, type: "CN", lines: lines.filter(x => m.qty[x.i]).map(x => ({ ...x.l, qty: m.qty[x.i] })) }, t = docTotals(pick);
+    return `<div class="modal" role="dialog" aria-modal="true" aria-labelledby="mt" style="width:min(600px,100%)">${head("Issue credit note", `Against ${ti.no} · ${ti.buyer.name}`)}
+      <div class="cn-lines">${lines.map(({ l, i, left }) => `<div class="cn-line ${left ? "" : "done"}"><span class="grow"><b>${esc(l.name)}</b><small>${left ? `Up to ${left} of ${l.qty} · ${fmt(l.unit)} each incl. VAT` : "Already fully credited"}</small></span>
+        ${left ? `<span class="qty"><button data-act="cn-q" data-i="${i}" data-d="-1" aria-label="Less">${ic("minus", 16)}</button><b>${m.qty[i] || 0}</b><button data-act="cn-q" data-i="${i}" data-d="1" aria-label="More">${ic("plus", 16)}</button></span><button class="btn ghost s" data-act="cn-all" data-i="${i}" data-v="${left}">All</button>` : ""}</div>`).join("")}</div>
+      <div class="field">Reason<div class="chips wrap">${["Goods returned", "Damaged on delivery", "Price charged too high", "Discount agreed after sale"].map(r => `<button class="chip" data-act="cn-reason" data-v="${r}" aria-pressed="${m.reason === r}">${r}</button>`).join("")}</div></div>
+      <div class="summary"><div class="r"><span>Value excl. VAT</span><b>${signed(-t.net)}</b></div><div class="r"><span>VAT 18%</span><b>${signed(-t.vat)}</b></div><hr><div class="total"><span>Credit</span><span>${signed(-t.total)}</span></div></div>
+      <div class="note">${ic("help", 16)}Stock is not moved here. If goods came back, receive them through Returns so the batch is updated.</div>
+      <button class="btn primary l block" data-act="cn-issue" ${t.total && m.reason ? "" : "disabled"}>${ic("check")}Issue ${`${branchOf(ti.no)}-CN-${String(S.tax.cnSeq[branchOf(ti.no)]).padStart(6, "0")}`} <kbd>Enter</kbd></button></div>`;
+  }
+  function cnIssue() {
+    const m = S.modal, ti = allDocs().find(d => d.no === m.no), br = branchOf(ti.no);
+    const lines = ti.lines.map((l, i) => m.qty[i] ? { ...l, qty: m.qty[i], src: i } : null).filter(Boolean);
+    if (!lines.length || !m.reason) { toast(!lines.length ? "Choose what to credit" : "Choose a reason", { error: true }); return; }
+    const no = `${br}-CN-${String(S.tax.cnSeq[br]++).padStart(6, "0")}`;
+    S.tax.docs.push({ no, type: "CN", date: new Date(), buyer: { ...ti.buyer }, ref: ti.no, reason: m.reason, by: meShort(), lines });
+    S.tax.sel = no; S.tax.type = "all"; S.tax.period = "cur"; closeModal(); render(); toast(`${no} issued · ${fmt(docTotals({ lines }).total)} credited`);
+  }
+  function dnModal(m, head) {
+    const ti = allDocs().find(d => d.no === m.no), amt = Math.round((parseFloat(m.amount) || 0) * 100), t = docTotals({ lines: [{ qty: 1, unit: amt, tax: m.tax }] });
+    return `<div class="modal" role="dialog" aria-modal="true" aria-labelledby="mt" style="width:min(520px,100%)">${head("Issue debit note", `Against ${ti.no} · ${ti.buyer.name}`)}
+      <label class="field">What is being charged<input data-dn="desc" data-fid="dn-desc" id="dndesc" value="${esc(m.desc)}" placeholder="e.g. Delivery charge not invoiced"></label>
+      <div class="form-2"><label class="field">Amount incl. VAT (Rs)<input data-dn="amount" data-fid="dn-amount" id="dnamt" inputmode="decimal" value="${esc(m.amount)}" placeholder="0.00"></label>
+        <label class="field">VAT<select data-dn="tax" data-fid="dn-tax"><option value="std" ${m.tax === "std" ? "selected" : ""}>Standard 18%</option><option value="exempt" ${m.tax === "exempt" ? "selected" : ""}>Exempt</option></select></label></div>
+      <div class="summary"><div class="r"><span>Value excl. VAT</span><b>${fmt(t.net)}</b></div><div class="r"><span>VAT</span><b>${fmt(t.vat)}</b></div><hr><div class="total"><span>Extra charge</span><span>${fmt(t.total)}</span></div></div>
+      <button class="btn primary l block" data-act="dn-issue" ${amt > 0 && m.desc.trim() ? "" : "disabled"}>${ic("check")}Issue debit note <kbd>Enter</kbd></button></div>`;
+  }
+  function dnIssue() {
+    const m = S.modal, ti = allDocs().find(d => d.no === m.no), br = branchOf(ti.no), amt = Math.round((parseFloat(m.amount) || 0) * 100);
+    if (!(amt > 0) || !m.desc.trim()) { toast(!m.desc.trim() ? "Say what is being charged" : "Enter the amount", { error: true }); return; }
+    const no = `${br}-DN-${String(S.tax.dnSeq[br]++).padStart(6, "0")}`;
+    S.tax.docs.push({ no, type: "DN", date: new Date(), buyer: { ...ti.buyer }, ref: ti.no, reason: m.desc.trim(), by: meShort(), lines: [{ pid: null, name: m.desc.trim(), qty: 1, unit: amt, disc: 0, tax: m.tax }] });
+    S.tax.sel = no; S.tax.type = "all"; S.tax.period = "cur"; closeModal(); render(); toast(`${no} issued · ${fmt(amt)}`);
+  }
+  function tiNewModal(m, head) {
+    const q = m.q.trim().toLowerCase();
+    const cands = S.history.filter(s => !s.taxInvoice && !s.training && s.no.startsWith("CMB01") && (!q || (s.no + " " + s.customer.name).toLowerCase().includes(q))).slice(0, 6);
+    const s = S.history.find(x => x.no === m.sale), vatOk = !m.vat || VAT_RE.test(m.vat.trim());
+    return `<div class="modal" role="dialog" aria-modal="true" aria-labelledby="mt" style="width:min(600px,100%)">${head("Tax invoice for a receipt", "For a VAT-registered buyer who asks after paying")}
+      <label class="search">${ic("search")}<span class="sr">Find receipt</span><input data-tn="q" data-fid="tn-q" id="tnq" autocomplete="off" placeholder="Receipt number or customer" value="${esc(m.q)}"></label>
+      <div class="opt-list tn-list">${cands.length ? cands.map(x => `<button class="opt" data-act="tn-pick" data-no="${x.no}" aria-selected="${m.sale === x.no}"><span class="grow"><b>${x.no}</b><small>${x.date.toLocaleDateString("en-GB", { day: "numeric", month: "short" })} ${hm(x.date)} · ${esc(x.customer.name)} · ${x.lines.length} items</small></span><b>${fmt(saleTotal(x))}</b></button>`).join("") : `<div class="note">${ic("help", 16)}No receipts without a tax invoice match.</div>`}</div>
+      ${s ? `<div class="form-2"><label class="field">Buyer name *<input data-tn="name" data-fid="tn-name" value="${esc(m.name)}" placeholder="Registered business name"></label>
+          <label class="field">Buyer VAT number *<input data-tn="vat" data-fid="tn-vat" value="${esc(m.vat)}" placeholder="114567321-7000" class="${vatOk ? "" : "bad"}">${vatOk ? "" : `<span class="err">Use the format 114567321-7000</span>`}</label></div>
+        <label class="field">Buyer address<input data-tn="address" data-fid="tn-address" value="${esc(m.address)}" placeholder="Street, town"></label>` : ""}
+      <button class="btn primary l block" data-act="tn-issue" ${s && m.name.trim() && m.vat.trim() && vatOk ? "" : "disabled"}>${ic("receipt")}Issue tax invoice <kbd>Enter</kbd></button></div>`;
+  }
+  function tiIssue() {
+    const m = S.modal, s = S.history.find(x => x.no === m.sale);
+    if (!s || !m.name.trim() || !VAT_RE.test(m.vat.trim())) { toast(!s ? "Choose the receipt" : "Enter the buyer name and a valid VAT number", { error: true }); return; }
+    const series = s.no.split("-").slice(0, 2).join("-"); S.tax.tiSeq[series] = S.tax.tiSeq[series] || 1;
+    s.taxInvoice = `${series}-TI-${String(S.tax.tiSeq[series]++).padStart(6, "0")}`; s.tiDate = new Date();
+    s.buyer = { name: m.name.trim(), vat: m.vat.trim(), address: m.address.trim() };
+    if (s.customer && s.customer.id !== "walk" && !s.customer.vat) s.customer.vat = s.buyer.vat;
+    S.tax.sel = s.taxInvoice; S.tax.type = "all"; S.tax.period = "cur"; closeModal(); render(); toast(`${s.taxInvoice} issued for receipt ${s.no}`);
+  }
+
+  // ---------- VAT report (A-67) ----------
+  // Month-to-date and last-month totals from earlier days (gross incl. VAT, cents): [standard sales, exempt sales, standard returns, exempt returns]
+  const VAT_AGG = { cur: { CMB01: [311000000, 171000000, 3840000, 620000], KDY01: [164000000, 82000000, 1210000, 0], GAL01: [90500000, 41000000, 450000, 180000] },
+    prev: { CMB01: [438000000, 224000000, 5120000, 940000], KDY01: [221000000, 110000000, 2200000, 300000], GAL01: [128000000, 56000000, 900000, 0] } };
+  S.vat = { period: "prev", branch: "all" };
+  const split = g => { const n = Math.round(g * 100 / 118); return [n, g - n]; };
+  function vatFor(period, branch) {
+    const pk = periodKey(period), brs = branch === "all" ? BRANCHES.map(b => b[0]) : [branch];
+    const out = { std: { sales: 0, vat: 0, adj: 0, adjVat: 0 }, ex: { sales: 0, adj: 0 }, dn: { net: 0, vat: 0 }, byBranch: {} };
+    for (const br of brs) {
+      const a = VAT_AGG[period][br] || [0, 0, 0, 0], B = { gross: a[0] + a[1], vat: 0, docs: 0 };
+      let [n, v] = split(a[0]); out.std.sales += n; out.std.vat += v; B.vat += v;
+      out.ex.sales += a[1];
+      [n, v] = split(a[2]); out.std.adj += n; out.std.adjVat += v; B.vat -= v;
+      out.ex.adj += a[3]; B.gross -= a[2] + a[3];
+      out.byBranch[br] = B;
+    }
+    for (const s of S.history) {                       // sales made in the prototype (CMB01 registers)
+      if (s.training || monthKey(s.date) !== pk || !brs.includes(branchOf(s.no))) continue;
+      const B = out.byBranch[branchOf(s.no)];
+      for (const l of s.lines) {
+        const p = byId(l.pid), g = Math.round(l.qty * l.unit * (100 - l.disc) / 100), r = Math.round((l.returned || 0) * l.unit * (100 - l.disc) / 100);
+        B.gross += g - r;
+        if (p.tax === "exempt") { out.ex.sales += g; out.ex.adj += r; }
+        else { const [n1, v1] = split(g), [n2, v2] = split(r); out.std.sales += n1; out.std.vat += v1; out.std.adj += n2; out.std.adjVat += v2; B.vat += v1 - v2; }
+      }
+    }
+    for (const d of allDocs()) {                       // back-office credit and debit notes
+      if (d.type === "TI" || d.fromReturn || monthKey(d.date) !== pk || !brs.includes(branchOf(d.no))) continue;
+      const t = docTotals(d), sg = d.type === "CN" ? 1 : -1, B = out.byBranch[branchOf(d.no)];
+      if (d.type === "CN") { out.std.adj += t.std; out.std.adjVat += t.vat; out.ex.adj += t.exempt; B.vat -= t.vat; B.gross -= t.total; }
+      else { out.dn.net += t.net; out.dn.vat += t.vat; out.std.sales += t.std; out.std.vat += t.vat; out.ex.sales += t.exempt; B.vat += t.vat; B.gross += t.total; }
+    }
+    for (const d of allDocs()) if (d.type === "TI" && monthKey(d.date) === pk && brs.includes(branchOf(d.no))) out.byBranch[branchOf(d.no)].docs++;
+    out.netVat = out.std.vat - out.std.adjVat;
+    return out;
+  }
+  function vatView() {
+    const g0 = taxGuard(); if (g0) return g0;
+    const f = S.vat, R = vatFor(f.period, f.branch), pk = periodKey(f.period), lock = S.vatLocks[pk];
+    const maxG = Math.max(1, ...Object.values(R.byBranch).map(b => b.gross));
+    const row = (l, s, v, a, av, cls = "") => `<div class="vrow2 ${cls}" role="row"><span>${l}</span><span class="r">${fmt(s)}</span><span class="r">${v == null ? "—" : fmt(v)}</span><span class="r neg">${a ? "−" + fmt(a) : fmt(0)}</span><span class="r neg">${av == null ? "—" : av ? "−" + fmt(av) : fmt(0)}</span><span class="r"><b>${fmt(s - a)}</b></span><span class="r"><b>${v == null ? "—" : fmt(v - av)}</b></span></div>`;
+    return `<div class="page vat">
+      <div class="vat-top">${taxTabs("vat")}<span class="spacer"></span>
+        <select data-vf="period" data-fid="vf-period" aria-label="Period">${[["cur", periodLabel("cur") + " (to date)"], ["prev", periodLabel("prev")]].map(([v, l]) => `<option value="${v}" ${f.period === v ? "selected" : ""}>${l}</option>`).join("")}</select>
+        <select data-vf="branch" data-fid="vf-branch" aria-label="Branch"><option value="all">All branches</option>${BRANCHES.map(b => `<option value="${b[0]}" ${f.branch === b[0] ? "selected" : ""}>${b[1]}</option>`).join("")}</select>
+        <button class="btn secondary" data-act="toast" data-msg="vat-${f.period === "cur" ? "month-to-date" : "return"}-${f.branch}.xlsx exported for the accountant">${ic("upload", 18)}Export</button></div>
+      ${lock ? `<div class="banner" style="background:var(--success-tint);color:var(--success-text)">${ic("lock")}<span>${periodLabel(f.period)} is locked · ${esc(lock.by)} on ${lock.at.toLocaleDateString("en-GB", { day: "numeric", month: "short" })} ${hm(lock.at)}. Figures will not change; corrections go into the next period.</span></div>` : ""}
+      <div class="stats4">
+        <div class="stat"><span>Standard-rated sales excl. VAT</span><b>${fmt(R.std.sales - R.std.adj)}</b></div>
+        <div class="stat"><span>Exempt sales</span><b>${fmt(R.ex.sales - R.ex.adj)}</b></div>
+        <div class="stat"><span>VAT on returns and credit notes</span><b style="color:var(--error-text)">−${fmt(R.std.adjVat)}</b></div>
+        <div class="stat hl"><span>Output VAT payable</span><b>${fmt(R.netVat)}</b></div>
+      </div>
+      <section class="card"><div class="card-head"><h2>Output VAT by rate · ${periodLabel(f.period)}${f.period === "cur" ? " to date" : ""}</h2><span class="sub">${f.branch === "all" ? "All branches" : esc(BRANCHES.find(b => b[0] === f.branch)[1])}</span></div>
+        <div class="vtable" role="table" aria-label="VAT by rate">
+          <div class="vrow2 head" role="row"><span>Rate</span><span class="r">Sales excl. VAT</span><span class="r">VAT</span><span class="r">Returns & credit notes</span><span class="r">VAT on them</span><span class="r">Net value</span><span class="r">Net VAT</span></div>
+          ${row("Standard 18%", R.std.sales, R.std.vat, R.std.adj, R.std.adjVat)}
+          ${row("VAT exempt", R.ex.sales, null, R.ex.adj, null)}
+          ${row("Total", R.std.sales + R.ex.sales, R.std.vat, R.std.adj + R.ex.adj, R.std.adjVat, "tot")}
+        </div>
+        <div class="note">${ic("help", 16)}Includes every sale, not only tax invoices. Debit notes are inside sales (${fmt(R.dn.net)} excl. VAT, VAT ${fmt(R.dn.vat)}). Input VAT from supplier invoices comes with the purchases report in release 2.</div>
+      </section>
+      <section class="card"><h2>By branch</h2><div class="dlines">${Object.entries(R.byBranch).map(([br, b]) => `<div class="dline vbr"><span class="grow"><b>${esc(BRANCHES.find(x => x[0] === br)[1])}</b><small>${b.docs} tax invoice${b.docs === 1 ? "" : "s"} · sales ${fmt(b.gross)} incl. VAT</small><span class="vbar"><i style="width:${Math.round(b.gross / maxG * 100)}%"></i></span></span><span class="r"><b>${fmt(b.vat)}</b><small>net VAT</small></span></div>`).join("")}</div></section>
+      <section class="card vat-lock"><span class="grow"><b>Lock ${periodLabel(f.period)}</b><small>${f.period === "cur" ? "A month can be locked after it ends, once the return is filed." : lock ? "Locked. Only the owner can unlock it, and the unlock is audited." : "After filing the VAT return, lock the month so its figures cannot change."}</small></span>
+        <button class="btn ${lock ? "secondary" : "primary"}" data-act="vat-lock" ${f.period === "cur" || lock ? "disabled" : ""}>${ic("lock", 18)}${lock ? "Locked" : "Lock period"}</button></section>
+    </div>`;
+  }
+
   // ---------- Render: main ----------
   function render() {
     const fid = document.activeElement && document.activeElement.dataset ? document.activeElement.dataset.fid : null;
@@ -2472,6 +2703,8 @@ Yesterday 09:15  SYNC-003 Catalog cursor too old · catalog snapshot downloaded<
     else if (S.view === "returns") main = topbar(t("returns"), S.ret.done ? "Refund recorded" : S.ret.sale ? "Choose the items the customer is bringing back" : "Find the original sale") + returnsView();
     else if (S.view === "stock") main = topbar(t("stock"), "Stock on hand by product and batch") + stockView();
     else if (S.view === "expiry") main = topbar(t("expiry"), "Batches expiring in the next 90 days · act before they are lost") + expiryView();
+    else if (S.view === "tax") main = topbar(t("tax"), "Tax invoices, credit and debit notes · VAT reg. no. " + SELLER.vat) + taxView();
+    else if (S.view === "vat") main = topbar(t("tax"), "VAT report · output tax by rate for the VAT return") + vatView();
     else if (S.view === "customers") main = topbar(t("customers"), "Credit accounts, loyalty and contact details") + customersView();
     else if (S.view === "customer") main = topbar(t("customers"), S.cu.open ? `Customers › ${esc(custOf(S.cu.open).name)}` : "Customers › New") + custView();
     else if (S.view === "shifts") main = topbar(t("cash"), "Shifts on every register · approve differences and reprint Z-reports") + shiftsView();
@@ -2573,6 +2806,12 @@ Yesterday 09:15  SYNC-003 Catalog cursor too old · catalog snapshot downloaded<
       return;
     } else if (m.type === "cash") {
       h = cashModal(m, head);
+    } else if (m.type === "cn") {
+      h = cnModal(m, head);
+    } else if (m.type === "dn") {
+      h = dnModal(m, head);
+    } else if (m.type === "tinew") {
+      h = tiNewModal(m, head);
     } else if (m.type === "settle") {
       h = settleModal(m, head);
     } else if (m.type === "merge") {
@@ -2635,6 +2874,19 @@ Yesterday 09:15  SYNC-003 Catalog cursor too old · catalog snapshot downloaded<
       case "pc-pick": S.pc.pid = el.dataset.pid; S.pc.error = ""; render(); break;
       case "pc-clear": S.pc.pid = null; S.pc.error = ""; S.pc.query = ""; render(); focusId("pcsearch"); break;
       case "pc-add": { const p = byId(S.pc.pid); if (!p) break; if (!S.shifts[S.user.id]) { S.view = "openshift"; render(); toast("Open a shift first", { error: true }); break; } S.view = "sell"; render(); addProduct(p); break; }
+      case "td-type": S.tax.type = el.dataset.v; render(); break;
+      case "td-sel": { const no = el.dataset.no; if (!taxList().some(d => d.no === no)) { S.tax.type = "all"; S.tax.period = "all"; S.tax.q = ""; S.tax.branch = "all"; } S.tax.sel = no; render(); const row = app.querySelector('.trow[aria-selected="true"]'); if (row) row.scrollIntoView({ block: "nearest" }); break; }
+      case "ti-new": openModal({ type: "tinew", q: "", sale: null, name: "", vat: "", address: "" }); focusId("tnq"); break;
+      case "tn-pick": { const m = S.modal, sl = S.history.find(x => x.no === el.dataset.no); m.sale = sl.no; if (sl.customer && sl.customer.id !== "walk") { m.name = m.name || sl.customer.name; m.vat = m.vat || sl.customer.vat || ""; m.address = m.address || sl.customer.address || ""; } renderModal(); focusId(m.name ? "tn-vat-x" : "tn-name-x"); setTimeout(() => { const x = document.querySelector(m.name && !m.vat ? '[data-tn="vat"]' : '[data-tn="name"]'); if (x) x.focus(); }); break; }
+      case "tn-issue": tiIssue(); break;
+      case "cn-open": openModal({ type: "cn", no: el.dataset.no, qty: {}, reason: "" }); break;
+      case "cn-q": { const m = S.modal, ti = allDocs().find(d => d.no === m.no), left = ti.lines[i].qty - creditedQty(ti, i); m.qty[i] = Math.max(0, Math.min(left, (m.qty[i] || 0) + +el.dataset.d)); renderModal(); break; }
+      case "cn-all": S.modal.qty[i] = +el.dataset.v; renderModal(); break;
+      case "cn-reason": S.modal.reason = el.dataset.v; renderModal(); break;
+      case "cn-issue": cnIssue(); break;
+      case "dn-open": openModal({ type: "dn", no: el.dataset.no, desc: "", amount: "", tax: "std" }); focusId("dndesc"); break;
+      case "dn-issue": dnIssue(); break;
+      case "vat-lock": { const pk = periodKey(S.vat.period); S.vatLocks[pk] = { by: meShort(), at: new Date() }; render(); toast(`${periodLabel(S.vat.period)} locked for VAT`); break; }
       case "cu-filter": S.cu.filter = el.dataset.v; render(); break;
       case "cu-open": openCustomer(el.dataset.id); break;
       case "cu-new": openCustomer(null); break;
@@ -2844,6 +3096,10 @@ Yesterday 09:15  SYNC-003 Catalog cursor too old · catalog snapshot downloaded<
     if (e.target.id === "excnote") { S.exc.note = e.target.value; render(); }
     if (e.target.id === "srnote") { S.sr.note = e.target.value; if (S.sr.err && S.sr.note.trim().length >= 5) { S.sr.err = false; render(); } }
     if (e.target.id === "cusearch") { S.cu.q = e.target.value; render(); }
+    if (e.target.id === "tdsearch") { S.tax.q = e.target.value; render(); }
+    if (e.target.dataset && e.target.dataset.tf) { S.tax[e.target.dataset.tf] = e.target.value; render(); }
+    if (e.target.dataset && e.target.dataset.vf) { S.vat[e.target.dataset.vf] = e.target.value; render(); }
+    if (e.target.dataset && (e.target.dataset.tn || e.target.dataset.dn) && S.modal) { const k = e.target.dataset.tn || e.target.dataset.dn, attr = e.target.dataset.tn ? "tn" : "dn"; S.modal[k] = k === "amount" ? e.target.value.replace(/[^0-9.]/g, "") : e.target.value; const pos = e.target.selectionStart, isSel = e.target.tagName === "SELECT"; renderModal(); if (!isSel) setTimeout(() => { const x = document.querySelector(`[data-${attr}="${k}"]`); if (x) { x.focus(); try { x.setSelectionRange(pos, pos); } catch (er) {} } }); }
     if (e.target.dataset && e.target.dataset.cu && S.cu.draft) { S.cu.draft[e.target.dataset.cu] = e.target.value; render(); }
     if (e.target.dataset && e.target.dataset.set && S.modal && S.modal.type === "settle") { const k = e.target.dataset.set; S.modal[k] = k === "amount" ? e.target.value.replace(/[^0-9.]/g, "") : e.target.value; const id = e.target.id || ("set-" + k); renderModal(); setTimeout(() => { const x = document.querySelector(`[data-set="${k}"]`); if (x) { x.focus(); x.setSelectionRange(x.value.length, x.value.length); } }); }
     if (e.target.dataset && e.target.dataset.xf) { S.exc[e.target.dataset.xf] = e.target.value; render(); }
@@ -2951,6 +3207,9 @@ Yesterday 09:15  SYNC-003 Catalog cursor too old · catalog snapshot downloaded<
       if (m.type === "batch") { if (k === "ArrowDown" || k === "ArrowUp") { e.preventDefault(); const n = byId(m.pid).batches.length; m.choice = (m.choice + (k === "ArrowDown" ? 1 : -1) + n) % n; renderModal(); return; } if (k === "Enter") { e.preventDefault(); const p = byId(m.pid); S.modal = null; renderModal(); addProduct(p, { batch: p.batches[m.choice].id }); } return; }
       if (m.type === "weight" || m.type === "qty") { if (/^[0-9.]$/.test(k)) { modalKey(k); return; } if (k === "Backspace") { modalKey("⌫"); return; } if (k === "Enter") { e.preventDefault(); confirmQty(); } return; }
       if (m.type === "discount") { if (/^[0-9]$/.test(k) && m.pct > DISCOUNT_LIMIT) { pinKey(k); return; } if (k === "Backspace") { pinKey("⌫"); return; } if (k === "Enter") { e.preventDefault(); confirmDiscount(); } return; }
+      if (m.type === "cn") { if (k === "Enter") { e.preventDefault(); cnIssue(); } return; }
+      if (m.type === "dn") { if (k === "Enter" && e.target.tagName !== "SELECT") { e.preventDefault(); dnIssue(); } return; }
+      if (m.type === "tinew") { if (k === "Enter") { e.preventDefault(); if (m.sale) tiIssue(); else { const b = modalRoot.querySelector('[data-act="tn-pick"]'); if (b) b.click(); } } return; }
       if (m.type === "settle") { if (k === "Enter") { e.preventDefault(); settleSave(); } return; }
       if (m.type === "merge") { if (k === "Enter") { e.preventDefault(); mergeDo(); } return; }
       if (m.type === "zprint") return;
@@ -3016,6 +3275,13 @@ Yesterday 09:15  SYNC-003 Catalog cursor too old · catalog snapshot downloaded<
     }
     if (S.view === "settings") {
       if ((e.ctrlKey || e.metaKey) && k.toLowerCase() === "s") { e.preventDefault(); saveSettings(); }
+      return;
+    }
+    if (S.view === "tax") {
+      if (e.target.id === "tdsearch") { if (k === "Escape") { S.tax.q = ""; render(); focusId("tdsearch"); } return; }
+      if (inInput || e.target.tagName === "SELECT") return;
+      if (k === "/") { e.preventDefault(); focusId("tdsearch"); return; }
+      if (k === "ArrowDown" || k === "ArrowUp") { e.preventDefault(); const list = taxList(); if (!list.length) return; const j = list.findIndex(d => d.no === S.tax.sel); S.tax.sel = list[Math.max(0, Math.min(list.length - 1, j < 0 ? 0 : j + (k === "ArrowDown" ? 1 : -1)))].no; render(); const row = app.querySelector('.trow[aria-selected="true"]'); if (row) row.scrollIntoView({ block: "nearest" }); return; }
       return;
     }
     if (S.view === "customers") {
@@ -3209,9 +3475,9 @@ Yesterday 09:15  SYNC-003 Catalog cursor too old · catalog snapshot downloaded<
   let rz; window.addEventListener("resize", () => { clearTimeout(rz); rz = setTimeout(render, 120); });
   if (S.theme) document.documentElement.dataset.theme = S.theme;
   const hash = location.hash.replace("#", "");
-  if (["sell", "dashboard", "signin", "openshift", "returns", "cash", "orders", "receiving", "pricecheck", "status", "settings", "products", "stock", "expiry", "counts", "import", "exceptions", "suppliers", "customers", "shifts"].includes(hash)) S.view = hash;
+  if (["sell", "dashboard", "signin", "openshift", "returns", "cash", "orders", "receiving", "pricecheck", "status", "settings", "products", "stock", "expiry", "counts", "import", "exceptions", "suppliers", "customers", "shifts", "tax", "vat"].includes(hash)) S.view = hash;
   if (hash === "stock" || hash === "expiry" || hash === "counts") S.user = USERS[4]; // Kasun, stock keeper
-  if (hash === "import" || hash === "exceptions" || hash === "suppliers" || hash === "customers" || hash === "shifts") S.user = USERS[3]; // Malini, manager
+  if (hash === "import" || hash === "exceptions" || hash === "suppliers" || hash === "customers" || hash === "shifts" || hash === "tax" || hash === "vat") S.user = USERS[3]; // Malini, manager
   // File picker and drag-and-drop for the import wizard (A-23)
   document.addEventListener("change", e => { if (e.target.id === "impfile" && e.target.files && e.target.files[0]) { const fl = e.target.files[0]; impSetFile(fl.name, fl.size); } });
   document.addEventListener("dragover", e => { const z = e.target.closest && e.target.closest(".dropzone"); if (z) { e.preventDefault(); z.classList.add("over"); } });
