@@ -1109,3 +1109,60 @@ details.card > summary::-webkit-details-marker { display: none; }
 .vat-lock .grow b { display: block; font-weight: 700; }
 .vat-lock .grow small { display: block; color: var(--text-2); font-size: 13px; }
 @media (max-width: 1180px) { .td-panel { width: 420px; } .trow { grid-template-columns: minmax(0, 1fr) 110px 112px; } .trow > :nth-child(2) { display: none; } .vrow2 { grid-template-columns: 110px repeat(3, minmax(0, 1fr)); } .vrow2 > :nth-child(4), .vrow2 > :nth-child(5), .vrow2 > :nth-child(6) { display: none; } }
+
+/* ---------- Batch detail & recall (A-41) ---------- */
+.page.bd > * { width: 100%; max-width: 1180px; margin-left: auto; margin-right: auto; }
+.bd-grid { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(300px, 1fr); gap: 16px; align-items: start; }
+.bd-side { display: flex; flex-direction: column; gap: 16px; }
+.bd-side .btn.block { width: 100%; }
+.mvrow { display: grid; grid-template-columns: 64px minmax(0, 1fr) 90px 90px; align-items: center; gap: 12px; padding: 8px 14px; border-bottom: 1px solid var(--divider); font-size: 14px; }
+.mvrow:last-child { border-bottom: 0; }
+.mvrow.head { font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--text-2); background: var(--subtle); }
+.mvrow b { display: block; font-weight: 600; }
+.mvrow small { display: block; font-size: 12px; color: var(--text-2); }
+.mvrow .r { text-align: right; }
+.mvrow.block { background: var(--error-tint); }
+.neg { color: var(--error-text); }
+.pos { color: var(--success-text); }
+.linkish { font: 600 13px var(--mono); color: var(--primary-text); text-decoration: underline; text-underline-offset: 3px; padding: 0; }
+.linkish:hover { text-decoration-thickness: 2px; }
+
+/* ---------- Pricing (A-31 / A-32) ---------- */
+.page.pricing > * { width: 100%; max-width: 1180px; margin-left: auto; margin-right: auto; }
+.bp-grid { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+.form-3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.form-3 > * { min-width: 0; }
+.form-3 select, .bp-grid .field input { width: 100%; min-width: 0; box-sizing: border-box; }
+.bp-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.bp-row > span:first-child { width: 90px; font-size: 13px; font-weight: 600; color: var(--text-2); }
+.bp-row input[type=date] { height: 40px; border: 1px solid var(--border); border-radius: 10px; padding: 0 10px; background: var(--surface); color: var(--text); font: inherit; }
+.bprow { display: grid; grid-template-columns: 32px minmax(0, 2fr) 100px 110px 80px 80px 170px; align-items: center; gap: 12px; padding: 8px 16px; border-bottom: 1px solid var(--divider); font-size: 14px; }
+.bprow:last-child { border-bottom: 0; }
+.bprow.head { font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--text-2); background: var(--subtle); }
+.bprow .r { text-align: right; }
+.bprow input[type=checkbox] { width: 18px; height: 18px; accent-color: var(--primary); }
+.bprow.off { opacity: .45; }
+.bprow.cost { background: color-mix(in srgb, var(--error-tint) 50%, transparent); }
+.bprow .pname .thumb { width: 36px; height: 36px; }
+.bp-foot { flex-direction: row; align-items: center; gap: 16px; flex-wrap: wrap; position: sticky; bottom: -24px; z-index: 2; }
+.bp-foot .grow { flex: 1; min-width: 220px; }
+.dlrow { display: grid; grid-template-columns: 130px 110px 160px 200px minmax(0, 1fr); align-items: center; gap: 12px; padding: 10px 16px; border-bottom: 1px solid var(--divider); font-size: 14px; }
+.dlrow:last-child { border-bottom: 0; }
+.dlrow.head { font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--text-2); background: var(--subtle); }
+.dlrow input, .dlrow select { height: 40px; border: 1px solid var(--border); border-radius: 10px; padding: 0 10px; background: var(--surface); color: var(--text); font: inherit; font-size: 14px; outline: 0; width: 100%; min-width: 0; box-sizing: border-box; }
+.dlrow input:focus, .dlrow select:focus { border: 2px solid var(--primary); padding: 0 9px; }
+.dlrow .muted { font-size: 13px; }
+
+/* ---------- Tax rates (A-66) ---------- */
+.rate-block { display: flex; flex-direction: column; gap: 8px; }
+.rate-head { display: flex; align-items: center; gap: 10px; }
+.trrow { display: grid; grid-template-columns: 70px 130px 130px minmax(0, 1fr) 130px; align-items: center; gap: 12px; padding: 8px 14px; border-bottom: 1px solid var(--divider); font-size: 14px; }
+.trrow:last-child { border-bottom: 0; }
+.trrow.head { font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--text-2); background: var(--subtle); }
+.trrow.cur { background: color-mix(in srgb, var(--success-tint) 45%, transparent); }
+.tcrow { display: grid; grid-template-columns: minmax(0, 2fr) 140px 200px; align-items: center; gap: 12px; padding: 8px 16px; border-bottom: 1px solid var(--divider); font-size: 14px; }
+.tcrow:last-child { border-bottom: 0; }
+.tcrow.head { font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--text-2); background: var(--subtle); }
+.tcrow select { height: 38px; border: 1px solid var(--border); border-radius: 10px; padding: 0 8px; background: var(--surface); color: var(--text); font: inherit; font-size: 14px; outline: 0; }
+.tcrow .pname .thumb { width: 36px; height: 36px; }
+@media (max-width: 1180px) { .bd-grid, .bp-grid { grid-template-columns: 1fr; } .bprow { grid-template-columns: 28px minmax(0, 1fr) 90px 100px 150px; } .bprow > :nth-child(5), .bprow > :nth-child(6) { display: none; } .dlrow { grid-template-columns: 110px 90px 130px minmax(0, 1fr); } .dlrow > :nth-child(5) { display: none; } .trrow { grid-template-columns: 60px 120px minmax(0, 1fr) 120px; } .trrow > :nth-child(3) { display: none; } .form-3 { grid-template-columns: 1fr 1fr; } }

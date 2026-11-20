@@ -180,7 +180,7 @@
 
   // ---------- i18n (draft Sinhala/Tamil labels, to be reviewed) ----------
   const T = {
-    en: { sell: "Sell", overview: "Overview", orders: "Orders", returns: "Returns", customers: "Customers", products: "Products", stock: "Stock", receiving: "Receiving", expiry: "Expiry", cash: "Cash & shifts", reports: "Reports", tax: "Tax", suppliers: "Suppliers", exceptions: "Exceptions", promotions: "Promotions", staff: "Staff", settings: "Settings", logout: "Logout",
+    en: { sell: "Sell", overview: "Overview", orders: "Orders", returns: "Returns", customers: "Customers", products: "Products", stock: "Stock", receiving: "Receiving", expiry: "Expiry", cash: "Cash & shifts", reports: "Reports", tax: "Tax", suppliers: "Suppliers", pricing: "Pricing", exceptions: "Exceptions", promotions: "Promotions", staff: "Staff", settings: "Settings", logout: "Logout",
       main: "Main", inventory: "Inventory", finance: "Finance", management: "Management", search: "Scan barcode or search name, generic or SKU…", charge: "Charge", hold: "Hold", discount: "Discount", current: "Current sale", total: "Total", sale: "Sale", ret: "Return", instock: "In stock only", payment: "Payment", addCustomer: "Add customer", whoWorking: "Who's working?", enterPin: "Enter your PIN", signIn: "Sign in", openShift: "Open shift", countFloat: "Count the opening float", openingFloat: "Opening float", signOut: "Sign out", pricecheck: "Price check" },
     si: { sell: "විකිණීම", overview: "දළ විශ්ලේෂණය", orders: "ඇණවුම්", returns: "ආපසු ලැබීම්", customers: "පාරිභෝගිකයින්", products: "නිෂ්පාදන", stock: "තොග", receiving: "භාණ්ඩ ලැබීම", expiry: "කල් ඉකුත්වීම", cash: "මුදල් සහ මුර", reports: "වාර්තා", tax: "බදු", suppliers: "සැපයුම්කරුවන්", promotions: "ප්‍රවර්ධන", staff: "කාර්ය මණ්ඩලය", settings: "සැකසුම්", logout: "ඉවත් වන්න",
       main: "ප්‍රධාන", inventory: "තොග කළමනාකරණය", finance: "මූල්‍ය", management: "කළමනාකරණය", search: "බාර්කෝඩය ස්කෑන් කරන්න හෝ නමින් සොයන්න…", charge: "අය කරන්න", hold: "රඳවන්න", discount: "වට්ටම", current: "වත්මන් විකිණීම", total: "එකතුව", sale: "විකිණීම", ret: "ආපසු", instock: "තොගයේ ඇති ඒවා පමණක්", payment: "ගෙවීම", addCustomer: "පාරිභෝගිකයා එක් කරන්න", whoWorking: "කවුද වැඩ කරන්නේ?", enterPin: "ඔබේ PIN අංකය ඇතුළත් කරන්න", signIn: "පුරන්න", openShift: "මුරය ආරම්භ කරන්න", countFloat: "ආරම්භක මුදල ගණන් කරන්න", openingFloat: "ආරම්භක මුදල", signOut: "ඉවත් වන්න", pricecheck: "මිල පරීක්ෂාව" },
@@ -394,10 +394,10 @@
     ["main", [["overview", "dashboard", "dashboard"], ["sell", "cart", "sell"], ["pricecheck", "tag"], ["orders", "receipt"], ["returns", "undo"], ["customers", "users"]]],
     ["inventory", [["products", "package"], ["stock", "warehouse"], ["receiving", "truck"], ["expiry", "calendar", null, "23"]]],
     ["finance", [["cash", "wallet"], ["exceptions", "alert"], ["reports", "chart"], ["tax", "landmark"]]],
-    ["management", [["suppliers", "store"], ["promotions", "percent"], ["staff", "userCog"]]]
+    ["management", [["suppliers", "store"], ["pricing", "tag"], ["promotions", "percent"], ["staff", "userCog"]]]
   ];
   function sidebar() {
-    const cur = S.view === "complete" ? "sell" : S.view === "product" || S.view === "import" ? "products" : S.view === "counts" ? "stock" : S.view === "customer" ? "customers" : S.view === "shifts" ? "cash" : S.view === "vat" ? "tax" : S.view;
+    const cur = S.view === "complete" ? "sell" : S.view === "product" || S.view === "import" ? "products" : S.view === "counts" ? "stock" : S.view === "customer" ? "customers" : S.view === "shifts" ? "cash" : S.view === "vat" || S.view === "taxrates" ? "tax" : S.view === "batch" ? "stock" : S.view === "discounts" ? "pricing" : S.view;
     let h = `<aside class="sidebar" aria-label="Main navigation"><div class="brand"><span class="mark">R</span><span class="brand-name">RetailOS</span><button class="icon-btn" data-act="collapse" title="Collapse sidebar">${ic("panel")}</button></div><nav>`;
     for (const [g, items] of NAV) {
       h += `<div class="nav-label">${t(g)}</div>`;
@@ -1276,6 +1276,7 @@ Yesterday 09:15  SYNC-003 Catalog cursor too old · catalog snapshot downloaded<
         <button class="toggle-btn" data-act="pf-low" aria-pressed="${f.low}">${ic("alert", 16)}Low stock · ${lowCount}</button>
         <button class="toggle-btn" data-act="pf-missing" aria-pressed="${f.missing}">සිං/தமி missing · ${missingCount}</button>
         <span class="spacer"></span>
+        <button class="btn secondary" data-act="nav" data-view="pricing">${ic("tag", 18)}Change prices</button>
         <button class="btn secondary" data-act="nav" data-view="import">${ic("upload", 18)}Import</button>
         <button class="btn secondary" data-act="toast" data-msg="products.xlsx exported (${list.length} rows)">Export</button>
         <button class="btn primary" data-act="p-new">${ic("plus", 18)}Add product <kbd>N</kbd></button>
@@ -1476,7 +1477,7 @@ Yesterday 09:15  SYNC-003 Catalog cursor too old · catalog snapshot downloaded<
               <span class="c-exp">${ei ? (ei.tone ? badge(ei.tone, ei.days < 0 ? "Expired" : ei.days + " days", "clock") : `<span class="muted">${fmtExpIso(ne.exp)}</span>`) : `<span class="muted">—</span>`}</span>
               <span>${status}</span>
               <span>${local ? `<button class="btn secondary" data-act="adj-open" data-id="${p.id}">Adjust</button>` : ""}</span></div>
-            ${open ? lots.map(l => { const x = expInfo(l.exp); return `<div class="strow lot" role="row"><span></span><span class="lotname">${ic("package", 14)}<b>${esc(l.id)}</b>${l.fresh ? badge("info", "Just received", null) : ""}${l.blocked ? badge("error", "Blocked", "lock") : ""}${l.markdown ? badge("warning", `Clearance −${l.markdown}%`, "tag") : ""}</span><span class="r">${fq(p, l.qty)}</span><span class="c-reo"></span><span class="r c-val">${fmt(Math.round(l.qty * p.cost))}</span><span class="c-exp">${l.exp ? fmtExpIso(l.exp) : "—"}</span><span>${x && x.tone ? badge(x.tone, x.days < 0 ? `Expired ${-x.days} d ago` : `${x.days} days left`, "clock") : ""}</span><span>${l.qty > 0 ? `<button class="btn ghost" data-act="adj-open" data-id="${p.id}" data-lot="${esc(l.id)}">Adjust</button>` : ""}</span></div>`; }).join("") : ""}`;
+            ${open ? lots.map(l => { const x = expInfo(l.exp); return `<div class="strow lot" role="row"><span></span><span class="lotname">${ic("package", 14)}<button class="linkish" data-act="bd-open" data-id="${p.id}" data-lot="${esc(l.id)}" title="Batch details">${esc(l.id)}</button>${l.fresh ? badge("info", "Just received", null) : ""}${l.blocked ? badge("error", "Blocked", "lock") : ""}${l.markdown ? badge("warning", `Clearance −${l.markdown}%`, "tag") : ""}</span><span class="r">${fq(p, l.qty)}</span><span class="c-reo"></span><span class="r c-val">${fmt(Math.round(l.qty * p.cost))}</span><span class="c-exp">${l.exp ? fmtExpIso(l.exp) : "—"}</span><span>${x && x.tone ? badge(x.tone, x.days < 0 ? `Expired ${-x.days} d ago` : `${x.days} days left`, "clock") : ""}</span><span>${l.qty > 0 ? `<button class="btn ghost" data-act="adj-open" data-id="${p.id}" data-lot="${esc(l.id)}">Adjust</button>` : ""}</span></div>`; }).join("") : ""}`;
         }).join("") : `<div class="empty"><span class="circle">${ic("warehouse", 28)}</span><h3>No stock matches</h3><span>Clear the filters or search for a batch number.</span></div>`}
       </div>
       ${S.moves.length ? `<div class="card"><h2>Movements this session</h2><div class="dlines">${S.moves.slice(0, 6).map(m => `<div class="dline"><span class="grow"><b>${esc(m.product)}${m.lot ? " · " + esc(m.lot) : ""}</b><small>${hm(m.when)} · ${esc(m.reason)} · ${esc(m.who)}${m.approver ? " · approved by " + esc(m.approver) : ""}${m.note ? " · " + esc(m.note) : ""}</small></span><b style="color:${m.qty < 0 ? "var(--error-text)" : "var(--success-text)"}">${m.qty > 0 ? "+" : "−"}${Math.abs(m.qty)}</b></div>`).join("")}</div><div class="note">${ic("lock", 16)}Each adjustment is a stock movement with a reason, kept in the audit log.</div></div>` : ""}
@@ -1543,7 +1544,7 @@ Yesterday 09:15  SYNC-003 Catalog cursor too old · catalog snapshot downloaded<
             <div class="top"><span class="thumb tile-${p.tone}">${ic(p.icon, 18)}</span><span style="min-width:0"><b>${esc(p.name)}</b><small>${esc(l.id)} · exp ${fmtExpIso(l.exp)}</small></span></div>
             <div class="facts"><span>Qty <b>${fq(p, l.qty)}</b></span><span>Value <b>${fmt(Math.round(l.qty * p.cost))}</b></span><span><b style="color:${d < 0 ? "var(--error-text)" : d <= 30 ? "var(--warning-text)" : "var(--text)"}">${d < 0 ? `${-d} d ago` : `${d} days`}</b></span></div>
             ${l.blocked ? badge("error", "Blocked · not sellable", "lock") : ""}${l.markdown ? badge("warning", `Clearance −${l.markdown}% on this batch`, "tag") : ""}
-            <div class="acts">${d < 0 ? `<button class="btn danger" data-act="ex-writeoff" data-id="${p.id}" data-lot="${esc(l.id)}">Write off</button><button class="btn secondary" data-act="ex-return" data-id="${p.id}" data-lot="${esc(l.id)}">Return to supplier</button>`
+            <div class="acts"><button class="btn ghost" data-act="bd-open" data-id="${p.id}" data-lot="${esc(l.id)}">Details</button>${d < 0 ? `<button class="btn danger" data-act="ex-writeoff" data-id="${p.id}" data-lot="${esc(l.id)}">Write off</button><button class="btn secondary" data-act="ex-return" data-id="${p.id}" data-lot="${esc(l.id)}">Return to supplier</button>`
               : `${l.markdown ? "" : `<button class="btn secondary" data-act="ex-markdown" data-id="${p.id}" data-lot="${esc(l.id)}">Clearance −20%</button>`}<button class="btn secondary" data-act="ex-block" data-id="${p.id}" data-lot="${esc(l.id)}">${l.blocked ? "Unblock" : "Block"}</button><button class="btn ghost" data-act="ex-front" data-id="${p.id}" data-lot="${esc(l.id)}">Move to front</button>`}</div></div>`).join("")
           : `<div class="kempty">${ic("check", 16)} Nothing here</div>`}</section>`; }).join("")}</div>
       <div class="note">${ic("help", 16)}Expired batches are blocked at the till automatically (BR-09). Writing off creates an "Expired write-off" stock movement; clearance prices apply only when that batch is scanned.</div>
@@ -2500,7 +2501,7 @@ Yesterday 09:15  SYNC-003 Catalog cursor too old · catalog snapshot downloaded<
     return allDocs().filter(d => (f.period === "all" || monthKey(d.date) === pk) && (f.type === "all" || d.type === f.type) && (f.branch === "all" || branchOf(d.no) === f.branch)
       && (!q || [d.no, d.ref, d.buyer.name, d.buyer.vat].join(" ").toLowerCase().includes(q)));
   }
-  const taxTabs = cur => `<div class="seg tabs big" role="tablist">${[["tax", "Tax documents"], ["vat", "VAT report"]].map(([v, l]) => `<button role="tab" data-act="nav" data-view="${v}" aria-pressed="${cur === v}" aria-selected="${cur === v}">${l}</button>`).join("")}</div>`;
+  const taxTabs = cur => `<div class="seg tabs big" role="tablist">${[["tax", "Tax documents"], ["vat", "VAT report"], ["taxrates", "Tax rates"]].map(([v, l]) => `<button role="tab" data-act="nav" data-view="${v}" aria-pressed="${cur === v}" aria-selected="${cur === v}">${l}</button>`).join("")}</div>`;
   function taxGuard() { return S.user.role === "Manager" ? null : `<div class="placeholder"><div class="empty"><span class="circle">${ic("lock", 28)}</span><h3>Tax documents are for managers and the accountant</h3><span>${esc(S.user.short)} is signed in as ${esc(S.user.role.toLowerCase())}. Cashiers issue tax invoices at the till with the sale.</span><button class="btn primary s" data-act="logout">Switch user</button></div></div>`; }
   function taxView() {
     const g0 = taxGuard(); if (g0) return g0;
@@ -2683,6 +2684,264 @@ Yesterday 09:15  SYNC-003 Catalog cursor too old · catalog snapshot downloaded<
     </div>`;
   }
 
+  // ---------- Batch detail & recall (A-41) ----------
+  const hashOf = s => [...String(s)].reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 7);
+  const BD_BUYERS = ["kp", "nk", "fa", "ps"];
+  const RECALL_REASONS = ["Manufacturer recall notice", "NMRA directive", "Quality complaint", "Wrong labelling"];
+  S.bd = { pid: "am", lot: "AM2511" };
+  function batchInfo(p, l) {
+    const h = hashOf(l.id), sess = S.moves.filter(m => m.product === p.name && m.lot === l.id);
+    const live = S.history.filter(s => !s.training).flatMap(s => s.lines.filter(x => x.pid === p.id && x.batch === l.id).map(x => ({ s, x })));
+    const sold = l.fresh ? 0 : Math.max(2, Math.round(Math.max(l.qty, 6) * (0.4 + (h % 7) / 10)));
+    const sessNet = sess.reduce((a, m) => a + m.qty, 0), liveSold = live.reduce((a, o) => a + o.x.qty - (o.x.returned || 0), 0);
+    const recvDays = l.fresh ? 0 : 25 + h % 50, sup = (SUP.find(x => x.pids.includes(p.id)) || SUP[0]).name;
+    const received = Math.round((l.qty + sold + liveSold - sessNet) * 1000) / 1000;
+    const rows = [{ date: l.fresh ? new Date() : daysAgo(recvDays, 9, 30), kind: "in", what: `Received · ${l.fresh ? "goods receipt this session" : "GRN-" + (2200 + h % 80)}`, who: "Kasun S.", qty: received }];
+    const n = l.fresh ? 0 : 3 + h % 4; let left = sold;
+    for (let i = 0; i < n; i++) {
+      const q = i === n - 1 ? left : Math.max(1, Math.round(sold / n)); if (q <= 0) break; left -= q;
+      const cid = p.cat === "Pharmacy" || i % 2 === 0 ? BD_BUYERS[(h + i) % 4] : "walk";
+      rows.push({ date: daysAgo(Math.max(1, Math.round(recvDays * (n - i) / (n + 1))), 10 + (h + i) % 8, (h * (i + 3)) % 60), kind: "sale", what: `Sale CMB01-R0${1 + (h + i) % 3}-000${String(100 + (h + i * 17) % 120).padStart(3, "0")}`, who: custOf(cid) ? custOf(cid).name : "Walk-in customer", cid, qty: -q });
+    }
+    for (const o of live) rows.push({ date: o.s.date, kind: "sale", what: `Sale ${o.s.no}`, who: o.s.customer.name, cid: o.s.customer.id, qty: -(o.x.qty - (o.x.returned || 0)) });
+    for (const m of sess) rows.push({ date: m.when, kind: m.qty < 0 ? "out" : "in", what: m.reason, who: m.who + (m.approver ? ` · approved by ${m.approver}` : ""), qty: m.qty });
+    if (l.recall) rows.push({ date: l.recall.at, kind: "block", what: `Recalled · ${l.recall.reason}${l.recall.ref ? " · " + l.recall.ref : ""}`, who: l.recall.by, qty: 0 });
+    rows.sort((a, b) => a.date - b.date);
+    let bal = 0; for (const r of rows) { bal = Math.round((bal + r.qty) * 1000) / 1000; r.bal = bal; }
+    const buyers = {};
+    for (const r of rows) if (r.kind === "sale" && r.cid && r.cid !== "walk") { const b = buyers[r.cid] = buyers[r.cid] || { c: custOf(r.cid), qty: 0, last: r.date, n: 0 }; b.qty += -r.qty; b.n++; if (r.date > b.last) b.last = r.date; }
+    const walkins = rows.filter(r => r.kind === "sale" && (!r.cid || r.cid === "walk")).length;
+    const branches = [["CMB01", l.qty], ["KDY01", h % 3 === 0 ? Math.round(l.qty * 0.5) : 0], ["GAL01", h % 5 === 0 ? Math.round(l.qty * 0.3) : 0]];
+    return { rows: rows.reverse(), received, sold: sold + liveSold, sup, buyers: Object.values(buyers).filter(b => b.c), walkins, branches, gtin: gtinOf(p) };
+  }
+  function openBatch(pid, lot) { S.bd = { pid, lot }; S.view = "batch"; render(); }
+  function batchView() {
+    if (!["Manager", "Pharmacist", "Stock keeper"].includes(S.user.role)) return `<div class="placeholder"><div class="empty"><span class="circle">${ic("lock", 28)}</span><h3>Batch details are for managers, pharmacists and stock keepers</h3><button class="btn primary s" data-act="logout">Switch user</button></div></div>`;
+    const p = byId(S.bd.pid), l = p && findLot(p.id, S.bd.lot);
+    if (!l) return `<div class="placeholder"><div class="empty"><span class="circle">${ic("package", 28)}</span><h3>Batch not found</h3><button class="btn primary s" data-act="nav" data-view="stock">Stock on hand</button></div></div>`;
+    const I = batchInfo(p, l), x = l.exp ? expInfo(l.exp) : null, canRecall = ["Manager", "Pharmacist"].includes(S.user.role);
+    const total = I.branches.reduce((a, b) => a + b[1], 0);
+    return `<div class="page bd">
+      <div class="cust-head"><button class="btn ghost" data-act="nav" data-view="stock">${ic("arrowRight", 18)}Stock</button>
+        <span class="thumb tile-${p.tone}" style="width:52px;height:52px">${ic(p.icon, 26)}</span><div class="grow"><h2>${esc(p.name)} · batch ${esc(l.id)}</h2><span class="sub">${esc(p.sku)} · GTIN ${I.gtin} · supplier ${esc(I.sup)}</span></div>
+        ${l.recall ? badge("error", "Recalled", "alert") : l.blocked ? badge("error", "Blocked", "lock") : badge("success", "Sellable", "check")}${x && x.tone ? badge(x.tone, x.days < 0 ? "Expired" : `${x.days} days left`, "clock") : ""}</div>
+      ${l.recall ? `<div class="banner error">${ic("alert")}<span><b>Recalled ${l.recall.at.toLocaleDateString("en-GB", { day: "numeric", month: "short" })} ${hm(l.recall.at)} by ${esc(l.recall.by)}</b> · ${esc(l.recall.reason)}${l.recall.ref ? " · " + esc(l.recall.ref) : ""}. Blocked on every register; ${l.recall.notified} customer${l.recall.notified === 1 ? "" : "s"} notified by SMS.</span>${l.qty > 0 ? `<button class="btn secondary" data-act="bd-return">Return ${fq(p, l.qty)} to supplier</button>` : ""}</div>` : ""}
+      <div class="stats4">
+        <div class="stat"><span>Received</span><b>${fq(p, I.received)}</b></div>
+        <div class="stat"><span>Sold</span><b>${fq(p, I.sold)}</b></div>
+        <div class="stat"><span>On hand · all branches</span><b>${fq(p, total)}</b></div>
+        <div class="stat"><span>Expiry</span><b style="color:${x && x.days < 0 ? "var(--error-text)" : "var(--text)"}">${l.exp ? fmtExpIso(l.exp) : "—"}</b></div>
+      </div>
+      <div class="bd-grid">
+        <section class="card"><div class="card-head"><h2>Movements</h2><span class="sub">Newest first · every change is a stock movement (INV-04)</span></div>
+          <div class="ledger" role="table" aria-label="Batch movements"><div class="mvrow head" role="row"><span>Date</span><span>What</span><span class="r">Qty</span><span class="r">Balance</span></div>
+          ${I.rows.map(r => `<div class="mvrow ${r.kind}" role="row"><span class="muted">${r.date.toLocaleDateString("en-GB", { day: "numeric", month: "short" })}</span><span><b>${esc(r.what)}</b><small>${esc(r.who)}</small></span><span class="r ${r.qty < 0 ? "neg" : r.qty > 0 ? "pos" : ""}">${r.qty ? (r.qty > 0 ? "+" : "−") + fq(p, Math.abs(r.qty)) : "—"}</span><span class="r"><b>${fq(p, r.bal)}</b></span></div>`).join("")}</div></section>
+        <div class="bd-side">
+          <section class="card"><h2>Where it is</h2><div class="dlines">${I.branches.map(([b, q]) => `<div class="dline"><span class="grow"><b>${esc(BRANCHES.find(y => y[0] === b)[1])}</b><small>${q ? (l.blocked ? "Blocked · not sellable" : "On the shelf") : "None left"}</small></span><b>${fq(p, q)}</b></div>`).join("")}</div></section>
+          <section class="card"><div class="card-head"><h2>Who bought it</h2><button class="btn ghost s" data-act="toast" data-msg="Buyers report for ${esc(l.id)} printed (${I.buyers.length} named customers)">${ic("printer", 16)}Print</button></div>
+            ${I.buyers.length ? `<div class="dlines">${I.buyers.map(b => `<div class="dline"><span class="avatar s">${esc(b.c.initials)}</span><span class="grow"><b>${esc(b.c.name)}</b><small>${esc(b.c.phone || "No phone")} · last ${b.last.toLocaleDateString("en-GB", { day: "numeric", month: "short" })}${b.c.consent && b.c.consent.sms ? " · SMS allowed" : " · no SMS consent"}</small></span><b>${fq(p, b.qty)}</b></div>`).join("")}</div>` : `<div class="note">${ic("users", 16)}No named customers bought this batch.</div>`}
+            <div class="note">${ic("help", 16)}${I.walkins} sale${I.walkins === 1 ? "" : "s"} to walk-in customers cannot be traced. Sales stay valid as recorded facts.</div></section>
+          <section class="card"><h2>Actions</h2>
+            <button class="btn ${l.blocked ? "secondary" : "danger-outline"} block" data-act="bd-block" ${l.recall ? "disabled" : ""}>${ic("lock", 18)}${l.blocked ? "Unblock this batch" : "Block at all branches"}</button>
+            <button class="btn danger block" data-act="bd-recall" ${l.recall || !canRecall ? "disabled" : ""}>${ic("alert", 18)}${l.recall ? "Recall started" : "Start a recall"}</button>
+            ${!canRecall ? `<div class="note">${ic("lock", 16)}A manager or pharmacist starts recalls.</div>` : ""}
+            <button class="btn secondary block" data-act="adj-open" data-id="${p.id}" data-lot="${esc(l.id)}" ${l.qty > 0 ? "" : "disabled"}>Adjust stock</button></section>
+        </div>
+      </div>
+    </div>`;
+  }
+  function recallModal(m, head) {
+    const p = byId(S.bd.pid), l = findLot(p.id, S.bd.lot), I = batchInfo(p, l), sms = I.buyers.filter(b => b.c.consent && b.c.consent.sms).length;
+    return `<div class="modal" role="dialog" aria-modal="true" aria-labelledby="mt" style="width:min(560px,100%)">${head("Start a recall", `${p.name} · batch ${l.id}`)}
+      <div class="field">Reason<div class="chips wrap">${RECALL_REASONS.map(r => `<button class="chip" data-act="rc-reason" data-v="${r}" aria-pressed="${m.reason === r}">${r}</button>`).join("")}</div></div>
+      <label class="field">Notice reference<input data-rc="ref" data-fid="rc-ref" id="rcref" value="${esc(m.ref)}" placeholder="e.g. NMRA/RC/2026/118"></label>
+      <label class="check-row"><input type="checkbox" checked disabled><span><b>Block the batch on every register</b><small>Registers get the block within a minute while online. Scanning the batch then shows a hard stop.</small></span></label>
+      <label class="check-row"><input type="checkbox" data-act="rc-sms" ${m.sms ? "checked" : ""}><span><b>Send an SMS to ${sms} buyer${sms === 1 ? "" : "s"}</b><small>Only customers with SMS consent. Safety messages are allowed; the text asks them to bring the product back.</small></span></label>
+      <label class="check-row"><input type="checkbox" data-act="rc-quar" ${m.quar ? "checked" : ""}><span><b>Move the ${fq(p, l.qty)} left to quarantine</b><small>Keep it off the shelf until it goes back to ${esc(I.sup)}.</small></span></label>
+      <div class="banner error">${ic("alert")}<span>A recall cannot be undone. It is logged with your name and the time.</span></div>
+      <button class="btn danger l block" data-act="rc-do" ${m.reason ? "" : "disabled"}>${ic("alert")}Start recall <kbd>Enter</kbd></button></div>`;
+  }
+  function recallDo() {
+    const m = S.modal, p = byId(S.bd.pid), l = findLot(p.id, S.bd.lot), I = batchInfo(p, l);
+    if (!m.reason) { toast("Choose a reason", { error: true }); return; }
+    const n = m.sms ? I.buyers.filter(b => b.c.consent && b.c.consent.sms).length : 0;
+    l.blocked = true; l.quarantine = !!m.quar; l.recall = { reason: m.reason, ref: m.ref.trim(), by: meShort(), at: new Date(), notified: n };
+    p.log.unshift({ when: new Date(), who: meShort(), what: `Batch ${l.id} recalled · ${m.reason}` });
+    closeModal(); render(); toast(`Recall started · batch ${l.id} blocked everywhere${n ? ` · ${n} SMS sent` : ""}`);
+  }
+
+  // ---------- Pricing: bulk price change (A-31) and discount limits (A-32) ----------
+  S.bp = { cat: "All", brand: "All", sup: "All", q: "", off: {}, kind: "pct", dir: "up", value: "5", round: "10", when: "now", date: "" };
+  S.bpJobs = [{ id: "PC-0014", desc: "Beverages +3%, rounded to Rs 10", count: 3, date: "", status: "applied", by: "Malini J.", at: daysAgo(12, 17, 20), items: [] }];
+  S.bpSeq = 15;
+  const pricingTabs = cur => `<div class="seg tabs big" role="tablist">${[["pricing", "Bulk price change"], ["discounts", "Discount limits"]].map(([v, l]) => `<button role="tab" data-act="nav" data-view="${v}" aria-pressed="${cur === v}" aria-selected="${cur === v}">${l}</button>`).join("")}</div>`;
+  function bpProducts() {
+    const f = S.bp, q = f.q.trim().toLowerCase();
+    return PRODUCTS.filter(p => p.active !== false && (f.cat === "All" || p.cat === f.cat) && (f.brand === "All" || p.brand === f.brand)
+      && (f.sup === "All" || (SUP.find(x => x.name === f.sup) || { pids: [] }).pids.includes(p.id)) && (!q || (p.name + " " + p.sku).toLowerCase().includes(q)));
+  }
+  function bpNew(p) {
+    const f = S.bp, v = Math.max(0, parseFloat(f.value) || 0), sg = f.dir === "up" ? 1 : -1;
+    let n = f.kind === "pct" ? p.price * (1 + sg * v / 100) : p.price + sg * v * 100;
+    let r = +f.round; if (r && r * 100 > p.price * 0.1) r = 1;            // small prices round to Rs 1
+    const steps = Math.round(n / ((r || 0.01) * 100) * 1e6) / 1e6;     // rounding never reverses the change
+    n = (sg > 0 ? Math.ceil(steps) : Math.floor(steps)) * (r || 0.01) * 100; n = Math.round(n);
+    return Math.max(0, n);
+  }
+  const bpFlag = (p, n) => n <= p.cost ? "cost" : n === p.price ? "same" : Math.abs(n - p.price) / p.price > 0.25 ? "big" : "";
+  const isoToday = () => isoDate(new Date());
+  function bpApply() {
+    const f = S.bp, list = bpProducts().filter(p => !f.off[p.id]), rows = list.map(p => ({ p, n: bpNew(p) })).filter(r => bpFlag(r.p, r.n) !== "cost" && r.n !== r.p.price);
+    if (!rows.length) { toast("Nothing to change. Check the products and the change.", { error: true }); return; }
+    if (f.when === "date" && (!f.date || f.date <= isoToday())) { toast("Choose a start date from tomorrow", { error: true }); return; }
+    const id = `PC-${String(S.bpSeq++).padStart(4, "0")}`, v = parseFloat(f.value) || 0;
+    const desc = `${f.cat === "All" ? "All categories" : f.cat}${f.brand !== "All" ? " · " + f.brand : ""}${f.sup !== "All" ? " · " + f.sup : ""} ${f.dir === "up" ? "+" : "−"}${f.kind === "pct" ? v + "%" : fmt(v * 100)}${+f.round ? `, rounded to Rs ${f.round}` : ""}`;
+    const by = meShort();
+    for (const { p, n } of rows) {
+      if (f.when === "now") { const old = p.price; p.price = n; const vv = p.variants.find(x => x.sku === p.sku); if (vv) vv.price = n; p.updated = new Date(); p.log.unshift({ when: new Date(), who: by, what: `Price ${fmt(old)} → ${fmt(n)} (bulk change ${id})` }); }
+      else { p.newPrice = (n / 100).toFixed(2); p.newFrom = f.date; p.log.unshift({ when: new Date(), who: by, what: `New price ${fmt(n)} from ${fmtExpIso(f.date)} (bulk change ${id})` }); }
+    }
+    S.bpJobs.unshift({ id, desc, count: rows.length, date: f.when === "date" ? f.date : "", status: f.when === "now" ? "applied" : "scheduled", by, at: new Date(), items: rows.map(r => ({ pid: r.p.id, to: r.n })) });
+    f.off = {}; render();
+    toast(f.when === "now" ? `${id}: ${rows.length} prices changed · registers update within a minute` : `${id}: ${rows.length} new prices start ${fmtExpIso(f.date)}`);
+  }
+  function bpCancel(id) {
+    const j = S.bpJobs.find(x => x.id === id); if (!j || j.status !== "scheduled") return;
+    for (const it of j.items) { const p = byId(it.pid); if (p && p.newFrom === j.date && Math.round(parseFloat(p.newPrice) * 100) === it.to) { p.newPrice = ""; p.newFrom = ""; p.log.unshift({ when: new Date(), who: meShort(), what: `Scheduled price cancelled (${id})` }); } }
+    j.status = "cancelled"; render(); toast(`${id} cancelled · no prices changed`);
+  }
+  function pricingView() {
+    if (S.user.role !== "Manager") return `<div class="placeholder"><div class="empty"><span class="circle">${ic("lock", 28)}</span><h3>Pricing is for managers and the owner</h3><button class="btn primary s" data-act="logout">Switch user</button></div></div>`;
+    const f = S.bp, list = bpProducts(), rows = list.map(p => ({ p, n: bpNew(p), on: !f.off[p.id] })), live = rows.filter(r => r.on && bpFlag(r.p, r.n) !== "cost" && r.n !== r.p.price);
+    const brands = [...new Set(PRODUCTS.map(p => p.brand))].sort();
+    const sel = (k, label, opts) => `<label class="field">${label}<select data-bp="${k}" data-fid="bp-${k}">${opts.map(([v, l]) => `<option value="${esc(v)}" ${f[k] === v ? "selected" : ""}>${esc(l)}</option>`).join("")}</select></label>`;
+    const seg = (k, opts) => `<div class="seg" role="group">${opts.map(([v, l]) => `<button data-act="bp-set" data-k="${k}" data-v="${v}" aria-pressed="${f[k] === v}">${l}</button>`).join("")}</div>`;
+    const tot = live.reduce((a, r) => a + (r.n - r.p.price) * Math.max(0, r.p.stock), 0);
+    return `<div class="page pricing">${pricingTabs("pricing")}
+      <div class="bp-grid">
+        <section class="card"><h2>1 · Products</h2>
+          <div class="form-3">${sel("cat", "Category", [["All", "All categories"], ...CATS_ADMIN.map(c => [c, c])])}${sel("brand", "Brand", [["All", "All brands"], ...brands.map(b => [b, b])])}${sel("sup", "Supplier", [["All", "All suppliers"], ...SUP.map(s => [s.name, s.name])])}</div>
+          <label class="search">${ic("search")}<span class="sr">Search</span><input id="bpsearch" data-fid="bpsearch" autocomplete="off" placeholder="Narrow by name or SKU…" value="${esc(f.q)}"></label>
+          <div class="note">${ic("package", 16)}${list.length} product${list.length === 1 ? "" : "s"} match · untick any you want to leave out below</div></section>
+        <section class="card"><h2>2 · Change</h2>
+          <div class="bp-row"><span>Type</span>${seg("kind", [["pct", "Percent"], ["amt", "Fixed amount"]])}</div>
+          <div class="bp-row"><span>Direction</span>${seg("dir", [["up", "Increase"], ["down", "Decrease"]])}</div>
+          <label class="field">${f.kind === "pct" ? "By (%)" : "By (Rs)"}<input data-bp="value" data-fid="bp-value" id="bpvalue" inputmode="decimal" value="${esc(f.value)}"></label>
+          <div class="bp-row"><span>Round to</span>${seg("round", [["0", "None"], ["1", "Rs 1"], ["5", "Rs 5"], ["10", "Rs 10"], ["50", "Rs 50"]])}</div>
+          <div class="note">${ic("help", 16)}Rounding goes up for increases and down for decreases. Prices under ten times the step round to Rs 1. Prices never go below cost: those products are skipped.</div></section>
+      </div>
+      <section class="card"><div class="card-head"><h2>3 · Preview</h2><span class="sub">${live.length} price${live.length === 1 ? "" : "s"} will change · stock value ${tot >= 0 ? "+" : "−"}${fmt(Math.abs(tot))} at retail</span></div>
+        <div class="ctable" role="table" aria-label="Preview">
+          <div class="bprow head" role="row"><span></span><span>Product</span><span class="r">Now</span><span class="r">New</span><span class="r">Change</span><span class="r">Margin</span><span>Check</span></div>
+          ${rows.length ? rows.map(({ p, n, on }) => { const fl = bpFlag(p, n), m = n ? Math.round((n - p.cost) / n * 1000) / 10 : 0, ch = p.price ? Math.round((n - p.price) / p.price * 1000) / 10 : 0; return `<div class="bprow ${on ? "" : "off"} ${fl}" role="row">
+            <span><input type="checkbox" data-act="bp-toggle" data-id="${p.id}" ${on ? "checked" : ""} aria-label="Include ${esc(p.name)}"></span>
+            <span class="pname"><span class="thumb tile-${p.tone}">${ic(p.icon, 18)}</span><span style="min-width:0"><b>${esc(p.name)}</b><small>${esc(p.sku)} · cost ${fmt(p.cost)}${p.newFrom ? ` · ${fmt(Math.round(parseFloat(p.newPrice) * 100))} already scheduled ${fmtExpIso(p.newFrom)}` : ""}</small></span></span>
+            <span class="r muted">${fmt(p.price)}</span><span class="r"><b>${fmt(n)}</b></span><span class="r ${ch > 0 ? "pos" : ch < 0 ? "neg" : ""}">${ch > 0 ? "+" : ch < 0 ? "−" : ""}${Math.abs(ch)}%</span><span class="r ${m < 10 ? "neg" : ""}">${m < 0 ? "−" : ""}${Math.abs(m)}%</span>
+            <span>${fl === "cost" ? badge("error", "Below cost · skipped", "alert") : fl === "big" ? badge("warning", "Over 25%", "alert") : fl === "same" ? badge("", "No change", null) : badge("success", "OK", "check")}</span></div>`; }).join("")
+            : `<div class="empty"><span class="circle">${ic("tag", 28)}</span><h3>No products match</h3><span>Change the filters above.</span></div>`}
+        </div></section>
+      <section class="card bp-foot"><div class="bp-row"><span>When</span>${seg("when", [["now", "Now"], ["date", "From a date"]])}${f.when === "date" ? `<input type="date" data-bp="date" data-fid="bp-date" min="${isoDate(inDays(1))}" value="${esc(f.date)}" aria-label="Start date">` : ""}</div>
+        <span class="grow sub">${f.when === "now" ? "Registers get the new prices within a minute. Sales already made keep their prices." : f.date ? `Registers switch at 00:00 on ${fmtExpIso(f.date)}, even if they are offline then.` : "Pick the first day of the new prices."}</span>
+        <button class="btn primary l" data-act="bp-apply" ${live.length && (f.when === "now" || (f.date && f.date > isoToday())) ? "" : "disabled"}>${ic("check")}${f.when === "now" ? "Change" : "Schedule"} ${live.length} price${live.length === 1 ? "" : "s"}</button></section>
+      <section class="card"><h2>Recent and scheduled changes</h2><div class="dlines">${S.bpJobs.map(j => `<div class="dline"><span class="grow"><b>${j.id} · ${esc(j.desc)}</b><small>${j.count} product${j.count === 1 ? "" : "s"} · ${esc(j.by)} · ${j.at.toLocaleDateString("en-GB", { day: "numeric", month: "short" })} ${hm(j.at)}${j.date ? ` · starts ${fmtExpIso(j.date)}` : ""}</small></span>${j.status === "scheduled" ? badge("info", "Scheduled", "clock") + `<button class="btn ghost s" data-act="bp-cancel" data-id="${j.id}">Cancel</button>` : j.status === "cancelled" ? badge("", "Cancelled", null) : badge("success", "Applied", "check")}</div>`).join("")}</div></section>
+    </div>`;
+  }
+
+  const ROLE_ORDER = ["Cashier", "Pharmacist", "Stock keeper", "Manager"];
+  S.disc = { roles: { Cashier: { pct: 10, amt: 200000, above: "pin" }, Pharmacist: { pct: 10, amt: 300000, above: "pin" }, "Stock keeper": { pct: 0, amt: 0, above: "no" }, Manager: { pct: 30, amt: 2000000, above: "pin" } },
+    rules: { noBelowCost: true, noRx: true }, log: [{ when: daysAgo(60, 9, 0), who: "Malini J.", what: "Cashier limit 5% → 10%" }] };
+  S.discDraft = null;
+  const discRole = () => S.disc.roles[S.user.role] || S.disc.roles.Cashier;
+  const discLimit = () => discRole().pct;
+  const discNeeds = (l, pct) => pct > discLimit() || Math.round(lineGross(l) * pct / 100) > discRole().amt;
+  function discBlock(l, pct) {
+    const p = byId(l.pid), r = S.disc.rules;
+    if (!pct) return null;
+    if (r.noRx && p.rx) return "Discounts are turned off for prescription medicines";
+    if (r.noBelowCost && Math.round(l.unit * (100 - pct) / 100) < p.cost) return `That would sell below cost (${fmt(p.cost)})`;
+    if (discRole().above === "no" && discNeeds(l, pct)) return `Your role cannot give more than ${discLimit()}%`;
+    return null;
+  }
+  const discDirty = () => S.discDraft && JSON.stringify(S.discDraft) !== JSON.stringify({ roles: S.disc.roles, rules: S.disc.rules });
+  function discSave() {
+    const d = S.discDraft; if (!discDirty()) return;
+    for (const r of ROLE_ORDER) { const a = d.roles[r]; if (!(a.pct >= 0 && a.pct <= 100)) { toast(`${r}: the limit must be 0–100%`, { error: true }); return; } }
+    const by = meShort();
+    for (const r of ROLE_ORDER) { const o = S.disc.roles[r], n = d.roles[r]; if (o.pct !== n.pct) S.disc.log.unshift({ when: new Date(), who: by, what: `${r} limit ${o.pct}% → ${n.pct}%` }); if (o.amt !== n.amt) S.disc.log.unshift({ when: new Date(), who: by, what: `${r} per-line limit ${fmt(o.amt)} → ${fmt(n.amt)}` }); if (o.above !== n.above) S.disc.log.unshift({ when: new Date(), who: by, what: `${r} above the limit: ${n.above === "pin" ? "manager PIN" : "not allowed"}` }); }
+    for (const k in d.rules) if (d.rules[k] !== S.disc.rules[k]) S.disc.log.unshift({ when: new Date(), who: by, what: `${k === "noRx" ? "No discounts on Rx medicines" : "No sales below cost"}: ${d.rules[k] ? "on" : "off"}` });
+    S.disc.roles = JSON.parse(JSON.stringify(d.roles)); S.disc.rules = { ...d.rules }; S.discDraft = null; render(); toast("Discount limits saved · registers apply them within a minute");
+  }
+  function discountsView() {
+    if (S.user.role !== "Manager") return pricingView();
+    if (!S.discDraft) S.discDraft = JSON.parse(JSON.stringify({ roles: S.disc.roles, rules: S.disc.rules }));
+    const d = S.discDraft, dirty = discDirty();
+    const tg = (k, l, s) => `<label class="check-row"><input type="checkbox" data-act="dl-rule" data-k="${k}" ${d.rules[k] ? "checked" : ""}><span><b>${l}</b><small>${s}</small></span></label>`;
+    return `<div class="page pricing">${pricingTabs("discounts")}
+      <section class="card"><div class="card-head"><h2>Manual discount limits by role</h2>${dirty ? badge("warning", "Unsaved", "pencil") : ""}</div>
+        <div class="ctable" role="table" aria-label="Limits">
+          <div class="dlrow head" role="row"><span>Role</span><span>Up to (%)</span><span>Up to per line (Rs)</span><span>Above the limit</span><span>On the register</span></div>
+          ${ROLE_ORDER.map(r => { const a = d.roles[r]; return `<div class="dlrow" role="row"><b>${r}</b>
+            <input data-dl="pct" data-role="${r}" data-fid="dl-${r}-pct" inputmode="numeric" value="${a.pct}" aria-label="${r} percent limit">
+            <input data-dl="amt" data-role="${r}" data-fid="dl-${r}-amt" inputmode="decimal" value="${a.amt / 100}" aria-label="${r} amount limit">
+            <select data-dl="above" data-role="${r}" data-fid="dl-${r}-above" aria-label="${r} above the limit"><option value="pin" ${a.above === "pin" ? "selected" : ""}>Ask for a manager PIN</option><option value="no" ${a.above === "no" ? "selected" : ""}>Not allowed</option></select>
+            <span class="muted">${a.pct ? `Up to ${a.pct}% or ${fmt(a.amt)} a line${a.above === "pin" ? ", more with a PIN" : ""}` : a.above === "pin" ? "Only with a manager PIN" : "Cannot give discounts"}</span></div>`; }).join("")}
+        </div>
+        <div class="note">${ic("lock", 16)}Both limits apply: a discount needs approval if it is over the percent or over the amount per line. Every approval is logged with the manager's name.</div></section>
+      <section class="card"><h2>Rules</h2>${tg("noBelowCost", "Never sell below cost", "A discount that takes the price under the cost price is refused, even with a PIN.")}${tg("noRx", "No manual discounts on prescription (Rx) medicines", "Offer prices set in Promotions still apply.")}</section>
+      <section class="card bp-foot"><span class="grow sub">${dirty ? "Changes apply to every register within a minute after you save." : "Saved. Try it on Sell: select a line and press F5 for a discount."}</span>
+        <button class="btn secondary l" data-act="dl-discard" ${dirty ? "" : "disabled"}>Discard</button><button class="btn primary l" data-act="dl-save" ${dirty ? "" : "disabled"}>${ic("check")}Save limits <kbd>Ctrl S</kbd></button></section>
+      <section class="card"><h2>Change history</h2><div class="dlines">${S.disc.log.slice(0, 8).map(x => `<div class="dline"><span class="grow"><b>${esc(x.what)}</b><small>${x.when.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })} ${hm(x.when)} · ${esc(x.who)}</small></span></div>`).join("")}</div></section>
+    </div>`;
+  }
+
+  // ---------- Tax rates & rules (A-66) ----------
+  S.tr = { rates: [
+      { id: "vat", name: "VAT standard", versions: [{ rate: 15, from: "2023-01-01", ref: "VAT (Amendment) Act No. 44 of 2022" }, { rate: 18, from: "2024-01-01", ref: "VAT (Amendment) Act No. 32 of 2023" }] },
+      { id: "exempt", name: "VAT exempt", versions: [{ rate: 0, from: "2020-01-01", ref: "VAT Act, First Schedule" }] }
+    ], defaults: { Pharmacy: "exempt", Grocery: "exempt", Dairy: "std", Beverages: "std", "Personal care": "std", Vegetables: "exempt", Household: "std" }, q: "", cat: "All", log: [] };
+  const verTo = (vs, i) => { const nx = vs[i + 1]; if (!nx) return null; const d = new Date(nx.from + "T00:00:00"); d.setDate(d.getDate() - 1); return isoDate(d); };
+  const curVer = r => { const t = isoToday(); return [...r.versions].reverse().find(v => v.from <= t) || r.versions[0]; };
+  function rateModal(m, head) {
+    const ok = parseFloat(m.rate) >= 0 && parseFloat(m.rate) <= 50 && m.from > isoToday() && m.ref.trim();
+    return `<div class="modal" role="dialog" aria-modal="true" aria-labelledby="mt" style="width:min(520px,100%)">${head("Schedule a new VAT rate", "VAT standard · now " + curVer(S.tr.rates[0]).rate + "%")}
+      <div class="form-2"><label class="field">New rate (%)<input data-tr="rate" data-fid="tr-rate" id="trrate" inputmode="decimal" value="${esc(m.rate)}"></label>
+        <label class="field">Starts on<input type="date" data-tr="from" data-fid="tr-from" min="${isoDate(inDays(1))}" value="${esc(m.from)}"></label></div>
+      <label class="field">Legal reference<input data-tr="ref" data-fid="tr-ref" value="${esc(m.ref)}" placeholder="e.g. VAT (Amendment) Act No. 14 of 2026, section 3"></label>
+      <div class="note">${ic("help", 16)}Registers receive the rate now and switch at 00:00 on the start date, even offline. Sales and documents before that keep the old rate; nothing is recalculated.</div>
+      <button class="btn primary l block" data-act="tr-save" ${ok ? "" : "disabled"}>${ic("clock")}Schedule rate <kbd>Enter</kbd></button></div>`;
+  }
+  function rateSave() {
+    const m = S.modal, r = S.tr.rates[0], rate = parseFloat(m.rate);
+    if (!(rate >= 0 && rate <= 50) || !(m.from > isoToday()) || !m.ref.trim()) { toast("Check the rate, a future start date and the reference", { error: true }); return; }
+    r.versions = r.versions.filter(v => v.from <= isoToday()); r.versions.push({ rate, from: m.from, ref: m.ref.trim(), scheduled: true });
+    S.tr.log.unshift({ when: new Date(), who: meShort(), what: `VAT standard ${rate}% scheduled from ${fmtExpIso(m.from)}` });
+    closeModal(); render(); toast(`VAT ${rate}% scheduled from ${fmtExpIso(m.from)}`);
+  }
+  function taxRatesView() {
+    const g0 = taxGuard(); if (g0) return g0;
+    const T2 = S.tr, q = T2.q.trim().toLowerCase(), prods = PRODUCTS.filter(p => p.active !== false && (T2.cat === "All" || p.cat === T2.cat) && (!q || (p.name + " " + p.sku).toLowerCase().includes(q)));
+    const next = T2.rates[0].versions.find(v => v.from > isoToday());
+    return `<div class="page vat">
+      <div class="vat-top">${taxTabs("taxrates")}</div>
+      ${next ? `<div class="banner" style="background:var(--warning-tint);color:var(--warning-text)">${ic("clock")}<span><b>VAT changes to ${next.rate}% on ${fmtExpIso(next.from)}.</b> Registers already have the new rate and switch at 00:00 that day.</span><button class="btn secondary" data-act="tr-cancel">Cancel change</button></div>` : ""}
+      <section class="card"><div class="card-head"><h2>Rates</h2><button class="btn primary" data-act="tr-new" ${next ? "disabled" : ""}>${ic("plus", 18)}Schedule a new rate</button></div>
+        ${T2.rates.map(r => `<div class="rate-block"><div class="rate-head"><b>${esc(r.name)}</b>${badge(r.id === "vat" ? "info" : "", curVer(r).rate + "% now", null)}</div>
+          <div class="ledger" role="table"><div class="trrow head" role="row"><span>Rate</span><span>Valid from</span><span>Valid to</span><span>Legal reference</span><span></span></div>
+          ${r.versions.map((v, i) => { const to = verTo(r.versions, i), isCur = v === curVer(r), fut = v.from > isoToday(); return `<div class="trrow ${isCur ? "cur" : ""}" role="row"><b>${v.rate}%</b><span>${fmtExpIso(v.from)}</span><span>${to ? fmtExpIso(to) : "—"}</span><span class="muted">${esc(v.ref)}</span><span>${isCur ? badge("success", "In use", "check") : fut ? badge("warning", "Scheduled", "clock") : badge("", "Past · locked", "lock")}</span></div>`; }).join("")}</div></div>`).join("")}
+        <div class="note">${ic("lock", 16)}Past rates cannot be edited. Rates are tax rules with dates, never hard-coded, so a sale always uses the rate valid at its time.</div></section>
+      <section class="card"><div class="card-head"><h2>Product tax classes</h2><span class="sub">${PRODUCTS.filter(p => p.tax === "std").length} standard · ${PRODUCTS.filter(p => p.tax === "exempt").length} exempt</span></div>
+        <div class="filters"><label class="search" style="flex:1;min-width:220px">${ic("search")}<span class="sr">Search</span><input id="trsearch" data-fid="trsearch" autocomplete="off" placeholder="Product or SKU…" value="${esc(T2.q)}"></label>
+          <select data-trf="cat" data-fid="trf-cat" aria-label="Category"><option value="All">All categories</option>${CATS_ADMIN.map(c => `<option ${T2.cat === c ? "selected" : ""}>${c}</option>`).join("")}</select></div>
+        <div class="ctable" role="table" aria-label="Tax classes"><div class="tcrow head" role="row"><span>Product</span><span>Category</span><span>Tax class</span></div>
+          ${prods.map(p => `<div class="tcrow" role="row"><span class="pname"><span class="thumb tile-${p.tone}">${ic(p.icon, 18)}</span><span style="min-width:0"><b>${esc(p.name)}</b><small>${esc(p.sku)}</small></span></span><span class="muted">${esc(p.cat)}</span>
+            <select data-tcls="${p.id}" data-fid="tc-${p.id}" aria-label="Tax class for ${esc(p.name)}"><option value="std" ${p.tax === "std" ? "selected" : ""}>Standard ${curVer(T2.rates[0]).rate}%</option><option value="exempt" ${p.tax === "exempt" ? "selected" : ""}>Exempt</option></select></div>`).join("")}</div>
+        <div class="note">${ic("help", 16)}A new class applies to new sales only. Issued receipts and tax documents keep the tax they were issued with.</div></section>
+      <section class="card"><div class="card-head"><h2>Default class for new products</h2><span class="sub">Used by the product editor and the import wizard</span></div>
+        <div class="form-3">${CATS_ADMIN.map(c => `<label class="field">${c}<select data-tdef="${c}" data-fid="td-${c}"><option value="std" ${T2.defaults[c] === "std" ? "selected" : ""}>Standard</option><option value="exempt" ${T2.defaults[c] === "exempt" ? "selected" : ""}>Exempt</option></select></label>`).join("")}</div></section>
+      ${T2.log.length ? `<section class="card"><h2>Change history</h2><div class="dlines">${T2.log.slice(0, 8).map(x => `<div class="dline"><span class="grow"><b>${esc(x.what)}</b><small>${x.when.toLocaleDateString("en-GB", { day: "numeric", month: "short" })} ${hm(x.when)} · ${esc(x.who)}</small></span></div>`).join("")}</div></section>` : ""}
+    </div>`;
+  }
+
   // ---------- Render: main ----------
   function render() {
     const fid = document.activeElement && document.activeElement.dataset ? document.activeElement.dataset.fid : null;
@@ -2703,6 +2962,10 @@ Yesterday 09:15  SYNC-003 Catalog cursor too old · catalog snapshot downloaded<
     else if (S.view === "returns") main = topbar(t("returns"), S.ret.done ? "Refund recorded" : S.ret.sale ? "Choose the items the customer is bringing back" : "Find the original sale") + returnsView();
     else if (S.view === "stock") main = topbar(t("stock"), "Stock on hand by product and batch") + stockView();
     else if (S.view === "expiry") main = topbar(t("expiry"), "Batches expiring in the next 90 days · act before they are lost") + expiryView();
+    else if (S.view === "batch") main = topbar("Batch details", "Stock › Batch · movements, buyers, block and recall") + batchView();
+    else if (S.view === "pricing") main = topbar(t("pricing"), "Change many prices at once, now or from a date") + pricingView();
+    else if (S.view === "discounts") main = topbar(t("pricing"), "How much each role may discount at the register") + discountsView();
+    else if (S.view === "taxrates") main = topbar(t("tax"), "Tax rates with valid-from dates, and product tax classes") + taxRatesView();
     else if (S.view === "tax") main = topbar(t("tax"), "Tax invoices, credit and debit notes · VAT reg. no. " + SELLER.vat) + taxView();
     else if (S.view === "vat") main = topbar(t("tax"), "VAT report · output tax by rate for the VAT return") + vatView();
     else if (S.view === "customers") main = topbar(t("customers"), "Credit accounts, loyalty and contact details") + customersView();
@@ -2764,11 +3027,11 @@ Yesterday 09:15  SYNC-003 Catalog cursor too old · catalog snapshot downloaded<
         <button class="btn primary l block" data-act="confirm-qty">${m.type === "qty" ? "Update" : "Add to sale"} <kbd>Enter</kbd></button></div>`;
     } else if (m.type === "discount") {
       const l = S.cart[S.sel]; const p = byId(l.pid);
-      const needs = m.pct > DISCOUNT_LIMIT;
-      h = `<div class="modal" role="dialog" aria-modal="true" aria-labelledby="mt" style="width:min(460px,100%)">${head("Line discount", p.name + " · your limit is " + DISCOUNT_LIMIT + "%")}
+      const needs = discNeeds(l, m.pct), blocked = discBlock(l, m.pct);
+      h = `<div class="modal" role="dialog" aria-modal="true" aria-labelledby="mt" style="width:min(460px,100%)">${head("Line discount", p.name + " · your limit is " + discLimit() + "% or " + fmt(discRole().amt) + " a line")}
         <div class="quick">${[5, 10, 15, 25].map(v => `<button class="chip" data-act="disc-pick" data-v="${v}" aria-pressed="${m.pct === v}">${v}%</button>`).join("")}</div>
         <div class="change ${needs ? "short" : ""}"><span>New line total</span><b style="font-size:28px">${fmt(Math.round(lineGross(l) * (100 - m.pct) / 100))}</b></div>
-        ${needs ? `<div class="banner">${ic("lock")}Manager approval needed for ${m.pct}% (limit ${DISCOUNT_LIMIT}%)</div><div class="field">Manager PIN (demo: 1234)<div class="pin-dots">${[0, 1, 2, 3].map(i => `<i class="${(m.pin || "").length > i ? "on" : ""}"></i>`).join("")}</div></div>
+        ${blocked ? `<div class="banner error">${ic("alert")}${esc(blocked)}</div>` : ""}${!blocked && needs ? `<div class="banner">${ic("lock")}Manager approval needed for ${m.pct}% (over your limit of ${discLimit()}% or ${fmt(discRole().amt)} a line)</div><div class="field">Manager PIN (demo: 1234)<div class="pin-dots">${[0, 1, 2, 3].map(i => `<i class="${(m.pin || "").length > i ? "on" : ""}"></i>`).join("")}</div></div>
           <div class="keypad">${["1", "2", "3", "4", "5", "6", "7", "8", "9", "", "0", "⌫"].map(k => k ? `<button data-act="pinkey" data-k="${k}" aria-label="${k === "⌫" ? "Backspace" : k}">${k === "⌫" ? ic("backspace", 24) : k}</button>` : "<span></span>").join("")}</div>${m.pinError ? `<div class="scan-error">${ic("alert", 16)}Wrong PIN. ${5 - m.tries} tries left before a 5-minute lock.</div>` : ""}` : ""}
         <div style="display:flex;gap:8px;justify-content:flex-end"><button class="btn secondary" data-act="close">Cancel</button><button class="btn primary" data-act="confirm-disc">${needs ? "Approve & apply" : "Apply"} <kbd>Enter</kbd></button></div></div>`;
     } else if (m.type === "customer") {
@@ -2806,6 +3069,10 @@ Yesterday 09:15  SYNC-003 Catalog cursor too old · catalog snapshot downloaded<
       return;
     } else if (m.type === "cash") {
       h = cashModal(m, head);
+    } else if (m.type === "recall") {
+      h = recallModal(m, head);
+    } else if (m.type === "rate") {
+      h = rateModal(m, head);
     } else if (m.type === "cn") {
       h = cnModal(m, head);
     } else if (m.type === "dn") {
@@ -2874,6 +3141,24 @@ Yesterday 09:15  SYNC-003 Catalog cursor too old · catalog snapshot downloaded<
       case "pc-pick": S.pc.pid = el.dataset.pid; S.pc.error = ""; render(); break;
       case "pc-clear": S.pc.pid = null; S.pc.error = ""; S.pc.query = ""; render(); focusId("pcsearch"); break;
       case "pc-add": { const p = byId(S.pc.pid); if (!p) break; if (!S.shifts[S.user.id]) { S.view = "openshift"; render(); toast("Open a shift first", { error: true }); break; } S.view = "sell"; render(); addProduct(p); break; }
+      case "bd-open": openBatch(el.dataset.id, el.dataset.lot); break;
+      case "bd-block": { const p = byId(S.bd.pid), l = findLot(p.id, S.bd.lot); l.blocked = !l.blocked; p.log.unshift({ when: new Date(), who: meShort(), what: `Batch ${l.id} ${l.blocked ? "blocked" : "unblocked"} at all branches` }); render(); toast(l.blocked ? `Batch ${l.id} blocked · registers stop selling it within a minute` : `Batch ${l.id} unblocked`); break; }
+      case "bd-recall": openModal({ type: "recall", reason: "", ref: "", sms: true, quar: true }); break;
+      case "rc-reason": S.modal.reason = el.dataset.v; renderModal(); break;
+      case "rc-sms": S.modal.sms = el.checked; break;
+      case "rc-quar": S.modal.quar = el.checked; break;
+      case "rc-do": recallDo(); break;
+      case "bd-return": { const l = findLot(S.bd.pid, S.bd.lot); openAdjust(S.bd.pid, S.bd.lot, { dir: "out", qty: l.qty, reason: "Returned to supplier" }); break; }
+      case "bp-set": S.bp[el.dataset.k] = el.dataset.v; render(); if (el.dataset.k === "kind") focusId("bpvalue"); break;
+      case "bp-toggle": S.bp.off[el.dataset.id] = !el.checked; render(); break;
+      case "bp-apply": bpApply(); break;
+      case "bp-cancel": bpCancel(el.dataset.id); break;
+      case "dl-rule": S.discDraft.rules[el.dataset.k] = el.checked; render(); break;
+      case "dl-save": discSave(); break;
+      case "dl-discard": S.discDraft = null; render(); toast("Changes discarded"); break;
+      case "tr-new": openModal({ type: "rate", rate: "", from: "", ref: "" }); focusId("trrate"); break;
+      case "tr-save": rateSave(); break;
+      case "tr-cancel": { const r = S.tr.rates[0], nx = r.versions.find(v => v.from > isoToday()); r.versions = r.versions.filter(v => v !== nx); S.tr.log.unshift({ when: new Date(), who: meShort(), what: `Scheduled VAT ${nx.rate}% from ${fmtExpIso(nx.from)} cancelled` }); render(); toast("Scheduled rate cancelled"); break; }
       case "td-type": S.tax.type = el.dataset.v; render(); break;
       case "td-sel": { const no = el.dataset.no; if (!taxList().some(d => d.no === no)) { S.tax.type = "all"; S.tax.period = "all"; S.tax.q = ""; S.tax.branch = "all"; } S.tax.sel = no; render(); const row = app.querySelector('.trow[aria-selected="true"]'); if (row) row.scrollIntoView({ block: "nearest" }); break; }
       case "ti-new": openModal({ type: "tinew", q: "", sale: null, name: "", vat: "", address: "" }); focusId("tnq"); break;
@@ -3097,6 +3382,14 @@ Yesterday 09:15  SYNC-003 Catalog cursor too old · catalog snapshot downloaded<
     if (e.target.id === "srnote") { S.sr.note = e.target.value; if (S.sr.err && S.sr.note.trim().length >= 5) { S.sr.err = false; render(); } }
     if (e.target.id === "cusearch") { S.cu.q = e.target.value; render(); }
     if (e.target.id === "tdsearch") { S.tax.q = e.target.value; render(); }
+    if (e.target.id === "bpsearch") { S.bp.q = e.target.value; render(); }
+    if (e.target.dataset && e.target.dataset.bp) { const k = e.target.dataset.bp; S.bp[k] = k === "value" ? e.target.value.replace(/[^0-9.]/g, "") : e.target.value; render(); }
+    if (e.target.dataset && e.target.dataset.dl && S.discDraft) { const k = e.target.dataset.dl, a = S.discDraft.roles[e.target.dataset.role], v = e.target.value; a[k] = k === "pct" ? Math.min(100, Math.max(0, parseInt(v.replace(/\D/g, ""), 10) || 0)) : k === "amt" ? Math.round((parseFloat(v.replace(/[^0-9.]/g, "")) || 0) * 100) : v; render(); }
+    if (e.target.id === "trsearch") { S.tr.q = e.target.value; render(); }
+    if (e.target.dataset && e.target.dataset.trf) { S.tr[e.target.dataset.trf] = e.target.value; render(); }
+    if (e.target.dataset && e.target.dataset.tcls) { const p = byId(e.target.dataset.tcls), v = e.target.value, old = p.tax; p.tax = v; p.log.unshift({ when: new Date(), who: meShort(), what: `Tax class ${old === "std" ? "Standard" : "Exempt"} → ${v === "std" ? "Standard" : "Exempt"}` }); S.tr.log.unshift({ when: new Date(), who: meShort(), what: `${p.name}: ${v === "std" ? "Standard" : "Exempt"}` }); render(); toast(`${p.name} is now ${v === "std" ? "standard-rated" : "VAT exempt"} for new sales`); }
+    if (e.target.dataset && e.target.dataset.tdef) { S.tr.defaults[e.target.dataset.tdef] = e.target.value; S.tr.log.unshift({ when: new Date(), who: meShort(), what: `New ${e.target.dataset.tdef} products default to ${e.target.value === "std" ? "Standard" : "Exempt"}` }); render(); toast("Default saved"); }
+    if (e.target.dataset && (e.target.dataset.rc || e.target.dataset.tr) && S.modal) { const attr = e.target.dataset.rc ? "rc" : "tr", k = e.target.dataset[attr]; S.modal[k] = e.target.value; const pos = e.target.type === "date" ? null : e.target.selectionStart; renderModal(); setTimeout(() => { const x = document.querySelector(`[data-${attr}="${k}"]`); if (x) { x.focus(); if (pos != null) try { x.setSelectionRange(pos, pos); } catch (er) {} } }); }
     if (e.target.dataset && e.target.dataset.tf) { S.tax[e.target.dataset.tf] = e.target.value; render(); }
     if (e.target.dataset && e.target.dataset.vf) { S.vat[e.target.dataset.vf] = e.target.value; render(); }
     if (e.target.dataset && (e.target.dataset.tn || e.target.dataset.dn) && S.modal) { const k = e.target.dataset.tn || e.target.dataset.dn, attr = e.target.dataset.tn ? "tn" : "dn"; S.modal[k] = k === "amount" ? e.target.value.replace(/[^0-9.]/g, "") : e.target.value; const pos = e.target.selectionStart, isSel = e.target.tagName === "SELECT"; renderModal(); if (!isSel) setTimeout(() => { const x = document.querySelector(`[data-${attr}="${k}"]`); if (x) { x.focus(); try { x.setSelectionRange(pos, pos); } catch (er) {} } }); }
@@ -3164,7 +3457,8 @@ Yesterday 09:15  SYNC-003 Catalog cursor too old · catalog snapshot downloaded<
   function pinKey(k) { const m = S.modal; m.pinError = false; m.pin = k === "⌫" ? (m.pin || "").slice(0, -1) : ((m.pin || "") + k).slice(0, 4); renderModal(); if (m.pin.length === 4) confirmDiscount(); }
   function confirmDiscount() {
     const m = S.modal;
-    if (m.pct <= DISCOUNT_LIMIT) { applyDiscount(m.pct); return; }
+    { const bl = discBlock(S.cart[S.sel], m.pct); if (bl) { toast(bl, { error: true }); return; } }
+    if (!discNeeds(S.cart[S.sel], m.pct)) { applyDiscount(m.pct); return; }
     if ((m.pin || "").length < 4) { toast("Manager PIN needed", { error: true }); return; }
     if (m.pin !== MANAGER_PIN) { m.tries = (m.tries || 0) + 1; m.pin = ""; m.pinError = true; renderModal(); return; }
     applyDiscount(m.pct, "Malini J. (Manager)");
@@ -3206,7 +3500,9 @@ Yesterday 09:15  SYNC-003 Catalog cursor too old · catalog snapshot downloaded<
       }
       if (m.type === "batch") { if (k === "ArrowDown" || k === "ArrowUp") { e.preventDefault(); const n = byId(m.pid).batches.length; m.choice = (m.choice + (k === "ArrowDown" ? 1 : -1) + n) % n; renderModal(); return; } if (k === "Enter") { e.preventDefault(); const p = byId(m.pid); S.modal = null; renderModal(); addProduct(p, { batch: p.batches[m.choice].id }); } return; }
       if (m.type === "weight" || m.type === "qty") { if (/^[0-9.]$/.test(k)) { modalKey(k); return; } if (k === "Backspace") { modalKey("⌫"); return; } if (k === "Enter") { e.preventDefault(); confirmQty(); } return; }
-      if (m.type === "discount") { if (/^[0-9]$/.test(k) && m.pct > DISCOUNT_LIMIT) { pinKey(k); return; } if (k === "Backspace") { pinKey("⌫"); return; } if (k === "Enter") { e.preventDefault(); confirmDiscount(); } return; }
+      if (m.type === "discount") { if (/^[0-9]$/.test(k) && discNeeds(S.cart[S.sel], m.pct) && !discBlock(S.cart[S.sel], m.pct)) { pinKey(k); return; } if (k === "Backspace") { pinKey("⌫"); return; } if (k === "Enter") { e.preventDefault(); confirmDiscount(); } return; }
+      if (m.type === "recall") { if (k === "Enter") { e.preventDefault(); recallDo(); } return; }
+      if (m.type === "rate") { if (k === "Enter") { e.preventDefault(); rateSave(); } return; }
       if (m.type === "cn") { if (k === "Enter") { e.preventDefault(); cnIssue(); } return; }
       if (m.type === "dn") { if (k === "Enter" && e.target.tagName !== "SELECT") { e.preventDefault(); dnIssue(); } return; }
       if (m.type === "tinew") { if (k === "Enter") { e.preventDefault(); if (m.sale) tiIssue(); else { const b = modalRoot.querySelector('[data-act="tn-pick"]'); if (b) b.click(); } } return; }
@@ -3277,6 +3573,8 @@ Yesterday 09:15  SYNC-003 Catalog cursor too old · catalog snapshot downloaded<
       if ((e.ctrlKey || e.metaKey) && k.toLowerCase() === "s") { e.preventDefault(); saveSettings(); }
       return;
     }
+    if (S.view === "discounts") { if ((e.ctrlKey || e.metaKey) && k.toLowerCase() === "s") { e.preventDefault(); discSave(); } return; }
+    if (S.view === "pricing" || S.view === "batch" || S.view === "taxrates" || S.view === "vat") return;
     if (S.view === "tax") {
       if (e.target.id === "tdsearch") { if (k === "Escape") { S.tax.q = ""; render(); focusId("tdsearch"); } return; }
       if (inInput || e.target.tagName === "SELECT") return;
@@ -3475,9 +3773,9 @@ Yesterday 09:15  SYNC-003 Catalog cursor too old · catalog snapshot downloaded<
   let rz; window.addEventListener("resize", () => { clearTimeout(rz); rz = setTimeout(render, 120); });
   if (S.theme) document.documentElement.dataset.theme = S.theme;
   const hash = location.hash.replace("#", "");
-  if (["sell", "dashboard", "signin", "openshift", "returns", "cash", "orders", "receiving", "pricecheck", "status", "settings", "products", "stock", "expiry", "counts", "import", "exceptions", "suppliers", "customers", "shifts", "tax", "vat"].includes(hash)) S.view = hash;
+  if (["sell", "dashboard", "signin", "openshift", "returns", "cash", "orders", "receiving", "pricecheck", "status", "settings", "products", "stock", "expiry", "counts", "import", "exceptions", "suppliers", "customers", "shifts", "tax", "vat", "batch", "pricing", "discounts", "taxrates"].includes(hash)) S.view = hash;
   if (hash === "stock" || hash === "expiry" || hash === "counts") S.user = USERS[4]; // Kasun, stock keeper
-  if (hash === "import" || hash === "exceptions" || hash === "suppliers" || hash === "customers" || hash === "shifts" || hash === "tax" || hash === "vat") S.user = USERS[3]; // Malini, manager
+  if (hash === "import" || hash === "exceptions" || hash === "suppliers" || hash === "customers" || hash === "shifts" || hash === "tax" || hash === "vat" || hash === "batch" || hash === "pricing" || hash === "discounts" || hash === "taxrates") S.user = USERS[3]; // Malini, manager
   // File picker and drag-and-drop for the import wizard (A-23)
   document.addEventListener("change", e => { if (e.target.id === "impfile" && e.target.files && e.target.files[0]) { const fl = e.target.files[0]; impSetFile(fl.name, fl.size); } });
   document.addEventListener("dragover", e => { const z = e.target.closest && e.target.closest(".dropzone"); if (z) { e.preventDefault(); z.classList.add("over"); } });
