@@ -59,12 +59,12 @@
       batches: [{ id: "B1", exp: "03/2027", price: 3000, stock: 48 }, { id: "B2", exp: "09/2027", price: 3200, stock: 120 }] },
     { id: "am", name: "Amoxicillin 500mg", cat: "Pharmacy", meta: "10 capsules · AM-500", price: 45000, icon: "pill", tone: "purple", code: "4791111000042", stock: 60, rx: true, badge: ["info", "Rx", "note"] },
     { id: "tp", name: "Toothpaste 120g", cat: "Personal care", meta: "120 g · TP-120", price: 38000, icon: "smile", tone: "teal", code: "4791111000059", stock: 35 },
-    { id: "sh", name: "Shampoo 340ml", cat: "Personal care", meta: "340 ml · SH-340", price: 109000, icon: "sparkles", tone: "pink", code: "4791111000066", stock: 3, badge: ["warning", "Low · 3", "alert"] },
+    { id: "sh", name: "Shampoo 340ml", cat: "Personal care", meta: "340 ml · SH-340", price: 109000, icon: "sparkles", tone: "pink", code: "4791111000066", stock: 3 },
     { id: "cc", name: "Cream crackers 500g", cat: "Grocery", meta: "500 g · CC-500", price: 52000, icon: "cookie", tone: "orange", code: "4791111000073", stock: 52 },
     { id: "eg", name: "Eggs 10-pack", cat: "Grocery", meta: "10 eggs · EG-10", price: 65000, icon: "egg", tone: "yellow", code: "4791111000080", stock: 30 },
     { id: "bw", name: "Bottled water 1.5L", cat: "Beverages", meta: "1.5 L · BW-15", price: 14000, icon: "droplet", tone: "blue", code: "4791111000097", stock: 140 },
     { id: "ct", name: "Ceylon black tea 200g", cat: "Beverages", meta: "200 g · CT-200", price: 76000, icon: "leaf", tone: "green", code: "4791111000103", stock: 44 },
-    { id: "co", name: "Coconut oil 1L", cat: "Grocery", meta: "1 L · CO-1L", price: 98000, icon: "droplet", tone: "yellow", code: "4791111000110", stock: 0, badge: ["error", "Out of stock", "alert"] },
+    { id: "co", name: "Coconut oil 1L", cat: "Grocery", meta: "1 L · CO-1L", price: 98000, icon: "droplet", tone: "yellow", code: "4791111000110", stock: 0 },
     { id: "ca", name: "Carrots", cat: "Vegetables", meta: "Weighed · PLU 01234", price: 32000, icon: "carrot", tone: "orange", code: "2012340012507", stock: 18, weighed: true, unit: "kg", badge: ["", "kg", "tag"] }
   ];
   const CATS = ["All", "Pharmacy", "Grocery", "Dairy", "Beverages", "Personal care", "Vegetables", "Offers"];
@@ -120,6 +120,54 @@
     mkSale("CMB01-R02-000138", daysAgo(1, 17, 40), "Nimal P.", "cash", [["br", 1], ["eg", 1]]),
     mkSale("CMB01-R01-000214", daysAgo(1, 15, 12), "Anushka D.", "card", [["mp", 2]], { customer: 1 })
   );
+  // ---------- Receiving data (R-17) ----------
+  const SUPPLIERS = ["Hemas Pharmaceuticals", "Cargills Distribution", "Lanka Milk Foods", "Ceylon Biscuits Ltd", "Fresh Farms Nuwara Eliya"];
+  const LOW_STOCK = 5;
+  const tracked = p => p.cat === "Pharmacy" || p.cat === "Dairy" || p.id === "eg";   // batch + expiry required (INV-14)
+  const unitsFor = p => p.weighed ? [{ k: "kg", l: "kg", f: 1 }, { k: "sack", l: "Sack (25 kg)", f: 25 }]
+    : p.cat === "Pharmacy" ? [{ k: "strip", l: "Strip", f: 1 }, { k: "box", l: "Box (10 strips)", f: 10 }]
+    : [{ k: "pc", l: "Piece", f: 1 }, { k: "case", l: "Case (12)", f: 12 }];
+  const baseCost = p => Math.round(p.price * 0.72 / 100) * 100;                     // demo supplier cost per base unit
+  const gtinOf = p => "0" + p.code;
+  const pad2 = n => String(n).padStart(2, "0");
+  const isoDate = d => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+  const yymmdd = d => `${String(d.getFullYear()).slice(2)}${pad2(d.getMonth() + 1)}${pad2(d.getDate())}`;
+  const inDays = n => { const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() + n); return d; };
+  function parseGS1(raw) {                                                             // AIs (01) GTIN, (17) expiry, (10) batch, (21) serial
+    const s0 = raw.trim(); const out = {};
+    if (s0.includes("(")) { for (const m of s0.matchAll(/\((\d{2})\)([^(]+)/g)) out[m[1]] = m[2].trim(); return out["01"] ? out : null; }
+    const s = s0.replace(/[^0-9A-Za-z\x1d]/g, "");
+    if (!/^01\d{14}/.test(s)) return null;
+    let i = 0;
+    while (i < s.length) {
+      const ai = s.slice(i, i + 2); i += 2;
+      if (ai === "01") { out["01"] = s.slice(i, i + 14); i += 14; }
+      else if (ai === "17" || ai === "11" || ai === "15") { out[ai] = s.slice(i, i + 6); i += 6; }
+      else if (ai === "10" || ai === "21") { let j = s.indexOf("\x1d", i); if (j < 0) j = s.length; out[ai] = s.slice(i, j); i = j + 1; }
+      else break;
+    }
+    return out;
+  }
+  const gs1Date = v => { const y = 2000 + parseInt(v.slice(0, 2), 10), m = parseInt(v.slice(2, 4), 10), d = parseInt(v.slice(4, 6), 10); return d === 0 ? new Date(y, m, 0) : new Date(y, m - 1, d); };
+  const DEMO_SCANS = [
+    ["Paracetamol · new batch", `(01)04791111000035(17)${yymmdd(inDays(600))}(10)PC2611`],
+    ["Amoxicillin · short expiry", `(01)04791111000042(17)${yymmdd(inDays(120))}(10)AM2603`],
+    ["Paracetamol · expired", `(01)04791111000035(17)${yymmdd(inDays(-10))}(10)PC2501`],
+    ["Milk powder · plain EAN", "4791111000011"],
+    ["Unknown GTIN", `(01)09999999999999(17)${yymmdd(inDays(400))}(10)X1`]
+  ];
+  function expInfo(iso) {
+    if (!iso) return null;
+    const d = new Date(iso + "T00:00:00"); const days = Math.round((d - inDays(0)) / 86400000);
+    return { days, tone: days < 0 ? "error" : days < 180 ? "warning" : "", label: days < 0 ? `Expired ${-days} days ago` : days < 180 ? `Short expiry · ${days} days` : `${Math.round(days / 30)} months left` };
+  }
+  const fmtExpIso = iso => { const d = new Date(iso + "T00:00:00"); return d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }); };
+  function stockBadge(p) {
+    if (p.stock <= 0) return ["error", "Out of stock", "alert"];
+    if (p.stock <= LOW_STOCK) return ["warning", `Low · ${p.stock}`, "alert"];
+    return null;
+  }
+
   const newShift = float => ({ float, start: Date.now(), cashSales: 0, cardSales: 0, qrSales: 0, creditSales: 0, refunds: 0, cashIn: 0, cashOut: 0, count: 0, moves: [] });
   const DISCOUNT_LIMIT = 10; // cashier limit in %, BR-01
   const MANAGER_PIN = "1234";
@@ -128,11 +176,11 @@
   // ---------- i18n (draft Sinhala/Tamil labels, to be reviewed) ----------
   const T = {
     en: { sell: "Sell", overview: "Overview", orders: "Orders", returns: "Returns", customers: "Customers", products: "Products", stock: "Stock", receiving: "Receiving", expiry: "Expiry", cash: "Cash & shifts", reports: "Reports", tax: "Tax", suppliers: "Suppliers", promotions: "Promotions", staff: "Staff", settings: "Settings", logout: "Logout",
-      main: "Main", inventory: "Inventory", finance: "Finance", management: "Management", search: "Scan barcode or search name, generic or SKU…", charge: "Charge", hold: "Hold", discount: "Discount", current: "Current sale", total: "Total", sale: "Sale", ret: "Return", instock: "In stock only", payment: "Payment", addCustomer: "Add customer", whoWorking: "Who's working?", enterPin: "Enter your PIN", signIn: "Sign in", openShift: "Open shift", countFloat: "Count the opening float", openingFloat: "Opening float", signOut: "Sign out" },
+      main: "Main", inventory: "Inventory", finance: "Finance", management: "Management", search: "Scan barcode or search name, generic or SKU…", charge: "Charge", hold: "Hold", discount: "Discount", current: "Current sale", total: "Total", sale: "Sale", ret: "Return", instock: "In stock only", payment: "Payment", addCustomer: "Add customer", whoWorking: "Who's working?", enterPin: "Enter your PIN", signIn: "Sign in", openShift: "Open shift", countFloat: "Count the opening float", openingFloat: "Opening float", signOut: "Sign out", pricecheck: "Price check" },
     si: { sell: "විකිණීම", overview: "දළ විශ්ලේෂණය", orders: "ඇණවුම්", returns: "ආපසු ලැබීම්", customers: "පාරිභෝගිකයින්", products: "නිෂ්පාදන", stock: "තොග", receiving: "භාණ්ඩ ලැබීම", expiry: "කල් ඉකුත්වීම", cash: "මුදල් සහ මුර", reports: "වාර්තා", tax: "බදු", suppliers: "සැපයුම්කරුවන්", promotions: "ප්‍රවර්ධන", staff: "කාර්ය මණ්ඩලය", settings: "සැකසුම්", logout: "ඉවත් වන්න",
-      main: "ප්‍රධාන", inventory: "තොග කළමනාකරණය", finance: "මූල්‍ය", management: "කළමනාකරණය", search: "බාර්කෝඩය ස්කෑන් කරන්න හෝ නමින් සොයන්න…", charge: "අය කරන්න", hold: "රඳවන්න", discount: "වට්ටම", current: "වත්මන් විකිණීම", total: "එකතුව", sale: "විකිණීම", ret: "ආපසු", instock: "තොගයේ ඇති ඒවා පමණක්", payment: "ගෙවීම", addCustomer: "පාරිභෝගිකයා එක් කරන්න", whoWorking: "කවුද වැඩ කරන්නේ?", enterPin: "ඔබේ PIN අංකය ඇතුළත් කරන්න", signIn: "පුරන්න", openShift: "මුරය ආරම්භ කරන්න", countFloat: "ආරම්භක මුදල ගණන් කරන්න", openingFloat: "ආරම්භක මුදල", signOut: "ඉවත් වන්න" },
+      main: "ප්‍රධාන", inventory: "තොග කළමනාකරණය", finance: "මූල්‍ය", management: "කළමනාකරණය", search: "බාර්කෝඩය ස්කෑන් කරන්න හෝ නමින් සොයන්න…", charge: "අය කරන්න", hold: "රඳවන්න", discount: "වට්ටම", current: "වත්මන් විකිණීම", total: "එකතුව", sale: "විකිණීම", ret: "ආපසු", instock: "තොගයේ ඇති ඒවා පමණක්", payment: "ගෙවීම", addCustomer: "පාරිභෝගිකයා එක් කරන්න", whoWorking: "කවුද වැඩ කරන්නේ?", enterPin: "ඔබේ PIN අංකය ඇතුළත් කරන්න", signIn: "පුරන්න", openShift: "මුරය ආරම්භ කරන්න", countFloat: "ආරම්භක මුදල ගණන් කරන්න", openingFloat: "ආරම්භක මුදල", signOut: "ඉවත් වන්න", pricecheck: "මිල පරීක්ෂාව" },
     ta: { sell: "விற்பனை", overview: "கண்ணோட்டம்", orders: "ஆர்டர்கள்", returns: "திருப்பங்கள்", customers: "வாடிக்கையாளர்கள்", products: "பொருட்கள்", stock: "இருப்பு", receiving: "பொருள் பெறுதல்", expiry: "காலாவதி", cash: "பணம் & ஷிஃப்ட்", reports: "அறிக்கைகள்", tax: "வரி", suppliers: "சப்ளையர்கள்", promotions: "சலுகைகள்", staff: "ஊழியர்கள்", settings: "அமைப்புகள்", logout: "வெளியேறு",
-      main: "முதன்மை", inventory: "சரக்கு", finance: "நிதி", management: "நிர்வாகம்", search: "பார்கோடை ஸ்கேன் செய்யவும் அல்லது பெயரால் தேடவும்…", charge: "கட்டணம்", hold: "நிறுத்து", discount: "தள்ளுபடி", current: "தற்போதைய விற்பனை", total: "மொத்தம்", sale: "விற்பனை", ret: "திருப்பம்", instock: "இருப்பில் உள்ளவை மட்டும்", payment: "கட்டணம் செலுத்துதல்", addCustomer: "வாடிக்கையாளரைச் சேர்", whoWorking: "யார் பணியில் இருக்கிறார்கள்?", enterPin: "உங்கள் PIN ஐ உள்ளிடவும்", signIn: "உள்நுழை", openShift: "ஷிஃப்ட்டைத் தொடங்கு", countFloat: "தொடக்கப் பணத்தை எண்ணவும்", openingFloat: "தொடக்கப் பணம்", signOut: "வெளியேறு" }
+      main: "முதன்மை", inventory: "சரக்கு", finance: "நிதி", management: "நிர்வாகம்", search: "பார்கோடை ஸ்கேன் செய்யவும் அல்லது பெயரால் தேடவும்…", charge: "கட்டணம்", hold: "நிறுத்து", discount: "தள்ளுபடி", current: "தற்போதைய விற்பனை", total: "மொத்தம்", sale: "விற்பனை", ret: "திருப்பம்", instock: "இருப்பில் உள்ளவை மட்டும்", payment: "கட்டணம் செலுத்துதல்", addCustomer: "வாடிக்கையாளரைச் சேர்", whoWorking: "யார் பணியில் இருக்கிறார்கள்?", enterPin: "உங்கள் PIN ஐ உள்ளிடவும்", signIn: "உள்நுழை", openShift: "ஷிஃப்ட்டைத் தொடங்கு", countFloat: "தொடக்கப் பணத்தை எண்ணவும்", openingFloat: "தொடக்கப் பணம்", signOut: "வெளியேறு", pricecheck: "விலை சரிபார்ப்பு" }
   };
   const t = k => (T[S.lang] && T[S.lang][k]) || T.en[k] || k;
 
@@ -161,6 +209,9 @@
   S.history = SEED_SALES.map(s => ({ sync: "synced", ...s, sync: s.sync || "synced", customer: CUSTOMERS[s.customer], lines: s.lines.map(l => ({ ...l })) })).sort((a, b) => b.date - a.date);
   S.shifts.sk.moves = [{ kind: "out", amount: 150000, reason: "Petty cash: transport", note: "Three-wheeler for delivery", time: daysAgo(0, 9, 20), by: "Sachini K." }];
   S.hist = { scope: "register", period: "today", status: "all", q: "", sel: null };
+  const emptyGrn = () => ({ supplier: "Hemas Pharmaceuticals", invoice: "", invTotal: "", lines: [], query: "", error: "", posted: null, flash: null });
+  S.grn = emptyGrn(); S.grnSeq = 2292;
+  S.pc = { query: "", pid: null, error: "", recent: [] };
 
   // ---------- Money ----------
   const lineGross = l => Math.round(l.qty * l.unit);
@@ -280,7 +331,7 @@
 
   // ---------- Render: shell ----------
   const NAV = [
-    ["main", [["overview", "dashboard", "dashboard"], ["sell", "cart", "sell"], ["orders", "receipt"], ["returns", "undo"], ["customers", "users"]]],
+    ["main", [["overview", "dashboard", "dashboard"], ["sell", "cart", "sell"], ["pricecheck", "tag"], ["orders", "receipt"], ["returns", "undo"], ["customers", "users"]]],
     ["inventory", [["products", "package"], ["stock", "warehouse"], ["receiving", "truck"], ["expiry", "calendar", null, "23"]]],
     ["finance", [["cash", "wallet"], ["reports", "chart"], ["tax", "landmark"]]],
     ["management", [["suppliers", "store"], ["promotions", "percent"], ["staff", "userCog"]]]
@@ -319,7 +370,8 @@
   // ---------- Render: Sell ----------
   function productCard(p) {
     const out = p.stock <= 0;
-    const bd = p.badge ? badge(p.badge[0], p.badge[1], p.badge[2]) : "";
+    const sb = stockBadge(p), b0 = sb || p.badge;
+    const bd = b0 ? badge(b0[0], b0[1], b0[2]) : "";
     return `<div class="pcard ${out ? "out" : ""}" tabindex="0" role="button" data-act="card" data-pid="${p.id}" data-fid="card-${p.id}" aria-label="${esc(p.name)}, ${fmt(p.price)}${out ? ", out of stock" : ""}">
       <div class="pc-top"><span class="cap">${esc(p.cat)}</span><button class="qv" tabindex="-1" data-act="quickview" data-pid="${p.id}" title="Quick view (Space)">${ic("maximize", 16)}</button></div>
       <div class="media tile-${p.tone}">${ic(p.icon, 52)}${bd}</div>
@@ -852,6 +904,159 @@
     closeModal(); render(); toast(`Drawer opened · ${CM_LABEL[m.kind]} ${fmt(amt)} recorded`);
   }
 
+  // ---------- Goods receiving (R-17) ----------
+  const glUnit = l => unitsFor(byId(l.pid)).find(u => u.k === l.unit);
+  const glCost = l => Math.round(l.qty * l.cost);
+  function grnIssues() {
+    const g = S.grn, out = [];
+    if (!g.supplier) out.push("Choose the supplier");
+    if (!g.invoice.trim()) out.push("Enter the supplier invoice number");
+    if (!g.lines.length) out.push("Scan at least one item");
+    g.lines.forEach(l => {
+      const p = byId(l.pid), e = expInfo(l.exp);
+      if (tracked(p) && (!l.batch.trim() || !l.exp)) out.push(`${p.name}: batch and expiry are required`);
+      if (e && e.days < 0) out.push(`${p.name} ${l.batch}: expired — cannot be received`);
+      if (!(l.qty > 0)) out.push(`${p.name}: quantity must be more than 0`);
+      if (!(l.cost > 0)) out.push(`${p.name}: enter the unit cost`);
+    });
+    return out;
+  }
+  function grnScan(raw) {
+    const g = S.grn, q = raw.trim(); if (!q) return;
+    const gs = parseGS1(q);
+    let p = null, batch = "", exp = "";
+    if (gs) {
+      p = PRODUCTS.find(x => gtinOf(x) === gs["01"]);
+      if (!p) { g.error = `Unknown GTIN ${gs["01"]}. Link it to an existing product or create a new one (manager).`; g.query = ""; render(); focusId("gsearch"); return; }
+      batch = gs["10"] || ""; if (gs["17"]) exp = isoDate(gs1Date(gs["17"]));
+    } else {
+      p = PRODUCTS.find(x => x.code === q);
+      if (!p) { const l = PRODUCTS.filter(x => x.name.toLowerCase().includes(q.toLowerCase())); if (l.length === 1) p = l[0]; }
+      if (!p) { g.error = `No product found for “${q}”. Scan the barcode on the pack, or type more of the name.`; g.query = ""; render(); focusId("gsearch"); return; }
+    }
+    const ex = batch ? g.lines.find(l => l.pid === p.id && l.batch === batch) : null;
+    let line;
+    if (ex) { ex.qty += 1; line = ex; }
+    else { const us = unitsFor(p), u = us[us.length - 1]; line = { id: uid++, pid: p.id, batch, exp, qty: 1, unit: u.k, cost: baseCost(p) * u.f }; g.lines.push(line); }
+    g.error = ""; g.query = ""; g.flash = line.id; render(); focusId("gsearch");
+    toast(gs ? `Scanned ${p.name} · batch ${batch || "—"} · expiry ${exp ? fmtExpIso(exp) : "—"}` : `Added ${p.name}${tracked(p) ? " · enter batch and expiry" : ""}`);
+  }
+  function grnPost() {
+    const g = S.grn;
+    if (S.offline) { toast("Receiving needs a connection in this version", { error: true }); return; }
+    const issues = grnIssues(); if (issues.length) { toast(issues[0], { error: true }); return; }
+    const updates = [];
+    for (const l of g.lines) {
+      const p = byId(l.pid), base = Math.round(l.qty * glUnit(l).f * 1000) / 1000;
+      p.stock = Math.round((p.stock + base) * 1000) / 1000;
+      p.lots = p.lots || [];
+      if (l.batch) {
+        p.lots.unshift({ id: l.batch, exp: l.exp, qty: base });
+        if (p.batches && !p.batches.find(b => b.id === l.batch)) { const d = new Date(l.exp + "T00:00:00"); p.batches.push({ id: l.batch, exp: `${pad2(d.getMonth() + 1)}/${d.getFullYear()}`, price: p.price, stock: base }); }
+      }
+      updates.push({ p, base, batch: l.batch, exp: l.exp });
+    }
+    const total = g.lines.reduce((a, l) => a + glCost(l), 0);
+    g.posted = { no: `GRN-${S.grnSeq++}`, supplier: g.supplier, invoice: g.invoice, total, updates, time: new Date(), by: S.user.name };
+    render(); toast(`${g.posted.no} posted · stock updated`);
+  }
+  function receivingView() {
+    const g = S.grn;
+    if (g.posted) {
+      const d = g.posted;
+      return `<div class="body"><section class="complete">
+        <div class="success-mark"><div>${ic("truck", 40)}</div></div>
+        <h1>Goods received</h1><div class="sub">${d.no} · ${esc(d.supplier)} · invoice ${esc(d.invoice)} · ${fmt(d.total)}</div>
+        <div class="card" style="width:min(560px,100%);text-align:left"><h2>Stock updated</h2><div class="dlines">${d.updates.map(u => `<div class="dline"><span class="thumb tile-${u.p.tone}">${ic(u.p.icon, 18)}</span><span class="grow"><b>${esc(u.p.name)}</b><small>${u.batch ? `Batch ${esc(u.batch)} · exp ${fmtExpIso(u.exp)}` : "No batch"}</small></span><b style="color:var(--success-text)">+${u.p.weighed ? u.base.toFixed(3) + " kg" : u.base}</b><span class="sub" style="font-size:13px;min-width:90px;text-align:right">now ${u.p.weighed ? u.p.stock.toFixed(1) + " kg" : u.p.stock}</span></div>`).join("")}</div></div>
+        <div class="actions"><button class="btn primary l" data-act="grn-new">New receipt <kbd>Enter</kbd></button><button class="btn secondary l" data-act="toast" data-msg="GRN printed">${ic("printer")}Print GRN</button><button class="btn ghost l" data-act="nav" data-view="pricecheck">${ic("tag")}Price check</button></div>
+      </section></div>`;
+    }
+    const issues = grnIssues(), total = g.lines.reduce((a, l) => a + glCost(l), 0), inv = Math.round((parseFloat(g.invTotal) || 0) * 100);
+    const units = g.lines.reduce((a, l) => a + l.qty * (glUnit(l) ? glUnit(l).f : 1), 0);
+    const left = `<section class="products" aria-label="Goods receipt">
+      ${S.offline ? `<div class="banner">${ic("wifiOff")}Receiving needs a connection in this version. Offline drafts come in release 2.</div>` : ""}
+      <div class="card"><div class="grn-head">
+        <label class="field">Supplier<select data-g="supplier" data-fid="g-supplier">${SUPPLIERS.map(s => `<option ${g.supplier === s ? "selected" : ""}>${esc(s)}</option>`).join("")}</select></label>
+        <label class="field">Supplier invoice no.<input data-g="invoice" data-fid="g-invoice" value="${esc(g.invoice)}" placeholder="e.g. HP-58213"></label>
+        <label class="field">Received on<input value="${new Date().toLocaleDateString("en-GB")}" readonly></label>
+        <label class="field">Invoice total (Rs)<input data-g="invTotal" data-fid="g-invtotal" inputmode="decimal" value="${esc(g.invTotal)}" placeholder="From the supplier invoice"></label>
+      </div></div>
+      <div class="search-row"><label class="search ${g.error ? "error" : ""}">${ic("scan", 20, "scan")}<span class="sr">Scan</span><input id="gsearch" data-fid="gsearch" autocomplete="off" placeholder="Scan the 2D code (GS1) or barcode on the pack, or type a product name" value="${esc(g.query)}"><kbd>Enter</kbd></label></div>
+      ${g.error ? `<div class="scan-error" role="alert">${ic("alert", 18)}${esc(g.error)}</div>` : ""}
+      <div class="demo-scans">Demo scans:${DEMO_SCANS.map(([l, c]) => `<button class="chip" data-act="grn-demo" data-code="${esc(c)}" title="${esc(c)}">${esc(l)}</button>`).join("")}</div>
+      <div class="glines">${g.lines.length ? g.lines.map(glCard).join("") : `<div class="empty card"><span class="circle">${ic("truck", 28)}</span><h3>Scan the first item of the delivery</h3><span>A GS1 2D code fills in the batch and expiry for you. A plain barcode adds the product; then type the batch and expiry from the pack.</span></div>`}</div>
+    </section>`;
+    const diff = inv ? inv - total : 0;
+    const right = `<aside class="order" aria-label="Receipt summary">
+      <div class="order-head"><div class="order-title"><div style="flex:1"><h2>GRN-${S.grnSeq}</h2><div class="sub">${esc(g.supplier)} · Draft</div></div>${badge("", "Draft", "note")}</div></div>
+      <div class="panel-body">
+        <div class="summary"><div class="r"><span>Lines</span><b>${g.lines.length}</b></div><div class="r"><span>Units (base)</span><b>${Math.round(units * 1000) / 1000}</b></div><hr><div class="total"><span>Cost total</span><span>${fmt(total)}</span></div></div>
+        ${inv ? `<div class="banner ${diff ? "" : "ok"}" style="${diff ? "" : "background:var(--success-tint);color:var(--success-text)"}">${ic(diff ? "alert" : "check")}${diff ? `Differs from the invoice total by ${fmt(Math.abs(diff))}. Check quantities and costs.` : "Matches the invoice total"}</div>` : ""}
+        <div class="field">${issues.length ? "To post this receipt" : "Ready"}<div class="issues">${issues.length ? issues.slice(0, 6).map(x => `<div>${ic("alert", 16)}${esc(x)}</div>`).join("") : `<div class="ok">${ic("check", 16)}All lines are complete</div>`}</div></div>
+        <div class="note">${ic("package", 16)}Posting adds stock to each batch and creates a stock movement for every line (INV-04).</div>
+      </div>
+      <div class="order-foot"><button class="btn primary l block" data-act="grn-post" ${issues.length || S.offline ? "disabled" : ""}>${ic("check")}Post receipt <kbd>F10</kbd></button>
+        <div class="two"><button class="btn secondary" data-act="toast" data-msg="Draft saved">Save draft</button><button class="btn ghost" data-act="grn-clear">Clear</button></div></div>
+    </aside>`;
+    return `<div class="body">${left}${right}</div>`;
+  }
+  function glCard(l) {
+    const p = byId(l.pid), e = expInfo(l.exp), us = unitsFor(p), u = glUnit(l), need = tracked(p);
+    return `<div class="gl ${S.grn.flash === l.id ? "flash" : ""} ${e && e.days < 0 ? "bad" : ""}">
+      <div class="gl-top"><span class="thumb tile-${p.tone}">${ic(p.icon, 20)}</span><span class="grow"><b>${esc(p.name)}</b><small>${esc(p.meta)} · GTIN ${gtinOf(p)}${need ? " · batch-tracked" : ""}</small></span>
+        ${e ? (e.tone ? `<span class="warn ${e.tone === "error" ? "e" : "w"}">${ic("alert", 16)}${e.label}</span>` : `<span class="badge b-success">${ic("check", 14)}${e.label}</span>`) : ""}
+        <button class="icon-btn" data-act="grn-del" data-id="${l.id}" title="Remove line" aria-label="Remove ${esc(p.name)}">${ic("trash", 18)}</button></div>
+      <div class="gl-fields">
+        <label class="field">Batch${need ? " *" : ""}<input data-gl="batch" data-id="${l.id}" data-fid="gl-${l.id}-batch" value="${esc(l.batch)}" placeholder="${need ? "Required" : "Optional"}"></label>
+        <label class="field">Expiry${need ? " *" : ""}<input type="date" data-gl="exp" data-id="${l.id}" data-fid="gl-${l.id}-exp" value="${l.exp}"></label>
+        <div class="field">Quantity<div class="qty"><button data-act="gl-dec" data-id="${l.id}" aria-label="Less">${ic("minus", 16)}</button><input data-gl="qty" data-id="${l.id}" data-fid="gl-${l.id}-qty" inputmode="decimal" value="${l.qty}"><button data-act="gl-inc" data-id="${l.id}" aria-label="More">${ic("plus", 16)}</button></div></div>
+        <label class="field">Unit<select data-gl="unit" data-id="${l.id}" data-fid="gl-${l.id}-unit">${us.map(x => `<option value="${x.k}" ${x.k === l.unit ? "selected" : ""}>${esc(x.l)}</option>`).join("")}</select></label>
+        <label class="field">Cost / ${esc(u.l.split(" ")[0].toLowerCase())} (Rs)<input data-gl="cost" data-id="${l.id}" data-fid="gl-${l.id}-cost" inputmode="decimal" value="${(l.cost / 100).toFixed(2)}"></label>
+        <div class="lc">${fmt(glCost(l))}<small>= ${Math.round(l.qty * u.f * 1000) / 1000} ${p.weighed ? "kg" : p.cat === "Pharmacy" ? "strips" : "pieces"}</small></div>
+      </div></div>`;
+  }
+
+  // ---------- Price & stock check (R-18) ----------
+  function pcLookup(raw) {
+    const q = raw.trim(); if (!q) return;
+    const gs = parseGS1(q); let p = null;
+    if (gs) p = PRODUCTS.find(x => gtinOf(x) === gs["01"]);
+    if (!p) { const hit = findByCode(q); if (hit) p = hit.p; }
+    if (!p) { const l = PRODUCTS.filter(x => x.name.toLowerCase().includes(q.toLowerCase())); if (l.length === 1) p = l[0]; else if (l.length > 1) { S.pc.error = `${l.length} products match “${q}”: ${l.slice(0, 4).map(x => x.name).join(", ")}${l.length > 4 ? "…" : ""}. Type more of the name or scan the barcode.`; S.pc.query = ""; render(); focusId("pcsearch"); return; } }
+    if (!p) { S.pc.error = `No product found for “${q}”.`; S.pc.query = ""; S.pc.pid = null; render(); focusId("pcsearch"); return; }
+    S.pc = { query: "", pid: p.id, error: "", recent: [p.id, ...S.pc.recent.filter(x => x !== p.id)].slice(0, 6) };
+    render(); focusId("pcsearch");
+  }
+  function priceCheckView() {
+    const pc = S.pc, p = pc.pid ? byId(pc.pid) : null;
+    const lots = p ? [...(p.lots || []).map(x => ({ id: x.id, exp: x.exp, qty: x.qty, fresh: true })), ...(p.batches || []).filter(b => !(p.lots || []).some(x => x.id === b.id)).map(b => { const [m, y] = b.exp.split("/"); return { id: b.id, exp: `${y}-${m}-28`, qty: b.stock, price: b.price }; })] : [];
+    let card = "";
+    if (p) {
+      const sb = stockBadge(p), offerPrice = p.offer ? Math.round(p.price * (100 - p.offer) / 100) : null;
+      const others = [["KDY01 · Kandy", Math.max(0, Math.round(p.stock * 0.6))], ["GAL01 · Galle", Math.max(0, Math.round(p.stock * 0.3) - 1)]];
+      card = `<div class="pc-card">
+        <div class="hero tile-${p.tone}">${ic(p.icon, 120)}${p.badge ? badge(p.badge[0], p.badge[1], p.badge[2]) : ""}</div>
+        <div class="pc-info">
+          <span class="cap">${esc(p.cat)}</span><h2>${esc(p.name)}</h2><div class="meta">${esc(p.meta)} · barcode ${p.code}${p.rx ? " · prescription required" : ""}</div>
+          <div class="pc-price">${offerPrice ? `<b>${fmt(offerPrice)}</b><s>${fmt(p.price)}</s>${badge("warning", `Offer −${p.offer}%`, "tag")}` : `<b>${fmt(p.price)}</b>`}${p.weighed ? `<span>per kg · Rs ${(p.price / 1000 / 100).toFixed(2)} per 10 g</span>` : ""}</div>
+          <div class="pc-row">${sb ? badge(sb[0], sb[1], sb[2]) : badge("success", `In stock · ${p.weighed ? p.stock.toFixed(1) + " kg" : p.stock}`, "check")}${badge("info", "VAT 18% included", null)}</div>
+          <div class="pc-row" style="margin-top:auto"><button class="btn primary l" data-act="pc-add" ${p.stock > 0 ? "" : "disabled"}>${ic("cart")}Add to sale <kbd>Enter</kbd></button><button class="btn secondary l" data-act="toast" data-msg="Shelf labels print from the grocery module (release 2)">${ic("printer")}Shelf label</button><button class="btn ghost l" data-act="pc-clear">Check another <kbd>Esc</kbd></button></div>
+        </div></div>
+      <div class="pc-grid">
+        <div class="card"><h2>Batches at this branch</h2>${lots.length ? `<div class="dlines">${lots.map(b => { const e = expInfo(b.exp); return `<div class="dline"><span class="grow"><b>${esc(b.id)}${b.fresh ? " " + badge("info", "Just received", null) : ""}</b><small>Expires ${fmtExpIso(b.exp)}${b.price ? " · " + fmt(b.price) : ""}</small></span>${e && e.tone ? badge(e.tone, e.label, "alert") : ""}<b>${p.weighed ? b.qty + " kg" : b.qty}</b></div>`; }).join("")}</div>` : `<div class="sub">${tracked(p) ? "No batch details yet." : "Not batch-tracked."}</div>`}</div>
+        <div class="card"><h2>Other branches</h2><div class="dlines">${others.map(([n, q]) => `<div class="dline"><span class="grow"><b>${n}</b><small>${S.offline ? "Last known · offline" : "Updated a minute ago"}</small></span>${q > 0 ? badge("success", String(q), null) : badge("error", "0", null)}</div>`).join("")}</div></div>
+      </div>`;
+    } else {
+      card = `<div class="empty card" style="padding:56px 16px"><span class="circle">${ic("scan", 32)}</span><h3>Scan any item to see its price and stock</h3><span>Works without starting a sale. You can also type a name, or scan a scale label or a GS1 2D code.</span></div>`;
+    }
+    return `<div class="pc-wrap">
+      <label class="search pc-search ${pc.error ? "error" : ""}">${ic("scan", 26, "scan")}<span class="sr">Scan or search</span><input id="pcsearch" data-fid="pcsearch" autocomplete="off" placeholder="Scan a barcode or type a product name…" value="${esc(pc.query)}"><kbd>Enter</kbd></label>
+      ${pc.error ? `<div class="scan-error" role="alert">${ic("alert", 18)}${esc(pc.error)}</div>` : ""}
+      ${pc.recent.length ? `<div class="recent">Recent:${pc.recent.map(id => `<button class="chip" data-act="pc-pick" data-pid="${id}" aria-pressed="${id === pc.pid}">${esc(byId(id).name)}</button>`).join("")}</div>` : ""}
+      ${card}
+    </div>`;
+  }
+
   // ---------- Render: main ----------
   function render() {
     const fid = document.activeElement && document.activeElement.dataset ? document.activeElement.dataset.fid : null;
@@ -870,6 +1075,8 @@
     if (S.view === "sell") main = topbar(t("sell"), null, `<span class="badge hide-t">${ic("store", 14)}CMB01 · Register 2</span>`) + `<div class="body">${productArea()}${orderPanel()}</div>${sheet ? `<button class="fab" data-act="camera" title="Scan with camera">${ic("camera", 24)}</button>` : ""}`;
     else if (S.view === "complete") main = topbar("Sale complete", null) + completeView();
     else if (S.view === "returns") main = topbar(t("returns"), S.ret.done ? "Refund recorded" : S.ret.sale ? "Choose the items the customer is bringing back" : "Find the original sale") + returnsView();
+    else if (S.view === "receiving") main = topbar("Receive goods", S.grn.posted ? "Receipt posted" : `${esc(S.user.name)} · CMB01 · scan each item of the delivery`) + receivingView();
+    else if (S.view === "pricecheck") main = topbar(t("pricecheck"), "Price, stock and batches without starting a sale") + priceCheckView();
     else if (S.view === "orders") main = topbar("Sales history", "Receipts on this branch · reprint, e-mail or start a return") + historyView();
     else if (S.view === "cash") main = topbar("Close shift", `${S.user.name} · CMB01 · Register 2`) + closeShiftView();
     else if (S.view === "openshift") main = topbar(t("openShift"), `${greeting()}, ${S.user.short} · count the cash before you start selling`) + openShiftView();
@@ -982,6 +1189,15 @@
         if (v === "returns" && S.ret.done) S.ret = emptyRet();
         S.view = v === "sell" && !S.shifts[S.user.id] ? "openshift" : v; S.modal = null; renderModal(); render();
         if (v === "returns" && !S.ret.sale) focusId("rsearch"); break; }
+      case "grn-demo": grnScan(el.dataset.code); break;
+      case "grn-del": { const id = +el.dataset.id; S.grn.lines = S.grn.lines.filter(l => l.id !== id); render(); break; }
+      case "gl-inc": case "gl-dec": { const l = S.grn.lines.find(x => x.id === +el.dataset.id); if (l) { l.qty = Math.max(0, Math.round((l.qty + (a === "gl-inc" ? 1 : -1)) * 1000) / 1000); render(); } break; }
+      case "grn-post": grnPost(); break;
+      case "grn-clear": S.grn = emptyGrn(); render(); focusId("gsearch"); break;
+      case "grn-new": S.grn = emptyGrn(); render(); focusId("gsearch"); break;
+      case "pc-pick": S.pc.pid = el.dataset.pid; S.pc.error = ""; render(); break;
+      case "pc-clear": S.pc.pid = null; S.pc.error = ""; S.pc.query = ""; render(); focusId("pcsearch"); break;
+      case "pc-add": { const p = byId(S.pc.pid); if (!p) break; if (!S.shifts[S.user.id]) { S.view = "openshift"; render(); toast("Open a shift first", { error: true }); break; } S.view = "sell"; render(); addProduct(p); break; }
       case "h-scope": S.hist.scope = el.dataset.v; render(); break;
       case "h-period": S.hist.period = el.dataset.v; render(); break;
       case "h-status": S.hist.status = el.dataset.v; render(); break;
@@ -1080,6 +1296,25 @@
     if (e.target.hasAttribute && e.target.hasAttribute("data-coins")) { S[e.target.dataset.scope].coins = e.target.value.replace(/[^0-9.]/g, ""); render(); }
     if (e.target.id === "rsearch") { S.ret.query = e.target.value; S.ret.error = ""; }
     if (e.target.id === "hsearch") { S.hist.q = e.target.value; render(); }
+    if (e.target.id === "gsearch") { S.grn.query = e.target.value; S.grn.error = ""; }
+    if (e.target.id === "pcsearch") { S.pc.query = e.target.value; S.pc.error = ""; }
+    if (e.target.dataset && e.target.dataset.g) { S.grn[e.target.dataset.g] = e.target.value; render(); }
+    if (e.target.dataset && e.target.dataset.gl) {
+      const l = S.grn.lines.find(x => x.id === +e.target.dataset.id), f = e.target.dataset.gl, v = e.target.value;
+      if (l) {
+        if (f === "batch") l.batch = v.toUpperCase().replace(/\s/g, "");
+        if (f === "exp") l.exp = v;
+        if (f === "qty") l.qty = Math.max(0, parseFloat(v) || 0);
+        if (f === "cost") l.cost = Math.round((parseFloat(v) || 0) * 100);
+        if (f === "unit") { const us = unitsFor(byId(l.pid)), o = us.find(u => u.k === l.unit), n = us.find(u => u.k === v); l.cost = Math.round(l.cost / o.f * n.f); l.unit = v; }
+        S.grn.flash = null;
+        if (f === "cost" || f === "qty") { // keep the caret where the user is typing; update totals without redrawing this field
+          const card = e.target.closest(".gl"); const lc = card && card.querySelector(".lc");
+          if (lc) lc.innerHTML = `${fmt(glCost(l))}<small>= ${Math.round(l.qty * glUnit(l).f * 1000) / 1000} ${byId(l.pid).weighed ? "kg" : byId(l.pid).cat === "Pharmacy" ? "strips" : "pieces"}</small>`;
+          clearTimeout(window.__grnT); window.__grnT = setTimeout(render, 600);
+        } else render();
+      }
+    }
     if (e.target.id === "cmnote" && S.modal) { S.modal.note = e.target.value; const m = S.modal, b = modalRoot.querySelector('[data-act="cm-submit"]'); if (b && m.stage === "amount") b.disabled = !(cmAmount(m) > 0 && m.reason && !(m.kind !== "in" && cmAmount(m) > expectedCash(S.shifts[S.user.id])) && (m.reason !== "Other" || m.note.trim())); }
     if (e.target.id === "csnote") { S.cs.note = e.target.value; }
     if (e.target.id === "approval" && S.pay) { S.pay.approval = e.target.value; const b = modalRoot.querySelector('[data-act="complete"]'); if (b) b.disabled = !canComplete(); }
@@ -1145,7 +1380,7 @@
         if (!inInput && S.pay.method === "cash") { if (/^[0-9]$/.test(k)) { payKey(k); return; } if (k === "Backspace") { payKey("⌫"); return; } }
         return;
       }
-      if (m.type === "batch") { if (k === "ArrowDown" || k === "ArrowUp") { e.preventDefault(); m.choice = (m.choice + (k === "ArrowDown" ? 1 : -1) + 2) % 2; renderModal(); return; } if (k === "Enter") { e.preventDefault(); const p = byId(m.pid); S.modal = null; renderModal(); addProduct(p, { batch: p.batches[m.choice].id }); } return; }
+      if (m.type === "batch") { if (k === "ArrowDown" || k === "ArrowUp") { e.preventDefault(); const n = byId(m.pid).batches.length; m.choice = (m.choice + (k === "ArrowDown" ? 1 : -1) + n) % n; renderModal(); return; } if (k === "Enter") { e.preventDefault(); const p = byId(m.pid); S.modal = null; renderModal(); addProduct(p, { batch: p.batches[m.choice].id }); } return; }
       if (m.type === "weight" || m.type === "qty") { if (/^[0-9.]$/.test(k)) { modalKey(k); return; } if (k === "Backspace") { modalKey("⌫"); return; } if (k === "Enter") { e.preventDefault(); confirmQty(); } return; }
       if (m.type === "discount") { if (/^[0-9]$/.test(k) && m.pct > DISCOUNT_LIMIT) { pinKey(k); return; } if (k === "Backspace") { pinKey("⌫"); return; } if (k === "Enter") { e.preventDefault(); confirmDiscount(); } return; }
       if (m.type === "cash") {
@@ -1183,6 +1418,28 @@
       if (k === "Enter" && r.sale) { e.preventDefault(); approveReturn(); return; }
       if (k === "Escape" && r.sale) { S.ret = emptyRet(); render(); focusId("rsearch"); return; }
       if (!r.sale && k.length === 1 && /[0-9A-Za-z-]/.test(k) && !e.ctrlKey && !e.metaKey) { e.preventDefault(); r.query += k; render(); focusId("rsearch"); }
+      return;
+    }
+    if (S.view === "receiving") {
+      const g = S.grn;
+      if (g.posted) { if (k === "Enter") { e.preventDefault(); S.grn = emptyGrn(); render(); focusId("gsearch"); } return; }
+      if (k === "F10") { e.preventDefault(); grnPost(); return; }
+      if (e.target.id === "gsearch") { if (k === "Enter") { e.preventDefault(); grnScan(g.query); } if (k === "Escape") { g.query = ""; g.error = ""; render(); focusId("gsearch"); } return; }
+      if (inInput || e.target.tagName === "SELECT") return;
+      if (k.length === 1 && /[0-9A-Za-z(]/.test(k) && !e.ctrlKey && !e.metaKey) { e.preventDefault(); g.query += k; render(); focusId("gsearch"); }
+      return;
+    }
+    if (S.view === "pricecheck") {
+      const pc = S.pc;
+      if (e.target.id === "pcsearch") {
+        if (k === "Enter") { e.preventDefault(); if (pc.query.trim()) pcLookup(pc.query); else if (pc.pid) { const b = app.querySelector('[data-act="pc-add"]'); if (b && !b.disabled) b.click(); } }
+        if (k === "Escape") { S.pc = { ...pc, query: "", pid: null, error: "" }; render(); focusId("pcsearch"); }
+        return;
+      }
+      if (inInput) return;
+      if (k === "Enter" && pc.pid) { e.preventDefault(); const b = app.querySelector('[data-act="pc-add"]'); if (b && !b.disabled) b.click(); return; }
+      if (k === "Escape") { S.pc = { ...pc, query: "", pid: null, error: "" }; render(); focusId("pcsearch"); return; }
+      if (k.length === 1 && /[0-9A-Za-z(]/.test(k) && !e.ctrlKey && !e.metaKey) { e.preventDefault(); pc.query += k; render(); focusId("pcsearch"); }
       return;
     }
     if (S.view === "orders") {
@@ -1275,7 +1532,8 @@
   let rz; window.addEventListener("resize", () => { clearTimeout(rz); rz = setTimeout(render, 120); });
   if (S.theme) document.documentElement.dataset.theme = S.theme;
   const hash = location.hash.replace("#", "");
-  if (["sell", "dashboard", "signin", "openshift", "returns", "cash", "orders"].includes(hash)) S.view = hash;
+  if (["sell", "dashboard", "signin", "openshift", "returns", "cash", "orders", "receiving", "pricecheck"].includes(hash)) S.view = hash;
+  if (hash === "receiving") S.user = USERS[4]; // Kasun, stock keeper
   if (hash === "openshift") { S.user = USERS[1]; }            // Nimal has no open shift yet
   if (hash === "signin") { S.su.sel = 1; }
   render();
