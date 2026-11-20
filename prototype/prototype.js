@@ -74,6 +74,17 @@
     { id: "nk", name: "Nimal Karunaratne", initials: "NK", note: "Loyalty · 1,240 points", phone: "071****908" },
     { id: "fa", name: "Fathima Azeez", initials: "FA", note: "Last visit 12 Nov", phone: "076****114" }
   ];
+  const USERS = [
+    { id: "sk", name: "Sachini Kumari", short: "Sachini", role: "Cashier", initials: "SK", pin: "1111" },
+    { id: "np", name: "Nimal Perera", short: "Nimal", role: "Cashier", initials: "NP", pin: "2222" },
+    { id: "rf", name: "Rizwan Farook", short: "Rizwan", role: "Pharmacist", initials: "RF", pin: "3333" },
+    { id: "mj", name: "Malini Jayasuriya", short: "Malini", role: "Manager", initials: "MJ", pin: "1234" },
+    { id: "ks", name: "Kasun Silva", short: "Kasun", role: "Stock keeper", initials: "KS", pin: "4444" },
+    { id: "ad", name: "Anushka De Silva", short: "Anushka", role: "Cashier", initials: "AD", pin: "5555" }
+  ];
+  const DENOMS = [500000, 100000, 50000, 10000, 5000, 2000]; // Rs 5,000 … Rs 20 notes, in cents
+  const NOTE_COLORS = { 500000: "#E8B54A", 100000: "#5BB98C", 50000: "#A08CFF", 10000: "#FF9F5B", 5000: "#5B8CFF", 2000: "#D9A0C8" };
+  const MAX_PIN_TRIES = 5;
   const DISCOUNT_LIMIT = 10; // cashier limit in %, BR-01
   const MANAGER_PIN = "1234";
   const byId = id => PRODUCTS.find(p => p.id === id);
@@ -81,11 +92,11 @@
   // ---------- i18n (draft Sinhala/Tamil labels, to be reviewed) ----------
   const T = {
     en: { sell: "Sell", overview: "Overview", orders: "Orders", returns: "Returns", customers: "Customers", products: "Products", stock: "Stock", receiving: "Receiving", expiry: "Expiry", cash: "Cash & shifts", reports: "Reports", tax: "Tax", suppliers: "Suppliers", promotions: "Promotions", staff: "Staff", settings: "Settings", logout: "Logout",
-      main: "Main", inventory: "Inventory", finance: "Finance", management: "Management", search: "Scan barcode or search name, generic or SKU…", charge: "Charge", hold: "Hold", discount: "Discount", current: "Current sale", total: "Total", sale: "Sale", ret: "Return", instock: "In stock only", payment: "Payment", addCustomer: "Add customer" },
+      main: "Main", inventory: "Inventory", finance: "Finance", management: "Management", search: "Scan barcode or search name, generic or SKU…", charge: "Charge", hold: "Hold", discount: "Discount", current: "Current sale", total: "Total", sale: "Sale", ret: "Return", instock: "In stock only", payment: "Payment", addCustomer: "Add customer", whoWorking: "Who's working?", enterPin: "Enter your PIN", signIn: "Sign in", openShift: "Open shift", countFloat: "Count the opening float", openingFloat: "Opening float", signOut: "Sign out" },
     si: { sell: "විකිණීම", overview: "දළ විශ්ලේෂණය", orders: "ඇණවුම්", returns: "ආපසු ලැබීම්", customers: "පාරිභෝගිකයින්", products: "නිෂ්පාදන", stock: "තොග", receiving: "භාණ්ඩ ලැබීම", expiry: "කල් ඉකුත්වීම", cash: "මුදල් සහ මුර", reports: "වාර්තා", tax: "බදු", suppliers: "සැපයුම්කරුවන්", promotions: "ප්‍රවර්ධන", staff: "කාර්ය මණ්ඩලය", settings: "සැකසුම්", logout: "ඉවත් වන්න",
-      main: "ප්‍රධාන", inventory: "තොග කළමනාකරණය", finance: "මූල්‍ය", management: "කළමනාකරණය", search: "බාර්කෝඩය ස්කෑන් කරන්න හෝ නමින් සොයන්න…", charge: "අය කරන්න", hold: "රඳවන්න", discount: "වට්ටම", current: "වත්මන් විකිණීම", total: "එකතුව", sale: "විකිණීම", ret: "ආපසු", instock: "තොගයේ ඇති ඒවා පමණක්", payment: "ගෙවීම", addCustomer: "පාරිභෝගිකයා එක් කරන්න" },
+      main: "ප්‍රධාන", inventory: "තොග කළමනාකරණය", finance: "මූල්‍ය", management: "කළමනාකරණය", search: "බාර්කෝඩය ස්කෑන් කරන්න හෝ නමින් සොයන්න…", charge: "අය කරන්න", hold: "රඳවන්න", discount: "වට්ටම", current: "වත්මන් විකිණීම", total: "එකතුව", sale: "විකිණීම", ret: "ආපසු", instock: "තොගයේ ඇති ඒවා පමණක්", payment: "ගෙවීම", addCustomer: "පාරිභෝගිකයා එක් කරන්න", whoWorking: "කවුද වැඩ කරන්නේ?", enterPin: "ඔබේ PIN අංකය ඇතුළත් කරන්න", signIn: "පුරන්න", openShift: "මුරය ආරම්භ කරන්න", countFloat: "ආරම්භක මුදල ගණන් කරන්න", openingFloat: "ආරම්භක මුදල", signOut: "ඉවත් වන්න" },
     ta: { sell: "விற்பனை", overview: "கண்ணோட்டம்", orders: "ஆர்டர்கள்", returns: "திருப்பங்கள்", customers: "வாடிக்கையாளர்கள்", products: "பொருட்கள்", stock: "இருப்பு", receiving: "பொருள் பெறுதல்", expiry: "காலாவதி", cash: "பணம் & ஷிஃப்ட்", reports: "அறிக்கைகள்", tax: "வரி", suppliers: "சப்ளையர்கள்", promotions: "சலுகைகள்", staff: "ஊழியர்கள்", settings: "அமைப்புகள்", logout: "வெளியேறு",
-      main: "முதன்மை", inventory: "சரக்கு", finance: "நிதி", management: "நிர்வாகம்", search: "பார்கோடை ஸ்கேன் செய்யவும் அல்லது பெயரால் தேடவும்…", charge: "கட்டணம்", hold: "நிறுத்து", discount: "தள்ளுபடி", current: "தற்போதைய விற்பனை", total: "மொத்தம்", sale: "விற்பனை", ret: "திருப்பம்", instock: "இருப்பில் உள்ளவை மட்டும்", payment: "கட்டணம் செலுத்துதல்", addCustomer: "வாடிக்கையாளரைச் சேர்" }
+      main: "முதன்மை", inventory: "சரக்கு", finance: "நிதி", management: "நிர்வாகம்", search: "பார்கோடை ஸ்கேன் செய்யவும் அல்லது பெயரால் தேடவும்…", charge: "கட்டணம்", hold: "நிறுத்து", discount: "தள்ளுபடி", current: "தற்போதைய விற்பனை", total: "மொத்தம்", sale: "விற்பனை", ret: "திருப்பம்", instock: "இருப்பில் உள்ளவை மட்டும்", payment: "கட்டணம் செலுத்துதல்", addCustomer: "வாடிக்கையாளரைச் சேர்", whoWorking: "யார் பணியில் இருக்கிறார்கள்?", enterPin: "உங்கள் PIN ஐ உள்ளிடவும்", signIn: "உள்நுழை", openShift: "ஷிஃப்ட்டைத் தொடங்கு", countFloat: "தொடக்கப் பணத்தை எண்ணவும்", openingFloat: "தொடக்கப் பணம்", signOut: "வெளியேறு" }
   };
   const t = k => (T[S.lang] && T[S.lang][k]) || T.en[k] || k;
 
@@ -101,7 +112,11 @@
     cart: [line("pc", 2, { batch: "B2" }), line("br", 1), line("mp", 1), line("ca", 1.25)], sel: 3,
     customer: CUSTOMERS[1], mode: "sale", held: [], seq: 155, offline: false, waiting: 12, printerError: false,
     lang: "en", theme: store("retailos-proto-theme") || null, collapsed: false, tablet: false, touch: false, sheetOpen: false,
-    loading: true, modal: null, pay: null, last: null, undo: null, protoOpen: false, countdown: 0
+    loading: true, modal: null, pay: null, last: null, undo: null, protoOpen: false, countdown: 0,
+    user: USERS[0],
+    shifts: { sk: { float: 500000, start: Date.now() - (3 * 60 + 12) * 60000 } }, // open cash session per cashier (BR-08)
+    su: { sel: 0, pin: "", err: false, tries: {}, locked: {} },                     // sign-in screen state
+    os: { counts: {}, coins: "" }                                                   // open-shift count
   };
 
   // ---------- Money ----------
@@ -236,7 +251,7 @@
     h += `</nav><div class="side-spacer"></div>
       <button class="nav-item" data-act="nav" data-view="settings" title="${esc(t("settings"))}">${ic("settings")}<span class="lbl">${esc(t("settings"))}</span></button>
       <button class="nav-item danger" data-act="logout" title="${esc(t("logout"))}">${ic("logout")}<span class="lbl">${esc(t("logout"))}</span></button>
-      <div class="user-card"><span class="avatar">SK</span><span class="who"><b>Sachini Kumari</b><span>Cashier · CMB01</span></span>${ic("chevDown", 16)}</div></aside>`;
+      <button class="user-card" data-act="logout" title="Switch user / sign out"><span class="avatar">${S.user.initials}</span><span class="who"><b>${esc(S.user.name)}</b><span>${esc(S.user.role)} · CMB01</span></span>${ic("chevDown", 16)}</button></aside>`;
     return h;
   }
   function langSeg() {
@@ -247,7 +262,7 @@
     return `<header class="topbar"><div><h1>${esc(title)}</h1>${sub ? `<div class="sub">${esc(sub)}</div>` : ""}</div>${extra || ""}<div class="spacer"></div>
       ${S.view !== "dashboard" ? `<button class="badge ${S.offline ? "b-warning" : "b-success"}" data-act="toggle-offline" title="Click to simulate ${S.offline ? "reconnecting" : "going offline"}">${ic(S.offline ? "wifiOff" : "cloudCheck", 14)}${S.offline ? `Offline · ${S.waiting} waiting` : "Synced 10:41"}</button>
       <button class="badge hide-t ${S.printerError ? "b-error" : "b-success"}" data-act="toggle-printer" title="Click to simulate a printer problem">${ic("printer", 14)}${S.printerError ? "Printer: no paper" : "Printer ready"}</button>
-      <span class="badge hide-t">${ic("clock", 14)}Shift 3h 12m</span>` : ""}
+      <span class="badge hide-t ${S.shifts[S.user.id] ? "" : "b-warning"}">${ic("clock", 14)}${shiftLabel()}</span>` : ""}
       ${langSeg()}
       <button class="icon-btn" data-act="theme" title="Toggle dark mode">${ic(dark ? "sun" : "moon")}</button>
       <button class="icon-btn" data-act="help" title="Keyboard shortcuts (F1 or ?)">${ic("keyboard")}</button>
@@ -391,16 +406,112 @@
       </div></div>`;
   }
 
+  // ---------- Sign-in (R-02) & Open shift (R-03) ----------
+  function shiftLabel() {
+    const sh = S.shifts[S.user.id]; if (!sh) return "No open shift";
+    const m = Math.max(0, Math.floor((Date.now() - sh.start) / 60000));
+    return `Shift ${Math.floor(m / 60)}h ${m % 60}m`;
+  }
+  function greeting() { const h = new Date().getHours(); return h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening"; }
+  function lockLeft(u) { const until = S.su.locked[u.id]; return until && until > Date.now() ? Math.ceil((until - Date.now()) / 60000) : 0; }
+  function signinView() {
+    const u = USERS[S.su.sel]; const left = lockLeft(u); const tries = S.su.tries[u.id] || 0;
+    const now = new Date();
+    const dark = document.documentElement.dataset.theme === "dark";
+    return `<div class="signin">
+      <header class="signin-top"><span class="mark">R</span><b>RetailOS</b><span class="sub">City Pharmacy &amp; Mart · Colombo 03 · Register R02</span><div class="spacer"></div>
+        ${S.offline ? badge("warning", "Offline · PINs still work", "wifiOff") : badge("success", "Synced 10:41", "cloudCheck")}${langSeg()}
+        <button class="icon-btn" data-act="theme" title="Toggle dark mode">${ic(dark ? "sun" : "moon")}</button></header>
+      <main class="signin-body">
+        <section aria-labelledby="who">
+          <div class="greet">${greeting()} · ${now.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" })} · ${now.toTimeString().slice(0, 5)}</div>
+          <h1 id="who">${esc(t("whoWorking"))}</h1>
+          <div class="users" role="listbox" aria-label="Staff on this branch">${USERS.map((x, i) => `<button class="user-tile" role="option" aria-selected="${i === S.su.sel}" data-act="su-pick" data-i="${i}" data-fid="user-${x.id}">
+            ${S.shifts[x.id] ? badge("success", "Shift open", null) : lockLeft(x) ? badge("error", "Locked", "lock") : ""}<span class="avatar">${x.initials}</span><b>${esc(x.name)}</b><span>${esc(x.role)}</span></button>`).join("")}</div>
+        </section>
+        <section class="pin-card ${S.su.err ? "shake" : ""}" aria-label="PIN entry">
+          <div class="pin-head"><span class="avatar">${u.initials}</span><div><b>${esc(t("enterPin"))}</b><span>${esc(u.name)} · ${esc(u.role)}</span></div></div>
+          <div class="pin-dots big" aria-label="${S.su.pin.length} of 4 digits entered">${[0, 1, 2, 3].map(i => `<i class="${S.su.pin.length > i ? "on" : ""}"></i>`).join("")}</div>
+          ${left ? `<div class="banner error">${ic("lock")}Locked after ${MAX_PIN_TRIES} wrong PINs. Try again in ${left} min or ask a manager.</div>`
+            : S.su.err ? `<div class="scan-error" role="alert">${ic("alert", 18)}Wrong PIN · ${MAX_PIN_TRIES - tries} ${MAX_PIN_TRIES - tries === 1 ? "try" : "tries"} left</div>`
+            : `<div class="note">${ic("lock", 16)}Demo PIN for ${esc(u.short)}: ${u.pin}</div>`}
+          <div class="keypad big">${["1", "2", "3", "4", "5", "6", "7", "8", "9", "C", "0", "⌫"].map(k => `<button data-act="su-key" data-k="${k}" ${left ? "disabled" : ""} aria-label="${k === "⌫" ? "Backspace" : k === "C" ? "Clear" : k}">${k === "⌫" ? ic("backspace", 24) : k}</button>`).join("")}</div>
+          <button class="btn primary l block" data-act="su-submit" ${S.su.pin.length === 4 && !left ? "" : "disabled"}>${esc(t("signIn"))} <kbd>Enter</kbd></button>
+        </section>
+      </main>
+      <footer class="signin-foot">Device WIN-CMB01-02 · v1.6.0 · ← → choose staff · type PIN · ${MAX_PIN_TRIES} wrong PINs lock that user for 5 minutes · PINs are checked on this device, so sign-in works offline</footer>
+    </div>`;
+  }
+  function suKey(k) {
+    const u = USERS[S.su.sel]; if (lockLeft(u)) return;
+    S.su.err = false;
+    if (k === "⌫") S.su.pin = S.su.pin.slice(0, -1); else if (k === "C") S.su.pin = ""; else if (S.su.pin.length < 4) S.su.pin += k;
+    render();
+    if (S.su.pin.length === 4) setTimeout(suSubmit, 150);
+  }
+  function suSubmit() {
+    const u = USERS[S.su.sel]; if (lockLeft(u) || S.su.pin.length < 4 || S.view !== "signin") return;
+    if (S.su.pin === u.pin) {
+      S.su.tries[u.id] = 0; S.su.pin = ""; S.su.err = false; S.user = u;
+      S.view = S.shifts[u.id] ? "sell" : "openshift";
+      render(); toast(`Welcome, ${u.short}${S.shifts[u.id] ? " · your shift is open" : ""}`);
+      if (S.view === "sell") focusSearch();
+      return;
+    }
+    S.su.tries[u.id] = (S.su.tries[u.id] || 0) + 1; S.su.pin = ""; S.su.err = true;
+    if (S.su.tries[u.id] >= MAX_PIN_TRIES) { S.su.locked[u.id] = Date.now() + 5 * 60000; S.su.tries[u.id] = 0; S.su.err = false; }
+    render();
+  }
+  function signOut() { S.view = "signin"; S.su.sel = Math.max(0, USERS.indexOf(S.user)); S.su.pin = ""; S.su.err = false; S.modal = null; renderModal(); render(); }
+
+  const floatTotal = () => DENOMS.reduce((a, d) => a + d * (S.os.counts[d] || 0), 0) + Math.round((parseFloat(S.os.coins) || 0) * 100);
+  function openShiftView() {
+    const total = floatTotal(); const usual = 500000; const coins = Math.round((parseFloat(S.os.coins) || 0) * 100);
+    const diff = total - usual;
+    return `<div class="shift">
+      <section class="card" aria-labelledby="cf"><div class="card-head"><h2 id="cf">${esc(t("countFloat"))}</h2><span class="legend">Notes and coins placed in the drawer</span></div>
+        ${DENOMS.map(d => { const n = S.os.counts[d] || 0; return `<div class="den-row"><span class="note-chip"><i style="background:${NOTE_COLORS[d]}"></i><b>Rs ${(d / 100).toLocaleString("en-US")}</b></span>
+          <div class="stepper"><button data-act="os-dec" data-d="${d}" aria-label="One less Rs ${d / 100} note">${ic("minus", 16)}</button><input inputmode="numeric" data-den="${d}" data-fid="den-${d}" value="${n}" aria-label="Number of Rs ${d / 100} notes"><button data-act="os-inc" data-d="${d}" aria-label="One more Rs ${d / 100} note">${ic("plus", 16)}</button></div>
+          <span class="amt ${n ? "on" : ""}">${fmt(d * n)}</span></div>`; }).join("")}
+        <div class="den-row"><span class="note-chip"><i style="background:var(--text-3);border-radius:50%;width:18px"></i><b>Coins</b></span><label class="voucher" style="max-width:200px">Rs<input data-coins data-fid="coins" inputmode="decimal" value="${esc(S.os.coins)}" placeholder="0.00" aria-label="Total value of coins"></label><span class="amt ${coins ? "on" : ""}">${fmt(coins)}</span></div>
+      </section>
+      <aside class="card shift-sum" aria-label="Shift summary">
+        <span class="sub">${esc(t("openingFloat"))}</span>
+        <div class="float ${total ? "" : "zero"}">${fmt(total)}</div>
+        <dl class="kv"><dt>Cashier</dt><dd>${esc(S.user.name)}</dd><dt>Register</dt><dd>CMB01 · R02</dd><dt>Business date</dt><dd>${new Date().toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", year: "numeric" })}</dd><dt>Usual float</dt><dd>${fmt(usual)}</dd></dl>
+        ${total && diff ? `<div class="banner">${ic("alert")}${diff > 0 ? "More" : "Less"} than the usual float by ${fmt(Math.abs(diff))}. Check the count, or continue if this is intended.</div>` : ""}
+        <button class="btn secondary block" data-act="os-last">Use usual float · Rs 5,000 (3 × 1,000 · 2 × 500 · 10 × 100)</button>
+        <button class="btn primary l block" data-act="os-open" ${total > 0 ? "" : "disabled"}>${ic("check")}${esc(t("openShift"))} <kbd>Enter</kbd></button>
+        <button class="btn ghost block" data-act="logout">${ic("logout")}${esc(t("signOut"))}</button>
+        <div class="note">${ic("lock", 16)}The count is saved to the audit log. Selling starts after the shift is open (BR-08).</div>
+      </aside></div>`;
+  }
+  function openShiftNow() {
+    const total = floatTotal(); if (total <= 0) { toast("Count the opening float first", { error: true }); return; }
+    S.shifts[S.user.id] = { float: total, start: Date.now() };
+    S.os = { counts: {}, coins: "" };
+    S.view = "sell"; S.cart = []; S.sel = 0; S.customer = CUSTOMERS[0];
+    render(); toast(`Shift opened with ${fmt(total)} · CMB01 · R02`); focusSearch();
+  }
+
   // ---------- Render: main ----------
   function render() {
     const fid = document.activeElement && document.activeElement.dataset ? document.activeElement.dataset.fid : null;
-    const caret = document.activeElement && document.activeElement.id === "search" ? document.activeElement.selectionStart : null;
+    const ae = document.activeElement;
+    const caret = ae && ae.tagName === "INPUT" && ae.type !== "checkbox" ? ae.selectionStart : null;
+    if (S.view === "signin") {
+      document.body.classList.remove("sheet-mode");
+      app.innerHTML = signinView() + protoControls();
+      if (fid) { const el = app.querySelector(`[data-fid="${fid}"]`); if (el) el.focus({ preventScroll: true }); }
+      return;
+    }
     const sheet = sheetMode() && (S.view === "sell" || S.view === "complete");
     document.body.classList.toggle("sheet-mode", sheet);
     document.body.classList.toggle("touch", S.touch);
     let main;
     if (S.view === "sell") main = topbar(t("sell"), null, `<span class="badge hide-t">${ic("store", 14)}CMB01 · Register 2</span>`) + `<div class="body">${productArea()}${orderPanel()}</div>${sheet ? `<button class="fab" data-act="camera" title="Scan with camera">${ic("camera", 24)}</button>` : ""}`;
     else if (S.view === "complete") main = topbar("Sale complete", null) + completeView();
+    else if (S.view === "openshift") main = topbar(t("openShift"), `${greeting()}, ${S.user.short} · count the cash before you start selling`) + openShiftView();
     else if (S.view === "dashboard") main = topbar(t("overview"), "Thursday, 19 Nov 2026", `<span class="badge hide-t">${ic("store", 14)}All branches</span>`) + dashboard();
     else main = topbar(t(S.view) || "Settings", null) + `<div class="placeholder"><div class="empty"><span class="circle">${ic("package", 28)}</span><h3>${esc(t(S.view))} is not part of this prototype</h3><span>The prototype covers Sell, payment, sale complete and the Overview dashboard.</span><button class="btn primary s" data-act="nav" data-view="sell">Go to Sell</button></div></div>`;
     app.innerHTML = `<div class="app ${S.collapsed ? "collapsed" : ""} ${S.tablet ? "tablet" : ""} ${!S.tablet && window.innerWidth > 1180 ? "desk" : ""}">${sidebar()}<main class="main">${main}</main></div>${protoControls()}`;
@@ -417,7 +528,8 @@
       <label>Touch mode (bigger targets)<input type="checkbox" data-act="toggle-touch" ${S.touch ? "checked" : ""}></label>
       <button class="btn secondary" data-act="replay-loading">Replay loading skeleton</button>
       <button class="btn secondary" data-act="reset">Reset demo</button>
-      <small>Manager PIN: 1234 · Try barcodes 4791111000011, 2012340012507 (1.250 kg carrots), 9999999999999 (unknown).</small></div>` : ""}
+      <button class="btn secondary" data-act="logout">Go to sign-in screen</button>
+      <small>Staff PINs: Sachini 1111 (shift open) · Nimal 2222 · Rizwan 3333 · Malini 1234 (manager) · Kasun 4444 · Anushka 5555. Try barcodes 4791111000011, 2012340012507 (1.250 kg carrots), 9999999999999 (unknown).</small></div>` : ""}
       <button class="proto-btn" data-act="proto">${ic("sliders", 16)}Prototype</button></div>`;
   }
 
@@ -496,9 +608,15 @@
     const a = el.dataset.act, i = el.dataset.i != null ? parseInt(el.dataset.i, 10) : null;
     if (a === "overlay" && e.target !== el) return; // clicks inside the modal
     switch (a) {
-      case "nav": S.view = el.dataset.view; S.modal = null; renderModal(); render(); break;
+      case "nav": { const v = el.dataset.view; S.view = v === "sell" && !S.shifts[S.user.id] ? "openshift" : v; S.modal = null; renderModal(); render(); break; }
       case "collapse": S.collapsed = !S.collapsed; render(); break;
-      case "logout": toast("Logout is disabled in the prototype"); break;
+      case "logout": signOut(); break;
+      case "su-pick": S.su.sel = i; S.su.pin = ""; S.su.err = false; render(); break;
+      case "su-key": suKey(el.dataset.k); break;
+      case "su-submit": suSubmit(); break;
+      case "os-inc": case "os-dec": { const d = el.dataset.d; S.os.counts[d] = Math.max(0, (S.os.counts[d] || 0) + (a === "os-inc" ? 1 : -1)); render(); break; }
+      case "os-last": S.os = { counts: { 100000: 3, 50000: 2, 10000: 10 }, coins: "" }; render(); break;
+      case "os-open": openShiftNow(); break;
       case "lang": S.lang = el.dataset.lang; document.documentElement.lang = S.lang; render(); break;
       case "theme": { const dark = !(document.documentElement.dataset.theme === "dark"); document.documentElement.dataset.theme = dark ? "dark" : "light"; store("retailos-proto-theme", dark ? "dark" : "light"); render(); break; }
       case "help": openModal({ type: "help" }); break;
@@ -558,6 +676,8 @@
   });
   document.addEventListener("input", e => {
     if (e.target.id === "search") { S.query = e.target.value; S.scanError = null; render(); }
+    if (e.target.dataset && e.target.dataset.den) { S.os.counts[e.target.dataset.den] = Math.max(0, parseInt(e.target.value.replace(/\D/g, ""), 10) || 0); render(); }
+    if (e.target.hasAttribute && e.target.hasAttribute("data-coins")) { S.os.coins = e.target.value.replace(/[^0-9.]/g, ""); render(); }
     if (e.target.id === "approval" && S.pay) { S.pay.approval = e.target.value; const b = modalRoot.querySelector('[data-act="complete"]'); if (b) b.disabled = !canComplete(); }
   });
 
@@ -596,6 +716,16 @@
     if (/^F([1-9]|1[0-2])$/.test(k)) e.preventDefault(); // F-keys belong to the POS, not the browser
     // Any key cancels the auto-return countdown on the complete screen
     if (S.view === "complete" && S.countdown > 0) { S.countdown = 0; const c = document.getElementById("countdown"); if (c) c.textContent = "Press Enter for the next customer"; }
+
+    if (S.view === "signin" && !S.modal) {
+      if (/^[0-9]$/.test(k)) { e.preventDefault(); suKey(k); return; }
+      if (k === "Backspace") { e.preventDefault(); suKey("⌫"); return; }
+      if (k === "Escape") { suKey("C"); return; }
+      if (k === "ArrowRight" || k === "ArrowLeft") { e.preventDefault(); S.su.sel = (S.su.sel + (k === "ArrowRight" ? 1 : -1) + USERS.length) % USERS.length; S.su.pin = ""; S.su.err = false; render(); return; }
+      if (k === "Enter" && !(e.target.closest && e.target.closest('[data-act="su-pick"]'))) { e.preventDefault(); suSubmit(); }
+      return;
+    }
+    if (S.view === "openshift" && !S.modal) { if (k === "Enter") { e.preventDefault(); openShiftNow(); } return; }
 
     if (S.modal) {
       const m = S.modal;
@@ -688,7 +818,9 @@
   let rz; window.addEventListener("resize", () => { clearTimeout(rz); rz = setTimeout(render, 120); });
   if (S.theme) document.documentElement.dataset.theme = S.theme;
   const hash = location.hash.replace("#", "");
-  if (["sell", "dashboard"].includes(hash)) S.view = hash;
+  if (["sell", "dashboard", "signin", "openshift"].includes(hash)) S.view = hash;
+  if (hash === "openshift") { S.user = USERS[1]; }            // Nimal has no open shift yet
+  if (hash === "signin") { S.su.sel = 1; }
   render();
   setTimeout(() => { S.loading = false; render(); focusSearch(); }, 700);
 })();
