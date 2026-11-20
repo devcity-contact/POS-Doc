@@ -17,7 +17,8 @@
     { group: "User interface", items: [
       ["ui-screens.html", "Screens & navigation"],
       ["ui-design.html", "UI design & wireframes"],
-      ["stitch-prompts.html", "Google Stitch prompts"]
+      ["stitch-prompts.html", "Google Stitch prompts"],
+      ["prototype/index.html", "Clickable prototype ↗"]
     ]},
     { group: "Architecture", items: [
       ["architecture.html", "System architecture"],

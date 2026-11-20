@@ -15,6 +15,7 @@ Start with ai/AGENTS.md (rules and invariants) and ai/system-context.md (condens
 ## User interface
 - [Screens & navigation](ui-screens.html): every screen with IDs (register R-xx, admin A-xx, platform console P-xx, printed documents D-xx), navigation maps, roles, release, offline behaviour, detailed specs of key screens, route/file mapping, build order
 - [UI design & wireframes](ui-design.html): design principles, layouts and breakpoints, typography for en/si/ta, colour semantics, component library, register keyboard map, screen states, accessibility, wireframes of key screens and the receipt
+- [Clickable prototype](prototype/index.html): working HTML/CSS/JS prototype of the register (Sell, batch picker, weighing, discount with manager PIN, hold/recall, payment, sale complete with receipt) and the Overview dashboard; keyboard, mouse, touch and tablet bottom-sheet layouts; light/dark; EN/SI/TA draft labels; simulated offline and printer states
 - [DESIGN.md](DESIGN.md): Markdown copy of the design system and all Google Stitch prompts
 - [Google Stitch prompts](stitch-prompts.html): brand palette (#3772FF primary, #22C55E success, #272932, #FDFFFC, #FF7F11, #FF1B1C) with measured contrast rules and light/dark tokens, master prompt, dark-variant prompt, one prompt per screen, state/language/refinement prompts
 
