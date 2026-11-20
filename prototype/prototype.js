@@ -225,6 +225,38 @@
     display: { theme: "auto", touch: false, lang: "en" }, training: false };
   S.devDraft = JSON.parse(JSON.stringify(S.dev)); S.devTab = "printer";
 
+  // ---------- Catalog admin data (A-20 / A-21) ----------
+  const CATS_ADMIN = ["Pharmacy", "Grocery", "Dairy", "Beverages", "Personal care", "Vegetables", "Household"];
+  const BRANDS = ["Lanka Pharma", "MediCare Labs", "Pure Dairy", "Golden Grain", "Sparkle Care", "Island Biscuits", "Farm Fresh", "Aqua Pure", "Highland Tea Co.", "Coco Gold", "No brand"];
+  const TAX = { std: "VAT standard 18%", exempt: "VAT exempt" };
+  const TONES = { Pharmacy: ["pill", "teal"], Grocery: ["wheat", "yellow"], Dairy: ["milk", "blue"], Beverages: ["droplet", "blue"], "Personal care": ["sparkles", "pink"], Vegetables: ["carrot", "orange"], Household: ["package", "purple"] };
+  const ADMIN = {
+    mp: { brand: "Pure Dairy", si: "කිරි පිටි 400g", ta: "பால் மா 400g", tax: "std", reorder: 10, upd: 2, variants: [["400 g", "MP-400", "4791111000011", 115000], ["1 kg", "MP-1K", "4791111000127", 275000]] },
+    br: { brand: "Golden Grain", si: "බාස්මතී සහල් 5kg", ta: "பாஸ்மதி அரிசி 5kg", tax: "exempt", reorder: 8, upd: 6 },
+    pc: { brand: "Lanka Pharma", si: "පැරසිටමෝල් 500mg", ta: "பாராசிட்டமால் 500mg", tax: "exempt", reorder: 50, upd: 1, drug: { generic: "Paracetamol", strength: "500 mg", form: "Tablet", schedule: "OTC" } },
+    am: { brand: "MediCare Labs", si: "", ta: "", tax: "exempt", reorder: 20, upd: 12, drug: { generic: "Amoxicillin", strength: "500 mg", form: "Capsule", schedule: "Rx" } },
+    tp: { brand: "Sparkle Care", tax: "std", reorder: 10, upd: 20 }, sh: { brand: "Sparkle Care", tax: "std", reorder: 6, upd: 3 },
+    cc: { brand: "Island Biscuits", tax: "std", reorder: 12, upd: 9 },
+    eg: { brand: "Farm Fresh", si: "බිත්තර 10", ta: "முட்டை 10", tax: "exempt", reorder: 10, upd: 1 },
+    bw: { brand: "Aqua Pure", si: "බෝතල් කළ ජලය 1.5L", ta: "போத்தல் நீர் 1.5L", tax: "std", reorder: 24, upd: 15, variants: [["500 ml", "BW-05", "4791111000134", 7000], ["1.5 L", "BW-15", "4791111000097", 14000]] },
+    ct: { brand: "Highland Tea Co.", si: "ලංකා කළු තේ 200g", ta: "இலங்கை கருப்பு தேநீர் 200g", tax: "std", reorder: 10, upd: 4 },
+    co: { brand: "Coco Gold", si: "පොල් තෙල් 1L", ta: "தேங்காய் எண்ணெய் 1L", tax: "std", reorder: 6, upd: 2 },
+    ca: { brand: "No brand", si: "කැරට්", ta: "கேரட்", tax: "exempt", reorder: 5, upd: 0 }
+  };
+  for (const p of PRODUCTS) {
+    const a = ADMIN[p.id] || {};
+    const sku = (p.meta.split(" · ")[1] || p.id.toUpperCase());
+    Object.assign(p, {
+      brand: a.brand || "No brand", nameSi: a.si || "", nameTa: a.ta || "", tax: a.tax || "std", reorder: a.reorder || 5, active: true,
+      wholesale: Math.round(p.price * 0.93 / 100) * 100, cost: baseCost(p), sku, newPrice: "", newFrom: "",
+      variants: (a.variants || [[p.meta.split(" · ")[0], sku, p.code, p.price]]).map(([label, s, bc, pr]) => ({ label, sku: s, barcode: bc, price: pr })),
+      drug: a.drug ? { ...a.drug } : null, updated: daysAgo(a.upd || 0, 9, 10),
+      log: [{ when: daysAgo(a.upd || 0, 9, 10), who: "Malini J.", what: "Price checked against the supplier list" }, { when: daysAgo(140, 11, 0), who: "Kasun S.", what: "Product created from the Excel import" }]
+    });
+  }
+  S.prod = { q: "", cat: "All", status: "active", low: false, missing: false, picked: [] };
+  S.pe = null; // product editor state
+
   // ---------- Money ----------
   const lineGross = l => Math.round(l.qty * l.unit);
   const lineNet = l => Math.round(l.qty * l.unit * (100 - l.disc) / 100);
@@ -251,7 +283,7 @@
   function badge(tone, label, icon) { return `<span class="badge ${tone ? "b-" + tone : ""}">${icon ? ic(icon, 14) : ""}${esc(label)}</span>`; }
   function visibleProducts() {
     const q = S.query.trim().toLowerCase();
-    return PRODUCTS.filter(p => (S.cat === "All" || p.cat === S.cat || (S.cat === "Offers" && p.offer))
+    return PRODUCTS.filter(p => p.active !== false && (S.cat === "All" || p.cat === S.cat || (S.cat === "Offers" && p.offer))
       && (!S.inStock || p.stock > 0)
       && (!q || p.name.toLowerCase().includes(q) || p.meta.toLowerCase().includes(q) || p.code.startsWith(q) || (p.rx && "rx".includes(q))));
   }
@@ -350,7 +382,7 @@
     ["management", [["suppliers", "store"], ["promotions", "percent"], ["staff", "userCog"]]]
   ];
   function sidebar() {
-    const cur = S.view === "complete" ? "sell" : S.view;
+    const cur = S.view === "complete" ? "sell" : S.view === "product" ? "products" : S.view;
     let h = `<aside class="sidebar" aria-label="Main navigation"><div class="brand"><span class="mark">R</span><span class="brand-name">RetailOS</span><button class="icon-btn" data-act="collapse" title="Collapse sidebar">${ic("panel")}</button></div><nav>`;
     for (const [g, items] of NAV) {
       h += `<div class="nav-label">${t(g)}</div>`;
@@ -1204,6 +1236,187 @@ Yesterday 09:15  SYNC-003 Catalog cursor too old · catalog snapshot downloaded<
     render(); toast(`Settings saved${S.dev.training ? " · training mode is ON" : ""}`);
   }
 
+  // ---------- Products list (A-20) ----------
+  function prodList() {
+    const f = S.prod, q = f.q.trim().toLowerCase();
+    return PRODUCTS.filter(p => (f.cat === "All" || p.cat === f.cat) && (f.status === "all" || (f.status === "active") === p.active)
+      && (!f.low || p.stock <= p.reorder) && (!f.missing || !p.nameSi || !p.nameTa)
+      && (!q || [p.name, p.nameSi, p.nameTa, p.sku, p.brand, ...p.variants.map(v => v.barcode + " " + v.sku)].join(" ").toLowerCase().includes(q)));
+  }
+  const stockCell = p => p.stock <= 0 ? badge("error", "Out of stock", "alert") : p.stock <= p.reorder ? badge("warning", `Low · ${p.weighed ? p.stock.toFixed(1) : p.stock}`, "alert") : `<span>${p.weighed ? p.stock.toFixed(1) + " kg" : p.stock} in stock</span>`;
+  function productsView() {
+    const f = S.prod, list = prodList(), picked = f.picked.filter(id => list.some(p => p.id === id));
+    const allOn = list.length && picked.length === list.length;
+    const missingCount = PRODUCTS.filter(p => p.active && (!p.nameSi || !p.nameTa)).length, lowCount = PRODUCTS.filter(p => p.active && p.stock <= p.reorder).length;
+    return `<div class="page">
+      <div class="page-actions">
+        <label class="search">${ic("search")}<span class="sr">Search products</span><input id="psearch" data-fid="psearch" autocomplete="off" placeholder="Name, SKU, barcode, brand…" value="${esc(f.q)}"><kbd>/</kbd></label>
+        <select data-pf="cat" data-fid="pf-cat" aria-label="Category"><option value="All">All categories</option>${CATS_ADMIN.map(c => `<option ${f.cat === c ? "selected" : ""}>${c}</option>`).join("")}</select>
+        <select data-pf="status" data-fid="pf-status" aria-label="Status">${[["active", "Active"], ["archived", "Archived"], ["all", "All statuses"]].map(([v, l]) => `<option value="${v}" ${f.status === v ? "selected" : ""}>${l}</option>`).join("")}</select>
+        <button class="toggle-btn" data-act="pf-low" aria-pressed="${f.low}">${ic("alert", 16)}Low stock · ${lowCount}</button>
+        <button class="toggle-btn" data-act="pf-missing" aria-pressed="${f.missing}">සිං/தமி missing · ${missingCount}</button>
+        <span class="spacer"></span>
+        <button class="btn secondary" data-act="toast" data-msg="The import wizard is screen A-23 — coming in a later batch">${ic("upload", 18)}Import</button>
+        <button class="btn secondary" data-act="toast" data-msg="products.xlsx exported (${list.length} rows)">Export</button>
+        <button class="btn primary" data-act="p-new">${ic("plus", 18)}Add product <kbd>N</kbd></button>
+      </div>
+      ${picked.length ? `<div class="bulk" role="region" aria-label="Bulk actions">${picked.length} selected
+        <select data-act-change="p-bulk-cat" aria-label="Move to category"><option value="">Move to category…</option>${CATS_ADMIN.map(c => `<option>${c}</option>`).join("")}</select>
+        <button class="btn secondary" data-act="toast" data-msg="${picked.length} shelf labels sent to the label printer">${ic("printer", 16)}Print labels</button>
+        <button class="btn secondary" data-act="p-bulk-archive">${f.status === "archived" ? "Restore" : "Archive"}</button>
+        <span class="spacer"></span><button class="btn ghost" data-act="p-unpick">Clear selection</button></div>` : ""}
+      <div class="ptable" role="table" aria-label="Products">
+        <div class="prow head" role="row"><span><input type="checkbox" data-act="p-pickall" aria-label="Select all" ${allOn ? "checked" : ""}></span><span>Product</span><span>Category</span><span class="c-brand">Brand</span><span class="r">Price</span><span>Stock</span><span class="c-status">Status</span><span class="c-upd">Updated</span></div>
+        ${list.length ? list.map(p => `<div class="prow ${picked.includes(p.id) ? "picked" : ""} ${p.active ? "" : "archived"}" role="row" tabindex="0" data-act="p-open" data-id="${p.id}" data-fid="prow-${p.id}">
+          <span><input type="checkbox" data-act="p-pick" data-id="${p.id}" aria-label="Select ${esc(p.name)}" ${picked.includes(p.id) ? "checked" : ""}></span>
+          <span class="pname"><span class="thumb tile-${p.tone}">${ic(p.icon, 20)}</span><span style="min-width:0"><b>${esc(p.name)}</b><small>${esc(p.sku)} · ${p.variants.length} variant${p.variants.length === 1 ? "" : "s"}${!p.nameSi || !p.nameTa ? ` · <span style="color:var(--warning-text)">translation missing</span>` : ""}</small></span></span>
+          <span>${esc(p.cat)}</span><span class="c-brand muted">${esc(p.brand)}</span><span class="r">${fmt(p.price)}${p.weighed ? "/kg" : ""}</span><span>${stockCell(p)}</span>
+          <span class="c-status">${p.active ? badge("success", "Active", null) : badge("", "Archived", null)}</span><span class="c-upd muted">${dayDiff(p.updated) === 0 ? "Today" : p.updated.toLocaleDateString("en-GB", { day: "numeric", month: "short" })}</span></div>`).join("")
+          : `<div class="empty"><span class="circle">${ic("package", 28)}</span><h3>No products match</h3><span>Clear the filters or add a new product.</span></div>`}
+      </div>
+      <div class="table-foot"><span>Showing ${list.length} of ${PRODUCTS.length} products in this demo · the real catalog has 1,248</span><span>Click a row or press Enter to edit · Space selects</span></div>
+    </div>`;
+  }
+
+  // ---------- Product editor (A-21) ----------
+  function draftFrom(p) {
+    return { id: p ? p.id : null, name: p ? p.name : "", nameSi: p ? p.nameSi : "", nameTa: p ? p.nameTa : "", cat: p ? p.cat : "Grocery", brand: p ? p.brand : "No brand",
+      type: p && p.weighed ? "weighed" : "stocked", tax: p ? p.tax : "std", active: p ? p.active : true,
+      wholesale: p ? (p.wholesale / 100).toFixed(2) : "", cost: p ? (p.cost / 100).toFixed(2) : "", offer: p && p.offer ? String(p.offer) : "",
+      newPrice: p ? p.newPrice : "", newFrom: p ? p.newFrom : "", reorder: p ? String(p.reorder) : "5",
+      variants: p ? p.variants.map(v => ({ label: v.label, sku: v.sku, barcode: v.barcode, price: (v.price / 100).toFixed(2) })) : [{ label: "", sku: "", barcode: "", price: "" }],
+      drug: p && p.drug ? { ...p.drug } : { generic: "", strength: "", form: "Tablet", schedule: "OTC" } };
+  }
+  const peDirty = () => S.pe && JSON.stringify(S.pe.draft) !== JSON.stringify(draftFrom(S.pe.draft.id ? byId(S.pe.draft.id) : null));
+  function peErrors(d) {
+    const e = {};
+    if (!d.name.trim()) e.name = "The product name is required";
+    const codes = d.variants.map(v => v.barcode.trim());
+    d.variants.forEach((v, i) => {
+      const c = v.barcode.trim();
+      if (!v.label.trim()) e["vl" + i] = "Required";
+      if (!(parseFloat(v.price) > 0)) e["vp" + i] = "Above 0";
+      if (c) {
+        if (!/^\d{8,14}$/.test(c)) e["bc" + i] = "Use 8 to 14 digits";
+        else if (codes.indexOf(c) !== i) e["bc" + i] = "Used twice in this product";
+        else { const o = PRODUCTS.find(p => p.id !== d.id && p.variants.some(x => x.barcode === c)); if (o) e["bc" + i] = `Already used by ${o.name}`; }
+      }
+    });
+    if (d.cat === "Pharmacy" && !d.drug.generic.trim()) e.generic = "The generic name is required for pharmacy items";
+    if (d.newPrice && !d.newFrom) e.newFrom = "Choose the date the new price starts";
+    if (d.newFrom && !(parseFloat(d.newPrice) > 0)) e.newPrice = "Enter the new price";
+    return e;
+  }
+  function openProduct(id) { const p = id ? byId(id) : null; S.pe = { tab: "general", draft: draftFrom(p), showErr: false }; S.view = "product"; render(); if (!p) focusId("pe-name"); }
+  function peSave() {
+    const pe = S.pe, d = pe.draft, e = peErrors(d);
+    if (Object.keys(e).length) { pe.showErr = true; const first = Object.keys(e)[0]; pe.tab = first === "name" ? "general" : first === "generic" ? "pharmacy" : /^(bc|vl|vp)/.test(first) ? "variants" : "prices"; render(); toast(e[first], { error: true }); return; }
+    let p = d.id ? byId(d.id) : null; const isNew = !p;
+    if (!p) { const [icon, tone] = TONES[d.cat] || ["package", "purple"]; p = { id: "n" + (uid++), stock: 0, icon, tone, log: [] }; PRODUCTS.push(p); }
+    const before = isNew ? null : { name: p.name, price: p.price, cat: p.cat, offer: p.offer || 0, active: p.active };
+    const v0 = d.variants[0];
+    Object.assign(p, { name: d.name.trim(), nameSi: d.nameSi.trim(), nameTa: d.nameTa.trim(), cat: d.cat, brand: d.brand, weighed: d.type === "weighed", tax: d.tax, active: d.active,
+      price: Math.round(parseFloat(v0.price) * 100), wholesale: Math.round((parseFloat(d.wholesale) || 0) * 100), cost: Math.round((parseFloat(d.cost) || 0) * 100), offer: parseInt(d.offer, 10) || 0,
+      newPrice: d.newPrice, newFrom: d.newFrom, reorder: parseInt(d.reorder, 10) || 0,
+      variants: d.variants.map(v => ({ label: v.label.trim(), sku: v.sku.trim(), barcode: v.barcode.trim(), price: Math.round(parseFloat(v.price) * 100) })),
+      code: v0.barcode.trim() || p.code || ("20" + String(Date.now()).slice(-11)), sku: v0.sku.trim() || p.sku || "", meta: `${v0.label.trim()}${v0.sku.trim() ? " · " + v0.sku.trim() : ""}`,
+      drug: d.cat === "Pharmacy" ? { ...d.drug } : null, rx: d.cat === "Pharmacy" && d.drug.schedule === "Rx", updated: new Date() });
+    if (p.offer) p.badge = ["warning", `Offer −${p.offer}%`, "tag"];
+    else if (p.badge && p.badge[1].startsWith("Offer")) p.badge = null;
+    if (p.rx && !p.badge) p.badge = ["info", "Rx", "note"];
+    const what = isNew ? "Product created" : [before.name !== p.name ? `Renamed from “${before.name}”` : "", before.price !== p.price ? `Price ${fmt(before.price)} → ${fmt(p.price)}` : "", before.cat !== p.cat ? `Moved to ${p.cat}` : "", before.offer !== p.offer ? (p.offer ? `Offer −${p.offer}%` : "Offer removed") : "", before.active !== p.active ? (p.active ? "Restored" : "Archived") : ""].filter(Boolean).join(" · ") || "Details updated";
+    p.log.unshift({ when: new Date(), who: `${S.user.short} ${S.user.name.split(" ")[1][0]}.`, what });
+    S.pe = { tab: pe.tab, draft: draftFrom(p), showErr: false };
+    render(); toast(isNew ? `${p.name} created · it's on the Sell screen now` : `${p.name} saved · registers update within a minute`);
+  }
+  function previewProduct(d) {
+    const [icon, tone] = d.id ? [byId(d.id).icon, byId(d.id).tone] : (TONES[d.cat] || ["package", "purple"]);
+    const offer = parseInt(d.offer, 10) || 0, v0 = d.variants[0];
+    return { id: "__preview", name: d.name || "Product name", cat: d.cat, meta: `${v0.label || "Size"}${v0.sku ? " · " + v0.sku : ""}`, price: Math.round((parseFloat(v0.price) || 0) * 100), icon, tone,
+      stock: d.id ? byId(d.id).stock : 0, weighed: d.type === "weighed", badge: offer ? ["warning", `Offer −${offer}%`, "tag"] : d.cat === "Pharmacy" && d.drug.schedule === "Rx" ? ["info", "Rx", "note"] : null };
+  }
+  function productEditor() {
+    const pe = S.pe, d = pe.draft, e = peErrors(d), p = d.id ? byId(d.id) : null, pharm = d.cat === "Pharmacy";
+    const err = k => (pe.showErr || /^bc/.test(k)) && e[k] ? `<span class="err">${esc(e[k])}</span>` : "";
+    const bad = k => (pe.showErr || /^bc/.test(k)) && e[k] ? "bad" : "";
+    const fld = (label, path, ph, extra = "") => `<label class="field">${label}<input data-pd="${path}" data-fid="pe-${path}" ${path === "name" ? 'id="pe-name"' : ""} class="${bad(path === "drug.generic" ? "generic" : path)}" value="${esc(getPath(d, path))}" placeholder="${esc(ph)}" ${extra}>${err(path === "drug.generic" ? "generic" : path)}</label>`;
+    const sel = (label, path, opts) => `<label class="field">${label}<select data-pd="${path}" data-fid="pe-${path}">${opts.map(([v, l]) => `<option value="${esc(v)}" ${getPath(d, path) === v ? "selected" : ""}>${esc(l)}</option>`).join("")}</select></label>`;
+    const seg = (path, opts) => `<div class="seg">${opts.map(([v, l]) => `<button data-act="pe-val" data-path="${path}" data-v="${v}" aria-pressed="${getPath(d, path) === v}">${l}</button>`).join("")}</div>`;
+    const tabErr = { general: ["name"], variants: Object.keys(e).filter(k => /^(bc|vl|vp)/.test(k)), prices: ["newFrom", "newPrice"], pharmacy: ["generic"] };
+    const tabs = [["general", "General"], ["variants", "Variants & barcodes"], ["prices", "Prices"], ["stock", "Stock & batches"], ...(pharm ? [["pharmacy", "Pharmacy"]] : []), ["history", "History"]];
+    if (!tabs.some(t => t[0] === pe.tab)) pe.tab = "general";
+    const retail = parseFloat(d.variants[0].price) || 0, cost = parseFloat(d.cost) || 0, margin = retail ? Math.round((retail - cost) / retail * 1000) / 10 : 0;
+    let body = "";
+    if (pe.tab === "general") body = `
+      <div class="card"><h2>Names</h2><div class="form-grid">
+        <div class="full">${fld("Name in English *", "name", "e.g. Milk powder 400g")}</div>
+        ${fld(`<span class="lang">සිංහල ${!d.nameSi ? badge("warning", "Missing", null) : ""}</span>`, "nameSi", "Sinhala name (optional)")}
+        ${fld(`<span class="lang">தமிழ் ${!d.nameTa ? badge("warning", "Missing", null) : ""}</span>`, "nameTa", "Tamil name (optional)")}
+        <div class="full note">${ic("help", 16)}Cashiers see the name in their own language. Search finds all three.</div></div></div>
+      <div class="card"><h2>Classification</h2><div class="form-grid">
+        ${sel("Category", "cat", CATS_ADMIN.map(c => [c, c]))}${sel("Brand", "brand", BRANDS.map(b => [b, b]))}
+        <div class="field">Item type${seg("type", [["stocked", "Stocked item"], ["weighed", "Weighed (kg)"], ["service", "Service"]])}</div>
+        ${sel("Tax", "tax", Object.entries(TAX))}
+        <div class="field full"><span>Status</span><label class="check-row" style="font-weight:500"><input type="checkbox" class="toggle" data-pd="active" data-fid="pe-active" ${d.active ? "checked" : ""}>${d.active ? "Active · can be sold" : "Archived · hidden from the register"}</label></div>
+        <div class="full note">${ic("package", 16)}${d.cat === "Pharmacy" || d.cat === "Dairy" ? "Batch and expiry are required when receiving this item." : "Batch tracking is optional for this category."}</div></div></div>`;
+    if (pe.tab === "variants") body = `
+      <div class="card"><div class="card-head"><h2>Variants &amp; barcodes</h2><button class="btn secondary s" data-act="pe-addv">${ic("plus", 16)}Add variant</button></div>
+        <div class="vt"><div class="vrow head"><span>Variant</span><span>SKU</span><span>Barcode</span><span>Price (Rs)</span><span></span></div>
+        ${d.variants.map((v, i) => `<div class="vrow"><div><input data-pd="variants.${i}.label" data-fid="pe-v${i}l" class="${bad("vl" + i)}" value="${esc(v.label)}" placeholder="e.g. 400 g">${err("vl" + i)}</div>
+          <input data-pd="variants.${i}.sku" data-fid="pe-v${i}s" value="${esc(v.sku)}" placeholder="SKU">
+          <div><input data-pd="variants.${i}.barcode" data-fid="pe-v${i}b" class="${bad("bc" + i)}" value="${esc(v.barcode)}" placeholder="EAN-13" inputmode="numeric">${err("bc" + i)}</div>
+          <div><input data-pd="variants.${i}.price" data-fid="pe-v${i}p" class="${bad("vp" + i)}" value="${esc(v.price)}" inputmode="decimal" placeholder="0.00">${err("vp" + i)}</div>
+          <button class="icon-btn" data-act="pe-delv" data-i="${i}" ${d.variants.length === 1 ? "disabled" : ""} aria-label="Remove variant">${ic("trash", 18)}</button></div>`).join("")}</div>
+        <div class="note">${ic("scan", 16)}Each variant is its own SKU with its own barcode. A barcode can belong to only one product (checked as you type).</div></div>
+      <div class="card"><h2>Pack units</h2><div class="dlines">${unitsFor({ weighed: d.type === "weighed", cat: d.cat }).map(u => `<div class="dline"><span class="grow"><b>${esc(u.l)}</b><small>${u.f === 1 ? "Base unit · stock is counted in this unit" : `= ${u.f} × base unit · used when receiving`}</small></span></div>`).join("")}</div></div>`;
+    if (pe.tab === "prices") body = `
+      <div class="card"><h2>Prices</h2><div class="form-grid">
+        <label class="field">Retail price (Rs) *<input data-pd="variants.0.price" data-fid="pe-retail" inputmode="decimal" value="${esc(d.variants[0].price)}" class="${bad("vp0")}">${err("vp0")}<span class="hint">Main variant · ${esc(d.variants[0].label || "—")}</span></label>
+        ${fld("Wholesale price (Rs)", "wholesale", "0.00", 'inputmode="decimal"')}
+        ${fld("Average cost (Rs)", "cost", "0.00", 'inputmode="decimal"')}
+        <div class="field">Gross margin<div class="${margin < 10 ? "diff short" : "diff zero"}" style="font-size:28px;line-height:44px">${margin}%</div></div>
+        ${fld("Offer (% off)", "offer", "e.g. 10", 'inputmode="numeric"')}
+        <div class="field"><span>&nbsp;</span><span class="hint">An offer shows on the product card and is applied automatically at the till.</span></div></div></div>
+      <div class="card"><h2>Scheduled price change</h2><div class="form-grid">
+        ${fld("New retail price (Rs)", "newPrice", "e.g. 1,200.00", 'inputmode="decimal"')}
+        <label class="field">Starts on<input type="date" data-pd="newFrom" data-fid="pe-newFrom" class="${bad("newFrom")}" value="${esc(d.newFrom)}">${err("newFrom")}</label>
+        <div class="full note">${ic("clock", 16)}${d.newFrom && d.newPrice ? `Registers switch to ${fmt(Math.round(parseFloat(d.newPrice) * 100))} at 00:00 on ${fmtExpIso(d.newFrom)} — even if they are offline.` : "Registers receive the change in advance and switch at midnight, even offline."}</div></div></div>`;
+    if (pe.tab === "stock") {
+      const lots = p ? [...(p.lots || []), ...(p.batches || []).filter(b => !(p.lots || []).some(x => x.id === b.id)).map(b => { const [m, y] = b.exp.split("/"); return { id: b.id, exp: `${y}-${m}-28`, qty: b.stock }; })] : [];
+      body = `<div class="card"><h2>Stock at CMB01</h2><div class="kpis2">
+          <div class="stat"><span>On hand</span><b>${p ? (p.weighed ? p.stock.toFixed(1) + " kg" : p.stock) : 0}</b></div>
+          <div class="stat"><span>Value at cost</span><b>${fmt(p ? Math.round(p.stock * p.cost) : 0)}</b></div>
+          <label class="stat" style="display:block"><span>Reorder level</span><input data-pd="reorder" data-fid="pe-reorder" inputmode="numeric" value="${esc(d.reorder)}" style="height:32px;width:100%;border:1px solid var(--border);border-radius:8px;padding:0 8px;margin-top:4px;background:var(--surface);color:var(--text);font:inherit;font-weight:700"></label></div>
+        ${p && p.stock <= (parseInt(d.reorder, 10) || 0) ? `<div class="banner">${ic("alert")}At or below the reorder level · included in the low-stock alert</div>` : ""}</div>
+        <div class="card"><div class="card-head"><h2>Batches</h2><button class="btn secondary s" data-act="nav" data-view="receiving">${ic("truck", 16)}Receive goods</button></div>
+          ${lots.length ? `<div class="dlines">${lots.map(b => { const x = expInfo(b.exp); return `<div class="dline"><span class="grow"><b>${esc(b.id)}</b><small>Expires ${fmtExpIso(b.exp)}</small></span>${x && x.tone ? badge(x.tone, x.label, "alert") : ""}<b>${b.qty}</b></div>`; }).join("")}</div>` : `<div class="sub">No batches recorded yet. Batches are created when goods are received.</div>`}</div>`;
+    }
+    if (pe.tab === "pharmacy") body = `
+      <div class="card"><h2>Drug information</h2><div class="form-grid">
+        ${fld("Generic name *", "drug.generic", "e.g. Paracetamol")}${fld("Strength", "drug.strength", "e.g. 500 mg")}
+        ${sel("Form", "drug.form", ["Tablet", "Capsule", "Syrup", "Injection", "Cream", "Drops", "Inhaler"].map(x => [x, x]))}
+        <div class="field">Schedule${seg("drug.schedule", [["OTC", "Over the counter"], ["Rx", "Prescription (Rx)"]])}</div>
+        <div class="full note">${ic("note", 16)}${d.drug.schedule === "Rx" ? "The register asks for prescription details and a pharmacist PIN before completing the sale." : "Can be sold without a prescription."} Generic-name search lets the pharmacist offer cheaper brands.</div></div></div>`;
+    if (pe.tab === "history") body = `<div class="card"><h2>Change history</h2>${p ? `<div class="timeline">${p.log.map(x => `<div><span><b>${esc(x.what)}</b><small>${x.when.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}, ${hm(x.when)} · ${esc(x.who)}</small></span></div>`).join("")}</div>` : `<div class="sub">History starts when the product is saved.</div>`}<div class="note">${ic("lock", 16)}Every change is kept in the audit log.</div></div>`;
+    const prev = previewProduct(d);
+    const side = `<aside style="display:flex;flex-direction:column;gap:16px">
+      <div class="card"><h2>On the register</h2><div style="max-width:220px;pointer-events:none">${productCard(prev).replace('data-act="card"', "").replace('tabindex="0"', "")}</div><div class="sub" style="font-size:13px">Updates as you type.</div></div>
+      <div class="card"><h2>Image</h2><div class="img-drop"><span class="thumb tile-${prev.tone}">${ic(prev.icon, 48)}</span>Drop a photo here or click to upload<br><span class="hint">JPG or PNG, square, at least 600 px</span></div></div>
+    </aside>`;
+    return `<div class="editor">
+      <div class="etabs" role="tablist">${tabs.map(([k, l]) => `<button role="tab" data-act="pe-tab" data-tab="${k}" aria-selected="${pe.tab === k}">${l}${(tabErr[k] || []).some(x => e[x] && (pe.showErr || /^bc/.test(x))) ? '<span class="dot" aria-label="has errors"></span>' : ""}</button>`).join("")}</div>
+      <div class="ebody"><div style="display:flex;flex-direction:column;gap:16px;min-width:0">${body}</div>${side}</div>
+      <div class="save-bar"><span class="sub">${peDirty() ? "You have unsaved changes" : p ? `Saved · last change ${p.updated.toLocaleDateString("en-GB", { day: "numeric", month: "short" })}` : "New product · not saved yet"}</span>
+        <button class="btn ghost" data-act="p-back">Cancel</button>
+        ${p ? `<button class="btn secondary" data-act="pe-archive">${p.active ? "Archive" : "Restore"}</button>` : ""}
+        <button class="btn primary" data-act="pe-save" ${peDirty() || !p ? "" : "disabled"}>${ic("check")}${p ? "Save" : "Create product"} <kbd>Ctrl S</kbd></button></div>
+    </div>`;
+  }
+  function leaveEditor(to) {
+    if (peDirty()) { openModal({ type: "leave", to }); return; }
+    S.pe = null; S.view = to; render();
+  }
+
   // ---------- Render: main ----------
   function render() {
     const fid = document.activeElement && document.activeElement.dataset ? document.activeElement.dataset.fid : null;
@@ -1222,6 +1435,8 @@ Yesterday 09:15  SYNC-003 Catalog cursor too old · catalog snapshot downloaded<
     if (S.view === "sell") main = topbar(t("sell"), null, `<span class="badge hide-t">${ic("store", 14)}CMB01 · Register 2</span>`) + `<div class="body">${productArea()}${orderPanel()}</div>${sheet ? `<button class="fab" data-act="camera" title="Scan with camera">${ic("camera", 24)}</button>` : ""}`;
     else if (S.view === "complete") main = topbar("Sale complete", null) + completeView();
     else if (S.view === "returns") main = topbar(t("returns"), S.ret.done ? "Refund recorded" : S.ret.sale ? "Choose the items the customer is bringing back" : "Find the original sale") + returnsView();
+    else if (S.view === "products") main = topbar(t("products"), "Catalog · 1,248 products in the real catalog") + productsView();
+    else if (S.view === "product") main = topbar(S.pe.draft.id ? (byId(S.pe.draft.id).name) : "New product", `Catalog › Products › ${S.pe.draft.id ? esc(byId(S.pe.draft.id).sku) : "new"}`) + productEditor();
     else if (S.view === "status") main = topbar("Status & diagnostics", "Register CMB01 · R02 · device WIN-CMB01-02") + statusView();
     else if (S.view === "settings") main = topbar("Register settings", "These settings apply to this register only") + settingsView();
     else if (S.view === "receiving") main = topbar("Receive goods", S.grn.posted ? "Receipt posted" : `${esc(S.user.name)} · CMB01 · scan each item of the delivery`) + receivingView();
@@ -1314,6 +1529,9 @@ Yesterday 09:15  SYNC-003 Catalog cursor too old · catalog snapshot downloaded<
       return;
     } else if (m.type === "cash") {
       h = cashModal(m, head);
+    } else if (m.type === "leave") {
+      h = `<div class="modal" role="dialog" aria-modal="true" aria-labelledby="mt" style="width:min(440px,100%)">${head("Discard unsaved changes?", "Your edits to this product have not been saved.")}
+        <div style="display:flex;gap:8px;justify-content:flex-end"><button class="btn secondary" data-act="close">Keep editing</button><button class="btn danger" data-act="leave-ok">Discard changes</button></div></div>`;
     } else if (m.type === "resync") {
       const steps = ["Send sales waiting on this register", "Download the catalog snapshot (9,412 products)", "Apply prices, batches and tax rates", "Update staff, PINs and settings", "Check the local database"];
       const at = Math.min(steps.length - 1, Math.floor(m.progress / (100 / steps.length)));
@@ -1347,6 +1565,8 @@ Yesterday 09:15  SYNC-003 Catalog cursor too old · catalog snapshot downloaded<
     if (a === "overlay" && e.target !== el) return; // clicks inside the modal
     switch (a) {
       case "nav": { const v = el.dataset.view;
+        if (S.view === "product" && peDirty()) { openModal({ type: "leave", to: v }); break; }
+        if (S.view === "product") S.pe = null;
         if (v === "cash" && S.cs.step === 3) resetCs();
         if (v === "returns" && S.ret.done) S.ret = emptyRet();
         S.view = v === "sell" && !S.shifts[S.user.id] ? "openshift" : v; S.modal = null; renderModal(); render();
@@ -1360,6 +1580,22 @@ Yesterday 09:15  SYNC-003 Catalog cursor too old · catalog snapshot downloaded<
       case "pc-pick": S.pc.pid = el.dataset.pid; S.pc.error = ""; render(); break;
       case "pc-clear": S.pc.pid = null; S.pc.error = ""; S.pc.query = ""; render(); focusId("pcsearch"); break;
       case "pc-add": { const p = byId(S.pc.pid); if (!p) break; if (!S.shifts[S.user.id]) { S.view = "openshift"; render(); toast("Open a shift first", { error: true }); break; } S.view = "sell"; render(); addProduct(p); break; }
+      case "p-new": openProduct(null); break;
+      case "p-open": openProduct(el.dataset.id); break;
+      case "p-pick": { e.stopPropagation(); const id = el.dataset.id, f = S.prod; f.picked = f.picked.includes(id) ? f.picked.filter(x => x !== id) : [...f.picked, id]; render(); break; }
+      case "p-pickall": { const ids = prodList().map(p => p.id); S.prod.picked = S.prod.picked.length >= ids.length ? [] : ids; render(); break; }
+      case "p-unpick": S.prod.picked = []; render(); break;
+      case "p-bulk-archive": { const arch = S.prod.status !== "archived"; let n = 0; for (const id of S.prod.picked) { const p = byId(id); if (p && p.active === arch) { p.active = !arch; p.updated = new Date(); p.log.unshift({ when: new Date(), who: `${S.user.short} ${S.user.name.split(" ")[1][0]}.`, what: arch ? "Archived (bulk)" : "Restored (bulk)" }); n++; } } S.prod.picked = []; render(); toast(`${n} product${n === 1 ? "" : "s"} ${arch ? "archived · hidden from the register" : "restored"}`); break; }
+      case "pf-low": S.prod.low = !S.prod.low; render(); break;
+      case "pf-missing": S.prod.missing = !S.prod.missing; render(); break;
+      case "pe-tab": S.pe.tab = el.dataset.tab; render(); break;
+      case "pe-val": setPath(S.pe.draft, el.dataset.path, el.dataset.v); render(); break;
+      case "pe-addv": S.pe.draft.variants.push({ label: "", sku: "", barcode: "", price: S.pe.draft.variants[0].price }); render(); focusId(""); setTimeout(() => { const x = app.querySelector(`[data-fid="pe-v${S.pe.draft.variants.length - 1}l"]`); if (x) x.focus(); }); break;
+      case "pe-delv": if (S.pe.draft.variants.length > 1) { S.pe.draft.variants.splice(i, 1); render(); } break;
+      case "pe-save": peSave(); break;
+      case "pe-archive": S.pe.draft.active = !S.pe.draft.active; peSave(); break;
+      case "p-back": leaveEditor("products"); break;
+      case "leave-ok": { const to = S.modal.to; S.modal = null; renderModal(); S.pe = null; S.view = to; render(); break; }
       case "st-test": { const what = el.dataset.what; S.diag.testing = what; render(); setTimeout(() => { S.diag.testing = null; render(); toast(S.offline ? "Connection test failed · no internet. Selling continues offline." : "Connection OK · 38 ms · server time matches", { error: S.offline }); }, 900); break; }
       case "st-sync": if (S.offline) { toast("No connection · sales stay safe on this register", { error: true }); break; } S.history.forEach(s => { if (s.sync === "waiting") s.sync = "synced"; }); S.waiting = 0; S.diag.lastPush = S.diag.lastPull = new Date(); render(); toast(`Sync complete${S.history.some(s => s.sync === "error") ? " · 1 blocked item needs attention" : " · nothing waiting"}`); break;
       case "st-requeue": { const s = S.history.find(x => x.no === el.dataset.no); if (s) { s.sync = S.offline ? "waiting" : "synced"; s.syncError = null; render(); toast(S.offline ? "Requeued · will send when online" : `${s.no} sent`); } break; }
@@ -1472,6 +1708,14 @@ Yesterday 09:15  SYNC-003 Catalog cursor too old · catalog snapshot downloaded<
     if (e.target.id === "rsearch") { S.ret.query = e.target.value; S.ret.error = ""; }
     if (e.target.id === "hsearch") { S.hist.q = e.target.value; render(); }
     if (e.target.dataset && e.target.dataset.set) { setPath(S.devDraft, e.target.dataset.set, e.target.type === "checkbox" ? e.target.checked : e.target.value); render(); }
+    if (e.target.dataset && e.target.dataset.pd && S.pe) { setPath(S.pe.draft, e.target.dataset.pd, e.target.type === "checkbox" ? e.target.checked : e.target.value); render(); }
+    if (e.target.dataset && e.target.dataset.pf) { S.prod[e.target.dataset.pf] = e.target.value; S.prod.picked = []; render(); }
+    if (e.target.id === "psearch") { S.prod.q = e.target.value; render(); }
+    if (e.target.dataset && e.target.dataset.actChange === "p-bulk-cat" && e.target.value) {
+      const cat = e.target.value, n = S.prod.picked.length;
+      for (const id of S.prod.picked) { const p = byId(id); if (p) { p.cat = cat; p.updated = new Date(); p.log.unshift({ when: new Date(), who: `${S.user.short} ${S.user.name.split(" ")[1][0]}.`, what: `Moved to ${cat} (bulk)` }); } }
+      S.prod.picked = []; render(); toast(`${n} product${n === 1 ? "" : "s"} moved to ${cat}`);
+    }
     if (e.target.id === "gsearch") { S.grn.query = e.target.value; S.grn.error = ""; }
     if (e.target.id === "pcsearch") { S.pc.query = e.target.value; S.pc.error = ""; }
     if (e.target.dataset && e.target.dataset.g) { S.grn[e.target.dataset.g] = e.target.value; render(); }
@@ -1611,6 +1855,25 @@ Yesterday 09:15  SYNC-003 Catalog cursor too old · catalog snapshot downloaded<
       if ((e.ctrlKey || e.metaKey) && k.toLowerCase() === "s") { e.preventDefault(); saveSettings(); }
       return;
     }
+    if (S.view === "product") {
+      if ((e.ctrlKey || e.metaKey) && k.toLowerCase() === "s") { e.preventDefault(); peSave(); return; }
+      if (k === "Escape" && !inInput) { leaveEditor("products"); }
+      return;
+    }
+    if (S.view === "products") {
+      if (e.target.id === "psearch") { if (k === "ArrowDown" || k === "Enter") { e.preventDefault(); const r = app.querySelector(".prow[data-id]"); if (r) r.focus(); } if (k === "Escape") { S.prod.q = ""; render(); focusId("psearch"); } return; }
+      if (inInput || e.target.tagName === "SELECT") return;
+      const row = e.target.closest && e.target.closest(".prow[data-id]");
+      if (row) {
+        const rows = [...app.querySelectorAll(".prow[data-id]")], ix = rows.indexOf(row);
+        if (k === "ArrowDown" || k === "ArrowUp") { e.preventDefault(); const n = rows[ix + (k === "ArrowDown" ? 1 : -1)]; if (n) n.focus(); else if (k === "ArrowUp") focusId("psearch"); return; }
+        if (k === "Enter") { e.preventDefault(); openProduct(row.dataset.id); return; }
+        if (k === " ") { e.preventDefault(); const id = row.dataset.id, f = S.prod; f.picked = f.picked.includes(id) ? f.picked.filter(x => x !== id) : [...f.picked, id]; render(); return; }
+      }
+      if (k === "/") { e.preventDefault(); focusId("psearch"); return; }
+      if (k === "n" || k === "N") { e.preventDefault(); openProduct(null); return; }
+      return;
+    }
     if (S.view === "status") return;
     if (S.view === "receiving") {
       const g = S.grn;
@@ -1724,7 +1987,8 @@ Yesterday 09:15  SYNC-003 Catalog cursor too old · catalog snapshot downloaded<
   let rz; window.addEventListener("resize", () => { clearTimeout(rz); rz = setTimeout(render, 120); });
   if (S.theme) document.documentElement.dataset.theme = S.theme;
   const hash = location.hash.replace("#", "");
-  if (["sell", "dashboard", "signin", "openshift", "returns", "cash", "orders", "receiving", "pricecheck", "status", "settings"].includes(hash)) S.view = hash;
+  if (["sell", "dashboard", "signin", "openshift", "returns", "cash", "orders", "receiving", "pricecheck", "status", "settings", "products"].includes(hash)) S.view = hash;
+  if (hash === "products") S.user = USERS[3]; // Malini, manager
   if (hash === "receiving") S.user = USERS[4]; // Kasun, stock keeper
   if (hash === "openshift") { S.user = USERS[1]; }            // Nimal has no open shift yet
   if (hash === "signin") { S.su.sel = 1; }
