@@ -91,17 +91,36 @@
   const daysAgo = (d, h = 10, m = 0) => { const x = new Date(); x.setDate(x.getDate() - d); x.setHours(h, m, 0, 0); return x; };
   // Earlier sales on this branch, used by Returns (R-13). Lines keep the price/discount/batch snapshot (INV-10).
   const SEED_SALES = [
-    { no: "CMB01-R02-000154", date: daysAgo(0, 9, 42), customer: 1, method: "cash", cashier: "Sachini K.", taxInvoice: "CMB01-R02-TI-000031",
+    { no: "CMB01-R02-000154", date: daysAgo(0, 10, 58), customer: 1, method: "cash", cashier: "Sachini K.", taxInvoice: "CMB01-R02-TI-000031",
       lines: [{ pid: "pc", qty: 2, unit: 3200, batch: "B2", exp: "09/2027", disc: 0, returned: 0 }, { pid: "br", qty: 1, unit: 325000, disc: 0, returned: 0 },
               { pid: "mp", qty: 2, unit: 115000, disc: 10, returned: 1 }, { pid: "sh", qty: 1, unit: 109000, disc: 0, returned: 0 }] },
-    { no: "CMB01-R02-000150", date: daysAgo(0, 8, 15), customer: 0, method: "card", cashier: "Sachini K.",
+    { no: "CMB01-R02-000150", date: daysAgo(0, 9, 40), customer: 0, method: "card", cashier: "Sachini K.",
       lines: [{ pid: "ct", qty: 1, unit: 76000, disc: 0, returned: 0 }, { pid: "bw", qty: 6, unit: 14000, disc: 0, returned: 0 }] },
     { no: "CMB01-R02-000139", date: daysAgo(2, 17, 5), customer: 2, method: "qr", cashier: "Nimal P.",
       lines: [{ pid: "am", qty: 1, unit: 45000, disc: 0, returned: 0 }, { pid: "tp", qty: 2, unit: 38000, disc: 0, returned: 0 }] },
     { no: "CMB01-R01-000098", date: daysAgo(23, 11, 30), customer: 3, method: "cash", cashier: "Anushka D.",
       lines: [{ pid: "eg", qty: 2, unit: 65000, disc: 0, returned: 0 }, { pid: "cc", qty: 1, unit: 52000, disc: 0, returned: 0 }] }
   ];
-  const newShift = float => ({ float, start: Date.now(), cashSales: 0, cardSales: 0, qrSales: 0, creditSales: 0, refunds: 0, cashIn: 0, cashOut: 0, count: 0 });
+  // More of today's trading on both registers (Sales history, R-14)
+  const mkSale = (no, d, cashier, method, items, x = {}) => ({ no, date: d, customer: x.customer || 0, method, cashier, sync: x.sync, syncError: x.syncError, taxInvoice: x.taxInvoice || null,
+    lines: items.map(([pid, qty, batch]) => { const p = PRODUCTS.find(y => y.id === pid); const b = batch && p.batches ? p.batches.find(y => y.id === batch) : null;
+      return { pid, qty, unit: b ? b.price : p.price, batch: b ? b.id : null, exp: b ? b.exp : null, disc: p.offer || 0, returned: 0 }; }) });
+  SEED_SALES.push(
+    mkSale("CMB01-R02-000153", daysAgo(0, 10, 41), "Sachini K.", "cash", [["eg", 1], ["br", 1]]),
+    mkSale("CMB01-R02-000152", daysAgo(0, 10, 20), "Sachini K.", "card", [["mp", 1], ["tp", 1]]),
+    mkSale("CMB01-R02-000151", daysAgo(0, 9, 58), "Sachini K.", "qr", [["ct", 2]], { customer: 2 }),
+    mkSale("CMB01-R02-000149", daysAgo(0, 9, 12), "Sachini K.", "cash", [["pc", 3, "B2"], ["bw", 1]]),
+    mkSale("CMB01-R02-000148", daysAgo(0, 8, 50), "Sachini K.", "credit", [["br", 2], ["cc", 2]], { customer: 1, taxInvoice: "CMB01-R02-TI-000030" }),
+    mkSale("CMB01-R02-000147", daysAgo(0, 8, 31), "Sachini K.", "cash", [["sh", 1]], { sync: "error", syncError: "SALE-005 · Rejected by the server: price list version not found. Support has been notified; retrying is safe." }),
+    mkSale("CMB01-R02-000146", daysAgo(0, 8, 12), "Sachini K.", "cash", [["eg", 2], ["bw", 4]]),
+    mkSale("CMB01-R01-000231", daysAgo(0, 10, 52), "Anushka D.", "cash", [["cc", 3]]),
+    mkSale("CMB01-R01-000230", daysAgo(0, 10, 40), "Anushka D.", "card", [["am", 1]], { customer: 3 }),
+    mkSale("CMB01-R01-000229", daysAgo(0, 10, 5), "Anushka D.", "cash", [["tp", 2], ["sh", 1]]),
+    mkSale("CMB01-R01-000228", daysAgo(0, 9, 30), "Anushka D.", "qr", [["ct", 1], ["mp", 1]]),
+    mkSale("CMB01-R02-000138", daysAgo(1, 17, 40), "Nimal P.", "cash", [["br", 1], ["eg", 1]]),
+    mkSale("CMB01-R01-000214", daysAgo(1, 15, 12), "Anushka D.", "card", [["mp", 2]], { customer: 1 })
+  );
+  const newShift = float => ({ float, start: Date.now(), cashSales: 0, cardSales: 0, qrSales: 0, creditSales: 0, refunds: 0, cashIn: 0, cashOut: 0, count: 0, moves: [] });
   const DISCOUNT_LIMIT = 10; // cashier limit in %, BR-01
   const MANAGER_PIN = "1234";
   const byId = id => PRODUCTS.find(p => p.id === id);
@@ -139,7 +158,9 @@
     history: null,                                                 // sales on this branch (filled below)
     ret: { query: "", sale: null, qty: {}, reason: "", pin: "", error: "", done: null }, retSeq: 12
   };
-  S.history = SEED_SALES.map(s => ({ ...s, customer: CUSTOMERS[s.customer], lines: s.lines.map(l => ({ ...l })) }));
+  S.history = SEED_SALES.map(s => ({ sync: "synced", ...s, sync: s.sync || "synced", customer: CUSTOMERS[s.customer], lines: s.lines.map(l => ({ ...l })) })).sort((a, b) => b.date - a.date);
+  S.shifts.sk.moves = [{ kind: "out", amount: 150000, reason: "Petty cash: transport", note: "Three-wheeler for delivery", time: daysAgo(0, 9, 20), by: "Sachini K." }];
+  S.hist = { scope: "register", period: "today", status: "all", q: "", sel: null };
 
   // ---------- Money ----------
   const lineGross = l => Math.round(l.qty * l.unit);
@@ -246,7 +267,7 @@
     const tt = totals();
     S.last = { no: `CMB01-R02-${String(S.seq).padStart(6, "0")}`, cart: S.cart, t: tt, method: S.pay.method, paid: S.pay.method === "cash" ? payAmount() : tt.net, customer: S.customer, time: new Date() };
     S.seq++; if (S.offline) S.waiting++;
-    S.history.unshift({ no: S.last.no, date: S.last.time, customer: S.customer, method: S.pay.method, cashier: S.user.short + " " + S.user.name.split(" ")[1][0] + ".",
+    S.history.unshift({ no: S.last.no, date: S.last.time, customer: S.customer, method: S.pay.method, cashier: S.user.short + " " + S.user.name.split(" ")[1][0] + ".", sync: S.offline ? "waiting" : "synced",
       taxInvoice: S.pay.taxInvoice ? S.last.no.replace(/-(\d+)$/, "-TI-$1") : null, lines: S.cart.map(l => ({ pid: l.pid, qty: l.qty, unit: l.unit, batch: l.batch, exp: l.exp, disc: l.disc, returned: 0 })) });
     const sh = S.shifts[S.user.id];
     if (sh) { sh.count++; const key = { cash: "cashSales", card: "cardSales", qr: "qrSales", credit: "creditSales" }[S.pay.method]; if (key) sh[key] += tt.net; }
@@ -361,7 +382,7 @@
         <div class="total"><span>${esc(t("total"))}</span><span>${fmt(tt.net)}</span></div></div></div>
       <div class="payrow"><button class="select" data-act="pay">${ic("wallet", 18)}Cash${ic("chevDown", 16)}</button><label class="voucher">${ic("tag", 18)}<input placeholder="Voucher" aria-label="Voucher code" data-fid="voucher"></label><button class="btn secondary s" data-act="voucher" style="height:44px">Apply</button></div>
       <div class="order-foot"><button class="btn primary l block" data-act="pay" ${tt.count && S.mode === "sale" ? "" : "disabled"}>${esc(t("charge"))} ${fmt(tt.net)} ${ic("arrowRight")}<kbd>F10</kbd></button>
-        <div class="two"><button class="btn secondary" data-act="hold">${esc(t("hold"))} <kbd>F6</kbd></button><button class="btn secondary" data-act="discount">${esc(t("discount"))} <kbd>F5</kbd></button></div></div>
+        <div class="two"><button class="btn secondary" data-act="hold">${esc(t("hold"))} <kbd>F6</kbd></button><button class="btn secondary" data-act="discount">${esc(t("discount"))} <kbd>F5</kbd></button><button class="btn secondary" data-act="cash-move" title="Cash in / out">${ic("wallet", 18)}<kbd>F9</kbd></button></div></div>
     </aside>`;
   }
 
@@ -666,6 +687,7 @@
           <div class="blind">${ic("lock", 22)}Expected amount and difference appear after you confirm the count.</div>
           <dl class="kv"><dt>Cashier</dt><dd>${esc(S.user.name)}</dd><dt>Shift started</dt><dd>${new Date(sh.start).toTimeString().slice(0, 5)} · ${shiftLabel().replace("Shift ", "")}</dd><dt>Sales</dt><dd>${sh.count}</dd></dl>
           <button class="btn primary l block" data-act="cs-confirm" ${counted > 0 && !blockers.length ? "" : "disabled"}>Confirm count ${ic("arrowRight")}<kbd>Enter</kbd></button>
+          <button class="btn secondary block" data-act="cash-move">${ic("wallet", 18)}Cash in / out first <kbd>F9</kbd></button>
           <button class="btn ghost block" data-act="nav" data-view="sell">Cancel · back to Sell</button></aside></div>`;
     }
     const big = Math.abs(diff) > CS_THRESHOLD;
@@ -719,6 +741,117 @@
     </section><aside class="receipt-panel" aria-label="Z-report preview"><div class="head"><span>Z-report</span>${badge("", "80 mm", null)}</div><div class="paper">${esc(zText(z))}</div></aside></div>`;
   }
 
+  // ---------- Sales history (R-14) ----------
+  const dayDiff = d => { const a = new Date(); a.setHours(0, 0, 0, 0); const b = new Date(d); b.setHours(0, 0, 0, 0); return Math.round((a - b) / 86400000); };
+  const retState = s => { const sold = s.lines.reduce((a, l) => a + l.qty, 0), ret = s.lines.reduce((a, l) => a + l.returned, 0); return ret <= 0 ? null : ret >= sold ? "Returned" : "Part returned"; };
+  function histList() {
+    const h = S.hist, q = h.q.trim().toLowerCase();
+    return S.history.filter(s => {
+      if (h.scope === "register" && !s.no.includes("-R02-")) return false;
+      const dd = dayDiff(s.date);
+      if (h.period === "today" && dd !== 0) return false;
+      if (h.period === "yesterday" && dd !== 1) return false;
+      if (h.period === "week" && dd > 6) return false;
+      if (h.status === "waiting" && s.sync !== "waiting" && s.sync !== "error") return false;
+      if (h.status === "returns" && !retState(s)) return false;
+      if (q && !(s.no.toLowerCase().includes(q) || s.customer.name.toLowerCase().includes(q) || s.cashier.toLowerCase().includes(q))) return false;
+      return true;
+    });
+  }
+  const syncBadge = s => s.sync === "error" ? badge("error", "Not synced", "alert") : s.sync === "waiting" ? badge("warning", "Waiting", "wifiOff") : badge("success", "Synced", "cloudCheck");
+  function historyView() {
+    const h = S.hist, list = histList(), total = list.reduce((a, s) => a + saleTotal(s), 0);
+    const sel = list.find(s => s.no === h.sel) || null;
+    const chip = (act, v, cur, label) => `<button class="chip" data-act="${act}" data-v="${v}" aria-pressed="${cur === v}">${label}</button>`;
+    const errors = S.history.filter(s => s.sync === "error" || s.sync === "waiting").length;
+    const left = `<section class="products" aria-label="Sales">
+      <div class="search-row"><label class="search">${ic("search")}<span class="sr">Search sales</span><input id="hsearch" data-fid="hsearch" autocomplete="off" placeholder="Search receipt number, customer or cashier…" value="${esc(h.q)}"><kbd>/</kbd></label></div>
+      <div class="filters">
+        <div class="seg" role="group" aria-label="Register">${[["register", "This register (R02)"], ["branch", "Whole branch"]].map(([v, l]) => `<button data-act="h-scope" data-v="${v}" aria-pressed="${h.scope === v}">${l}</button>`).join("")}</div>
+        <div class="chips">${chip("h-period", "today", h.period, "Today")}${chip("h-period", "yesterday", h.period, "Yesterday")}${chip("h-period", "week", h.period, "Last 7 days")}</div>
+        <div class="chips">${chip("h-status", "all", h.status, "All")}${chip("h-status", "waiting", h.status, `Not synced${errors ? " · " + errors : ""}`)}${chip("h-status", "returns", h.status, "With returns")}</div>
+      </div>
+      <div class="stats"><div class="stat"><span>Sales</span><b>${list.length}</b></div><div class="stat"><span>Total</span><b>${fmt(total)}</b></div><div class="stat"><span>Average basket</span><b>${fmt(list.length ? Math.round(total / list.length) : 0)}</b></div></div>
+      ${list.length ? `<div class="htable" role="listbox" aria-label="Sales list">
+        <div class="hrow head" aria-hidden="true"><span>Time</span><span>Receipt</span><span class="c">Items</span><span class="m">Paid by</span><span class="amt">Total</span><span class="st">Status</span></div>
+        ${list.map(s => { const rs = retState(s); return `<button class="hrow" role="option" aria-selected="${s.no === h.sel}" data-act="h-sel" data-no="${s.no}">
+          <span class="t">${dayDiff(s.date) ? s.date.toLocaleDateString("en-GB", { day: "numeric", month: "short" }) : s.date.toTimeString().slice(0, 5)}</span>
+          <span class="no"><b>${s.no}</b><small>${esc(s.customer.name)} · ${esc(s.cashier)}</small></span><span class="c">${s.lines.length}</span>
+          <span class="m">${ic(METHOD[s.method][1], 16)}${METHOD[s.method][0]}</span><span class="amt">${fmt(saleTotal(s))}</span>
+          <span class="st">${rs ? badge("", rs, "undo") : ""}${syncBadge(s)}</span></button>`; }).join("")}</div>`
+        : `<div class="empty card"><span class="circle">${ic("receipt", 28)}</span><h3>No sales match</h3><span>Try another day, the whole branch, or clear the search.</span></div>`}
+    </section>`;
+    return `<div class="body">${left}${saleDetailPanel(sel)}</div>`;
+  }
+  function saleDetailPanel(s) {
+    if (!s) return `<aside class="order"><div class="empty" style="flex:1"><span class="circle">${ic("receipt", 28)}</span><h3>Select a sale</h3><span>Click a row, or use ↑ ↓. You can reprint the receipt, e-mail it, or start a return.</span></div></aside>`;
+    const gross = s.lines.reduce((a, l) => a + Math.round(l.qty * l.unit), 0), net = saleTotal(s), rs = retState(s);
+    return `<aside class="order" aria-label="Sale details">
+      <div class="order-head"><div class="order-title"><div style="flex:1"><h2>${s.no}</h2><div class="sub">${s.date.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })} · ${s.date.toTimeString().slice(0, 5)} · Register ${s.no.split("-")[1]}</div></div>${syncBadge(s)}</div>
+        <dl class="kv"><dt>Cashier</dt><dd>${esc(s.cashier)}</dd><dt>Customer</dt><dd>${esc(s.customer.name)}</dd><dt>Paid by</dt><dd>${METHOD[s.method][0]}</dd>${s.taxInvoice ? `<dt>Tax invoice</dt><dd>${s.taxInvoice}</dd>` : ""}${rs ? `<dt>Returns</dt><dd>${rs}</dd>` : ""}</dl>
+        ${s.sync === "error" ? `<div class="banner error" style="flex-wrap:wrap">${ic("alert")}<span style="flex:1;min-width:200px">${esc(s.syncError)}</span><button class="btn secondary" data-act="h-retry">Retry sync</button></div>` : s.sync === "waiting" ? `<div class="banner">${ic("wifiOff")}Saved on this register. It will sync when the connection is back.</div>` : ""}
+      </div>
+      <div class="panel-body"><div class="dlines">${s.lines.map(l => { const p = byId(l.pid), w = p.weighed; return `<div class="dline"><span class="thumb tile-${p.tone}">${ic(p.icon, 18)}</span><span class="grow"><b>${esc(p.name)}</b><small>${w ? l.qty.toFixed(3) + " kg" : l.qty} × ${fmt(l.unit)}${l.disc ? ` · −${l.disc}%` : ""}${l.batch ? ` · ${l.batch}` : ""}${l.returned ? ` · <span style="color:var(--warning-text)">${w ? "returned" : l.returned + " returned"}</span>` : ""}</small></span><b>${fmt(Math.round(l.qty * l.unit * (100 - l.disc) / 100))}</b></div>`; }).join("")}</div></div>
+      <div class="summary-wrap"><div class="summary"><div class="r"><span>Subtotal</span><b>${fmt(gross)}</b></div><div class="r disc"><span>Discount</span><b>${gross - net ? "−" : ""}${fmt(gross - net)}</b></div><div class="r"><span>VAT (incl. 18%)</span><b>${fmt(Math.round(net * 18 / 118))}</b></div><hr><div class="total"><span>Total</span><span>${fmt(net)}</span></div></div></div>
+      <div class="order-foot"><button class="btn primary l block" data-act="reprint">${ic("printer")}Reprint receipt <kbd>Ctrl P</kbd></button>
+        <div class="two"><button class="btn secondary" data-act="h-return" ${rs === "Returned" ? "disabled" : ""}>${ic("undo", 18)}Start return <kbd>R</kbd></button><button class="btn secondary" data-act="email">${ic("mail", 18)}E-mail</button></div></div>
+    </aside>`;
+  }
+  function histMove(d) {
+    const list = histList(); if (!list.length) return;
+    const i = list.findIndex(s => s.no === S.hist.sel);
+    S.hist.sel = list[Math.max(0, Math.min(list.length - 1, i < 0 ? 0 : i + d))].no; render();
+    const row = app.querySelector('.hrow[aria-selected="true"]'); if (row && row.scrollIntoView) row.scrollIntoView({ block: "nearest" });
+  }
+  function startReturnFrom(no) { const s = S.history.find(x => x.no === no); if (!s) return; S.ret = { ...emptyRet(), sale: s }; S.view = "returns"; render(); setTimeout(() => { const b = app.querySelector('[data-act="ret-inc"], [data-act="ret-toggle"]'); if (b) b.focus(); }); }
+
+  // ---------- Cash in / out (R-15) ----------
+  const CASH_OUT_LIMIT = 200000; // cash out above Rs 2,000 or any safe drop needs a manager
+  const CM_REASONS = { in: ["Float top-up", "Change from the bank", "Other"], out: ["Petty cash: transport", "Petty cash: cleaning", "Supplier paid on delivery", "Staff advance", "Other"], safe: ["Safe drop"] };
+  const CM_LABEL = { in: "Cash in", out: "Cash out", safe: "Safe drop" };
+  function openCashMove() {
+    if (!S.shifts[S.user.id]) { toast("Open a shift first", { error: true }); return; }
+    openModal({ type: "cash", kind: "out", amount: "", reason: "", note: "", stage: "amount", pin: "", pinErr: false });
+  }
+  const cmAmount = m => Math.round((parseFloat(m.amount || "0") || 0) * 100);
+  const cmNeedsMgr = m => S.user.role !== "Manager" && (m.kind === "safe" || (m.kind === "out" && cmAmount(m) > CASH_OUT_LIMIT));
+  function cashModal(m, head) {
+    const sh = S.shifts[S.user.id], drawer = expectedCash(sh), amt = cmAmount(m), mgr = cmNeedsMgr(m);
+    const over = m.kind !== "in" && amt > drawer;
+    const ok = amt > 0 && m.reason && !over;
+    const moves = (sh.moves || []).slice(0, 3);
+    return `<div class="modal" role="dialog" aria-modal="true" aria-labelledby="mt" style="width:min(560px,100%)">${head("Cash in / out", "Opens the drawer and is saved to the audit log")}
+      <div class="cm-kinds" role="group" aria-label="Type">${[["in", "Cash in", "plus"], ["out", "Cash out", "minus"], ["safe", "Safe drop", "lock"]].map(([k, l, i]) => `<button class="method" data-act="cm-kind" data-k="${k}" aria-pressed="${m.kind === k}">${ic(i, 20)}<span>${l}</span></button>`).join("")}</div>
+      <div class="drawer-now"><span>Cash in the drawer now (expected)</span><b>${fmt(drawer)}</b></div>
+      ${m.stage === "pin" ? `<div class="mgr"><div class="head">${ic("lock", 18)}Manager approval · ${CM_LABEL[m.kind]} ${fmt(amt)}</div>
+          <div class="pin-dots">${[0, 1, 2, 3].map(i => `<i class="${m.pin.length > i ? "on" : ""}"></i>`).join("")}</div>
+          <div class="keypad">${["1", "2", "3", "4", "5", "6", "7", "8", "9", "C", "0", "⌫"].map(k => `<button data-act="cm-pin" data-k="${k}" aria-label="${k === "⌫" ? "Backspace" : k === "C" ? "Clear" : k}">${k === "⌫" ? ic("backspace", 22) : k}</button>`).join("")}</div>
+          ${m.pinErr ? `<div class="scan-error" role="alert">${ic("alert", 16)}Wrong manager PIN</div>` : `<div class="note">Demo manager PIN: 1234 (Malini)</div>`}</div>
+          <div style="display:flex;gap:8px"><button class="btn secondary" data-act="cm-back" style="flex:1">Back</button><button class="btn primary" data-act="cm-submit" style="flex:2" ${m.pin.length === 4 ? "" : "disabled"}>Approve &amp; open drawer <kbd>Enter</kbd></button></div>`
+      : `<div class="big-amount">${fmt(amt)}<span class="caret"></span></div>
+        ${over ? `<div class="scan-error" role="alert">${ic("alert", 16)}More than the cash in the drawer (${fmt(drawer)})</div>` : ""}
+        <div class="field">Reason<div class="chips wrap">${CM_REASONS[m.kind].map(r => `<button class="chip" data-act="cm-reason" data-v="${esc(r)}" aria-pressed="${m.reason === r}">${esc(r)}</button>`).join("")}</div></div>
+        <label class="field">Note ${m.reason === "Other" ? "(required)" : "(optional)"}<input id="cmnote" data-fid="cmnote" value="${esc(m.note)}" placeholder="${m.kind === "out" ? "e.g. Three-wheeler for delivery" : m.kind === "safe" ? "e.g. Bag no. 0042" : "e.g. Rs 100 notes from the bank"}"></label>
+        <div class="keypad">${["1", "2", "3", "4", "5", "6", "7", "8", "9", "00", "0", "⌫"].map(k => `<button data-act="cm-key" data-k="${k}" aria-label="${k === "⌫" ? "Backspace" : k}">${k === "⌫" ? ic("backspace", 24) : k}</button>`).join("")}</div>
+        ${mgr && amt ? `<div class="note">${ic("lock", 16)}${m.kind === "safe" ? "Safe drops need" : "Cash out above " + fmt(CASH_OUT_LIMIT) + " needs"} a manager PIN</div>` : ""}
+        <button class="btn primary l block" data-act="cm-submit" ${ok && (m.reason !== "Other" || m.note.trim()) ? "" : "disabled"}>${ic(mgr ? "lock" : "check")}${mgr ? "Continue to approval" : "Open drawer & record"} <kbd>Enter</kbd></button>`}
+      ${moves.length ? `<div class="field">Earlier this shift<div class="moves">${moves.map(x => `<div>${ic(x.kind === "in" ? "plus" : x.kind === "safe" ? "lock" : "minus", 16)}${x.time.toTimeString().slice(0, 5)} · ${esc(x.reason)}${x.approver ? " · " + esc(x.approver) : ""}<b>${x.kind === "in" ? "+" : "−"}${fmt(x.amount)}</b></div>`).join("")}</div></div>` : ""}
+    </div>`;
+  }
+  function cmKey(k) { const m = S.modal; let v = m.amount || ""; if (k === "⌫") v = v.slice(0, -1); else if (v.length < 8) v = (v === "0" ? "" : v) + k; m.amount = v; renderModal(); }
+  function cmPin(k) { const m = S.modal; m.pinErr = false; if (k === "⌫") m.pin = m.pin.slice(0, -1); else if (k === "C") m.pin = ""; else if (m.pin.length < 4) m.pin += k; renderModal(); }
+  function cmSubmit() {
+    const m = S.modal, sh = S.shifts[S.user.id], amt = cmAmount(m);
+    if (!amt || !m.reason) { toast(!amt ? "Enter the amount" : "Choose a reason", { error: true }); return; }
+    if (m.reason === "Other" && !m.note.trim()) { toast("Add a note for “Other”", { error: true }); return; }
+    if (m.kind !== "in" && amt > expectedCash(sh)) { toast("More than the cash in the drawer", { error: true }); return; }
+    if (cmNeedsMgr(m) && m.stage !== "pin") { m.stage = "pin"; renderModal(); return; }
+    if (cmNeedsMgr(m) && m.pin !== MANAGER_PIN) { m.pin = ""; m.pinErr = true; renderModal(); return; }
+    if (m.kind === "in") sh.cashIn += amt; else sh.cashOut += amt;
+    sh.moves = sh.moves || []; sh.moves.unshift({ kind: m.kind, amount: amt, reason: m.reason, note: m.note, time: new Date(), by: S.user.short, approver: cmNeedsMgr(m) ? "Malini J." : null });
+    closeModal(); render(); toast(`Drawer opened · ${CM_LABEL[m.kind]} ${fmt(amt)} recorded`);
+  }
+
   // ---------- Render: main ----------
   function render() {
     const fid = document.activeElement && document.activeElement.dataset ? document.activeElement.dataset.fid : null;
@@ -737,6 +870,7 @@
     if (S.view === "sell") main = topbar(t("sell"), null, `<span class="badge hide-t">${ic("store", 14)}CMB01 · Register 2</span>`) + `<div class="body">${productArea()}${orderPanel()}</div>${sheet ? `<button class="fab" data-act="camera" title="Scan with camera">${ic("camera", 24)}</button>` : ""}`;
     else if (S.view === "complete") main = topbar("Sale complete", null) + completeView();
     else if (S.view === "returns") main = topbar(t("returns"), S.ret.done ? "Refund recorded" : S.ret.sale ? "Choose the items the customer is bringing back" : "Find the original sale") + returnsView();
+    else if (S.view === "orders") main = topbar("Sales history", "Receipts on this branch · reprint, e-mail or start a return") + historyView();
     else if (S.view === "cash") main = topbar("Close shift", `${S.user.name} · CMB01 · Register 2`) + closeShiftView();
     else if (S.view === "openshift") main = topbar(t("openShift"), `${greeting()}, ${S.user.short} · count the cash before you start selling`) + openShiftView();
     else if (S.view === "dashboard") main = topbar(t("overview"), "Thursday, 19 Nov 2026", `<span class="badge hide-t">${ic("store", 14)}All branches</span>`) + dashboard();
@@ -821,12 +955,20 @@
         <div style="margin-top:auto;display:flex;gap:8px"><button class="btn secondary" data-act="close" style="flex:1">Price check</button><button class="btn primary" data-act="qv-add" data-pid="${p.id}" style="flex:1" ${p.stock <= 0 ? "disabled" : ""}>Add to sale <kbd>Enter</kbd></button></div></aside>`;
       setTimeout(() => { const b = modalRoot.querySelector('[data-act="qv-add"]'); if (b) b.focus(); });
       return;
+    } else if (m.type === "cash") {
+      h = cashModal(m, head);
     } else if (m.type === "help") {
-      const sc = [["F2 or Ctrl K", "Search / scan"], ["Enter", "Add focused product"], ["Arrow keys", "Move between products"], ["Space", "Quick view"], ["↑ ↓ (cart)", "Select cart line"], ["+ / −", "Change quantity"], ["Del", "Remove line"], ["F3", "Customer"], ["F4", "Edit quantity / weight"], ["F5", "Discount"], ["F6 / F7", "Hold / recall bill"], ["F8", "Sale ↔ Return"], ["F10", "Pay"], ["Ctrl Z", "Undo"], ["Esc", "Close dialog"], ["3*", "Then scan: quantity 3"]];
+      const sc = [["F2 or Ctrl K", "Search / scan"], ["Enter", "Add focused product"], ["Arrow keys", "Move between products"], ["Space", "Quick view"], ["↑ ↓ (cart)", "Select cart line"], ["+ / −", "Change quantity"], ["Del", "Remove line"], ["F3", "Customer"], ["F4", "Edit quantity / weight"], ["F5", "Discount"], ["F6 / F7", "Hold / recall bill"], ["F8", "Returns"], ["F9", "Cash in / out"], ["F10", "Pay"], ["Ctrl Z", "Undo"], ["Esc", "Close dialog"], ["3*", "Then scan: quantity 3"]];
       h = `<div class="modal" role="dialog" aria-modal="true" aria-labelledby="mt" style="width:min(640px,100%)">${head("Keyboard shortcuts", "Everything also works with mouse and touch")}<div class="shortcuts">${sc.map(([k, v]) => `<div><span>${v}</span><kbd>${k}</kbd></div>`).join("")}</div><div class="note">${ic("scan", 16)}Demo barcodes: 4791111000011 (milk powder), 2012340012507 (carrots 1.250 kg), 0108901234567890B1 (paracetamol batch B1), 9999999999999 (unknown)</div></div>`;
     }
     modalRoot.innerHTML = `<div class="overlay" data-act="overlay">${h}</div>`;
-    setTimeout(() => { const f = modalRoot.querySelector("input[data-fid]") || modalRoot.querySelector(".btn.primary:not([disabled])") || modalRoot.querySelector(".opt"); if (f) f.focus(); });
+    setTimeout(() => {
+      if (m.type === "cash") { // keep focus on the dialog so number keys go to the amount / PIN, unless the note is being typed
+        const ae = document.activeElement; if (ae && ae.id === "cmnote") return;
+        const d = modalRoot.querySelector(".modal"); if (d) { d.tabIndex = -1; d.focus({ preventScroll: true }); } return;
+      }
+      const f = modalRoot.querySelector("input[data-fid]") || modalRoot.querySelector(".btn.primary:not([disabled])") || modalRoot.querySelector(".opt"); if (f) f.focus();
+    });
   }
 
   // ---------- Events: clicks ----------
@@ -840,6 +982,19 @@
         if (v === "returns" && S.ret.done) S.ret = emptyRet();
         S.view = v === "sell" && !S.shifts[S.user.id] ? "openshift" : v; S.modal = null; renderModal(); render();
         if (v === "returns" && !S.ret.sale) focusId("rsearch"); break; }
+      case "h-scope": S.hist.scope = el.dataset.v; render(); break;
+      case "h-period": S.hist.period = el.dataset.v; render(); break;
+      case "h-status": S.hist.status = el.dataset.v; render(); break;
+      case "h-sel": S.hist.sel = el.dataset.no; render(); break;
+      case "h-retry": { const s = S.history.find(x => x.no === S.hist.sel); if (s) { s.sync = S.offline ? "waiting" : "synced"; s.syncError = null; render(); toast(S.offline ? "Still offline · will retry automatically" : `${s.no} synced`); } break; }
+      case "h-return": startReturnFrom(S.hist.sel); break;
+      case "cash-move": openCashMove(); break;
+      case "cm-kind": { const m = S.modal; m.kind = el.dataset.k; m.reason = m.kind === "safe" ? "Safe drop" : ""; m.stage = "amount"; m.pin = ""; renderModal(); break; }
+      case "cm-key": cmKey(el.dataset.k); break;
+      case "cm-pin": cmPin(el.dataset.k); break;
+      case "cm-reason": S.modal.reason = el.dataset.v; renderModal(); break;
+      case "cm-back": S.modal.stage = "amount"; S.modal.pin = ""; renderModal(); break;
+      case "cm-submit": cmSubmit(); break;
       case "ret-load": loadSale(el.dataset.no); break;
       case "ret-clear": case "ret-new": S.ret = emptyRet(); render(); focusId("rsearch"); break;
       case "ret-inc": case "ret-dec": { const l = S.ret.sale.lines[i], cur = S.ret.qty[i] || 0; S.ret.qty[i] = Math.max(0, Math.min(remaining(l), cur + (a === "ret-inc" ? 1 : -1))); render(); break; }
@@ -866,7 +1021,7 @@
       case "theme": { const dark = !(document.documentElement.dataset.theme === "dark"); document.documentElement.dataset.theme = dark ? "dark" : "light"; store("retailos-proto-theme", dark ? "dark" : "light"); render(); break; }
       case "help": openModal({ type: "help" }); break;
       case "proto": S.protoOpen = !S.protoOpen; render(); break;
-      case "toggle-offline": S.offline = !S.offline; render(); if (!S.offline) { toast(`${S.waiting} sales synced`); S.waiting = 0; render(); } break;
+      case "toggle-offline": S.offline = !S.offline; render(); if (!S.offline) { S.history.forEach(s => { if (s.sync === "waiting") s.sync = "synced"; }); toast(`${S.waiting} sales synced`); S.waiting = 0; render(); } break;
       case "toggle-printer": S.printerError = !S.printerError; render(); break;
       case "toggle-tablet": S.tablet = !S.tablet; S.sheetOpen = false; render(); break;
       case "toggle-touch": S.touch = !S.touch; render(); break;
@@ -924,6 +1079,8 @@
     if (e.target.dataset && e.target.dataset.den) { S[e.target.dataset.scope].counts[e.target.dataset.den] = Math.max(0, parseInt(e.target.value.replace(/\D/g, ""), 10) || 0); render(); }
     if (e.target.hasAttribute && e.target.hasAttribute("data-coins")) { S[e.target.dataset.scope].coins = e.target.value.replace(/[^0-9.]/g, ""); render(); }
     if (e.target.id === "rsearch") { S.ret.query = e.target.value; S.ret.error = ""; }
+    if (e.target.id === "hsearch") { S.hist.q = e.target.value; render(); }
+    if (e.target.id === "cmnote" && S.modal) { S.modal.note = e.target.value; const m = S.modal, b = modalRoot.querySelector('[data-act="cm-submit"]'); if (b && m.stage === "amount") b.disabled = !(cmAmount(m) > 0 && m.reason && !(m.kind !== "in" && cmAmount(m) > expectedCash(S.shifts[S.user.id])) && (m.reason !== "Other" || m.note.trim())); }
     if (e.target.id === "csnote") { S.cs.note = e.target.value; }
     if (e.target.id === "approval" && S.pay) { S.pay.approval = e.target.value; const b = modalRoot.querySelector('[data-act="complete"]'); if (b) b.disabled = !canComplete(); }
   });
@@ -991,6 +1148,13 @@
       if (m.type === "batch") { if (k === "ArrowDown" || k === "ArrowUp") { e.preventDefault(); m.choice = (m.choice + (k === "ArrowDown" ? 1 : -1) + 2) % 2; renderModal(); return; } if (k === "Enter") { e.preventDefault(); const p = byId(m.pid); S.modal = null; renderModal(); addProduct(p, { batch: p.batches[m.choice].id }); } return; }
       if (m.type === "weight" || m.type === "qty") { if (/^[0-9.]$/.test(k)) { modalKey(k); return; } if (k === "Backspace") { modalKey("⌫"); return; } if (k === "Enter") { e.preventDefault(); confirmQty(); } return; }
       if (m.type === "discount") { if (/^[0-9]$/.test(k) && m.pct > DISCOUNT_LIMIT) { pinKey(k); return; } if (k === "Backspace") { pinKey("⌫"); return; } if (k === "Enter") { e.preventDefault(); confirmDiscount(); } return; }
+      if (m.type === "cash") {
+        if (k === "Enter") { e.preventDefault(); cmSubmit(); return; }
+        if (inInput) return;
+        if (/^[0-9]$/.test(k)) { if (m.stage === "pin") cmPin(k); else cmKey(k); return; }
+        if (k === "Backspace") { e.preventDefault(); if (m.stage === "pin") cmPin("⌫"); else cmKey("⌫"); return; }
+        return;
+      }
       if (m.type === "quickview" && k === "Enter") { const p = byId(m.pid); if (p.stock > 0) { e.preventDefault(); closeModal(); addProduct(p); } return; }
       return;
     }
@@ -1021,7 +1185,23 @@
       if (!r.sale && k.length === 1 && /[0-9A-Za-z-]/.test(k) && !e.ctrlKey && !e.metaKey) { e.preventDefault(); r.query += k; render(); focusId("rsearch"); }
       return;
     }
+    if (S.view === "orders") {
+      if (e.target.id === "hsearch") {
+        if (k === "Enter" || k === "ArrowDown") { e.preventDefault(); const l = histList(); if (l.length) { S.hist.sel = l[0].no; e.target.blur(); render(); } }
+        if (k === "Escape") { S.hist.q = ""; render(); focusId("hsearch"); }
+        return;
+      }
+      if (inInput) return;
+      if (k === "ArrowDown" || k === "ArrowUp") { e.preventDefault(); histMove(k === "ArrowDown" ? 1 : -1); return; }
+      if ((k === "r" || k === "R") && S.hist.sel) { e.preventDefault(); startReturnFrom(S.hist.sel); return; }
+      if ((e.ctrlKey || e.metaKey) && k.toLowerCase() === "p" && S.hist.sel) { e.preventDefault(); toast(S.printerError ? "Printer has no paper" : "Receipt reprinted", { error: S.printerError }); return; }
+      if (k === "/") { e.preventDefault(); focusId("hsearch"); return; }
+      if (k === "Escape") { S.hist.sel = null; render(); return; }
+      if (k.length === 1 && /[0-9A-Za-z-]/.test(k) && !e.ctrlKey && !e.metaKey) { e.preventDefault(); S.hist.q += k; render(); focusId("hsearch"); }
+      return;
+    }
     if (S.view === "cash") {
+      if (k === "F9") { openCashMove(); return; }
       if (k !== "Enter" || (e.target.tagName === "TEXTAREA")) return;
       e.preventDefault();
       if (S.cs.step === 1 && countTotal(S.cs) > 0 && !S.cart.length && !S.held.length) { S.cs.step = 2; render(); }
@@ -1039,6 +1219,7 @@
       case "F6": hold(); return;
       case "F7": openModal({ type: "held" }); return;
       case "F8": goReturns(); return;
+      case "F9": openCashMove(); return;
       case "F10": openPayment(); return;
     }
 
@@ -1094,7 +1275,7 @@
   let rz; window.addEventListener("resize", () => { clearTimeout(rz); rz = setTimeout(render, 120); });
   if (S.theme) document.documentElement.dataset.theme = S.theme;
   const hash = location.hash.replace("#", "");
-  if (["sell", "dashboard", "signin", "openshift", "returns", "cash"].includes(hash)) S.view = hash;
+  if (["sell", "dashboard", "signin", "openshift", "returns", "cash", "orders"].includes(hash)) S.view = hash;
   if (hash === "openshift") { S.user = USERS[1]; }            // Nimal has no open shift yet
   if (hash === "signin") { S.su.sel = 1; }
   render();
