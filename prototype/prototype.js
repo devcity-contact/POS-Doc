@@ -397,12 +397,12 @@
     ["management", [["suppliers", "store"], ["promotions", "percent"], ["staff", "userCog"]]]
   ];
   function sidebar() {
-    const cur = S.view === "complete" ? "sell" : S.view === "product" || S.view === "import" ? "products" : S.view === "counts" ? "stock" : S.view;
+    const cur = S.view === "complete" ? "sell" : S.view === "product" || S.view === "import" ? "products" : S.view === "counts" ? "stock" : S.view === "customer" ? "customers" : S.view === "shifts" ? "cash" : S.view;
     let h = `<aside class="sidebar" aria-label="Main navigation"><div class="brand"><span class="mark">R</span><span class="brand-name">RetailOS</span><button class="icon-btn" data-act="collapse" title="Collapse sidebar">${ic("panel")}</button></div><nav>`;
     for (const [g, items] of NAV) {
       h += `<div class="nav-label">${t(g)}</div>`;
       for (const [key, icon, view, count0] of items) {
-        const v = view || key, count = key === "expiry" ? (expiringCount() || "") : key === "exceptions" ? (excOpen() || "") : count0;
+        const v = view || key, count = key === "expiry" ? (expiringCount() || "") : key === "exceptions" ? (excOpen() || "") : key === "cash" && S.user.role === "Manager" ? (srPending() || "") : count0;
         h += `<button class="nav-item ${cur === v ? "active" : ""}" data-act="nav" data-view="${v}" title="${esc(t(key))}" ${cur === v ? 'aria-current="page"' : ""}>${ic(icon)}<span class="lbl">${esc(t(key))}</span>${count ? `<span class="count">${count}</span>` : ""}</button>`;
       }
     }
@@ -554,7 +554,7 @@
           <div class="chart">${chart}</div><div class="axis">${["8am", "10am", "12pm", "2pm", "4pm", "6pm", "8pm", "10pm"].map(x => `<span>${x}</span>`).join("")}</div></div>
         <div class="card"><div class="card-head"><h2>Needs attention</h2><button class="link">View all</button></div>
           ${attn("Sale exceptions", "Negative stock, price mismatch", "alert", "tile-orange", "warning", String(excOpen()), "exceptions")}
-          ${attn("Shift differences", "2 shifts waiting for approval", "wallet", "tile-orange", "warning", "2", "cash")}
+          ${attn("Shift differences", `${srPending()} shift${srPending() === 1 ? "" : "s"} waiting for approval`, "wallet", "tile-orange", "warning", String(srPending()), "shifts")}
           ${attn("Expiring in 30 days", "Batches across 3 branches", "calendar", "tile-orange", "warning", "23", "expiry")}
           ${attn("Low stock items", "Below reorder level", "package", "tile-blue", "", "41", "stock")}
           ${attn("Registers offline > 24 h", "KDY01 · Register 1", "wifiOff", "tile-pink", "error", "1", "settings")}</div>
@@ -830,13 +830,14 @@
     if (Math.abs(diff) > CS_THRESHOLD && !cs.reason) { toast("Choose a reason for the difference", { error: true }); return; }
     cs.z = { sh: { ...sh }, counted, exp, diff, reason: cs.reason, note: cs.note, user: S.user, closed: new Date(), no: "Z-CMB01-R02-" + String(318 + Object.keys(S.shifts).length).padStart(4, "0") };
     delete S.shifts[S.user.id];
+    S.sr.list.unshift({ id: "SH-" + String(322 + S.sr.list.length).padStart(4, "0"), branch: "CMB01", reg: "R02", cashier: S.user.name, opened: new Date(sh.start), closed: cs.z.closed, float: sh.float, cashSales: sh.cashSales, refunds: sh.refunds, cashIn: sh.cashIn, cashOut: sh.cashOut, card: sh.cardSales, qr: sh.qrSales, credit: sh.creditSales, count: sh.count, counted, reason: cs.reason, cnote: cs.note, status: Math.abs(diff) > CS_THRESHOLD ? "review" : "approved", by: Math.abs(diff) > CS_THRESHOLD ? null : "Auto", mnote: Math.abs(diff) > CS_THRESHOLD ? "" : "Within Rs 500 · approved automatically (BR-08)", at: Math.abs(diff) > CS_THRESHOLD ? null : new Date(), moves: (sh.moves || []).map(m => [m.kind === "in" ? "in" : "out", m.amount, m.reason, hm(m.time)]) });
     cs.step = 3; render(); toast(`Shift closed · Z-report printed${Math.abs(diff) > CS_THRESHOLD ? " · sent for manager review" : ""}`);
   }
   function zText(z) {
     const W = 40, L2 = (l, r) => l + r.padStart(Math.max(1, W - l.length)), C = x => " ".repeat(Math.max(0, Math.floor((W - x.length) / 2))) + x, D = "-".repeat(W);
     const n = c => (c < 0 ? "-" : "") + (Math.abs(c) / 100).toLocaleString("en-US", { minimumFractionDigits: 2 });
     const sh = z.sh, total = sh.cashSales + sh.cardSales + sh.qrSales + sh.creditSales;
-    return [C("CITY PHARMACY & MART"), C("Z-REPORT · SHIFT CLOSE"), D, "Report:   " + z.no, "Register: CMB01 · R02", "Cashier:  " + z.user.name,
+    return [C("CITY PHARMACY & MART"), C("Z-REPORT · SHIFT CLOSE"), D, "Report:   " + z.no, "Register: " + (z.reg || "CMB01 · R02"), "Cashier:  " + z.user.name,
       "Opened:   " + new Date(sh.start).toLocaleString("en-GB", { dateStyle: "short", timeStyle: "short" }), "Closed:   " + z.closed.toLocaleString("en-GB", { dateStyle: "short", timeStyle: "short" }), D,
       L2("Transactions", String(sh.count)), L2("Cash sales", n(sh.cashSales)), L2("Card", n(sh.cardSales)), L2("LankaQR", n(sh.qrSales)), L2("Customer credit", n(sh.creditSales)), L2("TOTAL SALES", "Rs " + n(total)),
       L2("  incl. VAT 18%", n(Math.round(total * 18 / 118))), D, L2("Opening float", n(sh.float)), L2("Cash refunds", n(-sh.refunds)), L2("Cash in", n(sh.cashIn)), L2("Cash out", n(-sh.cashOut)),
@@ -2158,6 +2159,299 @@ Yesterday 09:15  SYNC-003 Catalog cursor too old · catalog snapshot downloaded<
     </aside>`;
   }
 
+  // ---------- Customers (A-60 / A-61) ----------
+  const maskPhone = p => p && p.length >= 10 ? p.slice(0, 3) + "****" + p.slice(-3) : (p || "");
+  const fmtPhone = p => p && p.length === 10 ? `${p.slice(0, 3)} ${p.slice(3, 6)} ${p.slice(6)}` : (p || "");
+  const initialsOf = n => n.trim().split(/\s+/).slice(0, 2).map(w => w[0] || "").join("").toUpperCase() || "?";
+  CUSTOMERS.push(
+    { id: "ln", name: "Lanka Nursing Home", initials: "LN", credit: true },
+    { id: "kp", name: "Kamal Perera", initials: "KP" },
+    { id: "fz", name: "Fathima Aziz", initials: "FA" }
+  );
+  const CUST_ADMIN = {
+    ps: { full: "0773456321", email: "accounts@pererastores.lk", address: "142 Main Street, Dehiwala", type: "Business", limit: 6000000, points: 0, since: 410, lifetime: 48650000, consent: { sms: true, email: true, at: 410 }, notes: "Small grocery reseller. Owner: Mr Sunil Perera. Pays by bank transfer at month end." },
+    nk: { full: "0712345908", email: "nimal.k@gmail.com", address: "Nugegoda", type: "Retail", limit: 0, points: 1240, since: 220, lifetime: 18420000, consent: { sms: true, email: false, at: 220 }, notes: "" },
+    fa: { full: "0761234114", email: "", address: "Wellawatte", type: "Retail", limit: 0, points: 380, since: 95, lifetime: 4210000, consent: { sms: false, email: false, at: 95 }, notes: "" },
+    ln: { full: "0112558899", email: "stores@lankanursing.lk", address: "21 Hospital Road, Kalubowila", type: "Business", limit: 15000000, points: 0, since: 300, lifetime: 91200000, consent: { sms: false, email: true, at: 300 }, notes: "Purchase orders signed by the matron. Statement on the 1st of each month." },
+    kp: { full: "0771234567", email: "", address: "Colombo 05", type: "Retail", limit: 0, points: 90, since: 30, lifetime: 820000, consent: { sms: true, email: false, at: 30 }, notes: "" },
+    fz: { full: "0761234114", email: "fathima.aziz@yahoo.com", address: "", type: "Retail", limit: 0, points: 120, since: 12, lifetime: 310000, consent: { sms: true, email: true, at: 12 }, notes: "Created at Register 1 on a busy day." }
+  };
+  for (const c of CUSTOMERS) {
+    const a = CUST_ADMIN[c.id]; if (!a) continue;
+    Object.assign(c, { full: a.full, phone: maskPhone(a.full), email: a.email, address: a.address, type: a.type, limit: a.limit, points: a.points, since: daysAgo(a.since, 10, 0), lifetime: a.lifetime,
+      consent: { sms: a.consent.sms, email: a.consent.email, at: daysAgo(a.consent.at, 10, 0), by: "Customer at the till" }, notes: a.notes, credit: a.limit > 0, log: [] });
+  }
+  const CUST_LEDGER = {
+    ps: [[34, "sale", "CMB01-R01-000044", 2140000], [20, "pay", "Bank transfer · PAY-0039", -1500000], [12, "sale", "CMB01-R02-000101", 2430000], [6, "sale", "CMB01-R02-000122", 1176000]],
+    ln: [[40, "sale", "CMB01-R01-000012", 3250000], [25, "pay", "Cheque 004512 · PAY-0037", -3250000], [9, "sale", "CMB01-R01-000176", 1820000]]
+  };
+  const PAY_TERMS_DAYS = 30;
+  S.custPays = {}; S.paySeq = 42;
+  S.cu = { q: "", filter: "all", open: null, tab: "profile", draft: null, showErr: false };
+  const custOf = id => CUSTOMERS.find(c => c.id === id);
+  const custAdmin = () => CUSTOMERS.filter(c => c.id !== "walk");
+  const custSales = c => S.history.filter(s => s.customer && s.customer.id === c.id && !s.training);
+  function custLedger(c) {
+    const rows = (CUST_LEDGER[c.id] || []).map(([d, type, ref, amt]) => ({ date: daysAgo(d, 11, 0), type, ref, amt }));
+    for (const s of custSales(c)) if (s.method === "credit") rows.push({ date: s.date, type: "sale", ref: s.no, amt: saleTotal(s) });
+    for (const p of S.custPays[c.id] || []) rows.push(p);
+    rows.sort((a, b) => a.date - b.date);
+    let bal = 0; for (const r of rows) { bal += r.amt; r.bal = bal; }
+    // First in, first out: payments clear the oldest sales first
+    let paid = -rows.filter(r => r.amt < 0).reduce((a, r) => a + r.amt, 0);
+    const open = [];
+    for (const r of rows.filter(x => x.type === "sale")) { const use = Math.min(paid, r.amt); paid -= use; if (r.amt - use > 0) open.push({ ...r, left: r.amt - use, age: dayDiff(r.date) }); }
+    return { rows, bal, open, overdue: open.filter(o => o.age > PAY_TERMS_DAYS).reduce((a, o) => a + o.left, 0) };
+  }
+  function custRefresh(c) {
+    if (!c.type) return;
+    const L = custLedger(c);
+    c.note = c.credit ? `Credit available ${fmt(Math.max(0, c.limit - L.bal)).replace(".00", "")}` : c.points ? `Loyalty · ${c.points.toLocaleString("en-US")} points` : `Customer since ${c.since.toLocaleDateString("en-GB", { month: "short", year: "numeric" })}`;
+  }
+  CUSTOMERS.forEach(custRefresh);
+  const lastVisit = c => { const s = custSales(c)[0]; return s ? s.date : null; };
+  function custDupes() {
+    const by = {}, out = [];
+    for (const c of custAdmin()) if (c.full) (by[c.full] = by[c.full] || []).push(c);
+    for (const k in by) if (by[k].length > 1) out.push(by[k]);
+    return out;
+  }
+  function custList() {
+    const f = S.cu, q = f.q.trim().toLowerCase(), qd = q.replace(/\D/g, "");
+    return custAdmin().filter(c => (f.filter === "all" || (f.filter === "credit" && c.credit) || (f.filter === "owes" && custLedger(c).bal > 0) || (f.filter === "loyalty" && c.points > 0))
+      && (!q || (c.name + " " + (c.email || "")).toLowerCase().includes(q) || (qd.length >= 3 && (c.full || "").includes(qd))));
+  }
+  function customersView() {
+    const f = S.cu, list = custList(), all = custAdmin(), dup = custDupes();
+    const owed = all.reduce((a, c) => a + Math.max(0, custLedger(c).bal), 0), over = all.reduce((a, c) => a + custLedger(c).overdue, 0);
+    const chip = (v, l) => `<button class="chip" data-act="cu-filter" data-v="${v}" aria-pressed="${f.filter === v}">${l}</button>`;
+    return `<div class="page">
+      <div class="page-actions">
+        <label class="search">${ic("search")}<span class="sr">Search customers</span><input id="cusearch" data-fid="cusearch" autocomplete="off" placeholder="Name, phone or e-mail…" value="${esc(f.q)}"><kbd>/</kbd></label>
+        <div class="chips">${chip("all", `All · ${all.length}`)}${chip("credit", `Credit · ${all.filter(c => c.credit).length}`)}${chip("owes", `Owes us · ${all.filter(c => custLedger(c).bal > 0).length}`)}${chip("loyalty", `Loyalty · ${all.filter(c => c.points > 0).length}`)}</div>
+        <span class="spacer"></span>
+        <button class="btn secondary" data-act="toast" data-msg="customers.xlsx exported (phone numbers masked)">Export</button>
+        <button class="btn primary" data-act="cu-new">${ic("userPlus", 18)}Add customer <kbd>N</kbd></button>
+      </div>
+      <div class="stats4"><div class="stat"><span>Customers</span><b>${all.length}</b></div><div class="stat"><span>Credit customers</span><b>${all.filter(c => c.credit).length}</b></div><div class="stat"><span>Owed to us</span><b>${fmt(owed)}</b></div><div class="stat"><span>Overdue (over ${PAY_TERMS_DAYS} days)</span><b style="color:${over ? "var(--error-text)" : "var(--text)"}">${fmt(over)}</b></div></div>
+      ${dup.map(g => `<div class="banner">${ic("users")}<span><b>Possible duplicate:</b> ${g.map(c => esc(c.name)).join(" and ")} have the same phone number ${maskPhone(g[0].full)}.</span><button class="btn secondary" data-act="cu-merge" data-ids="${g.map(c => c.id).join(",")}">Review and merge</button></div>`).join("")}
+      <div class="ctable" role="table" aria-label="Customers">
+        <div class="lrow head" role="row"><span>Customer</span><span>Type</span><span>Last visit</span><span class="r">Points</span><span class="r">Balance</span></div>
+        ${list.length ? list.map(c => { const L = custLedger(c), lv = lastVisit(c); return `<div class="lrow" role="row" tabindex="0" data-act="cu-open" data-id="${c.id}">
+          <span class="pname"><span class="avatar s">${esc(c.initials)}</span><span style="min-width:0"><b>${esc(c.name)}</b><small>${esc(c.phone || "No phone")}${c.email ? " · " + esc(c.email) : ""}</small></span></span>
+          <span>${c.type === "Business" ? badge("info", "Business", "store") : `<span class="muted">Retail</span>`}${c.credit ? " " + badge("", "Credit", "wallet") : ""}</span>
+          <span class="muted">${lv ? (dayDiff(lv) === 0 ? "Today" : dayDiff(lv) === 1 ? "Yesterday" : dayDiff(lv) + " days ago") : "—"}</span>
+          <span class="r">${c.points ? c.points.toLocaleString("en-US") : `<span class="muted">—</span>`}</span>
+          <span class="r">${L.bal > 0 ? fmt(L.bal) : `<span class="muted">—</span>`}${L.overdue ? `<small class="late">${fmt(L.overdue)} overdue</small>` : ""}</span></div>`; }).join("")
+          : `<div class="empty"><span class="circle">${ic("users", 28)}</span><h3>No customers match</h3><span>Search by name, part of the phone number, or e-mail.</span></div>`}
+      </div>
+      <div class="table-foot"><span>Phone numbers are masked in lists (PDPA). Open a customer to see the full details.</span><span>Click a row or press Enter</span></div>
+    </div>`;
+  }
+  const custDraft = c => ({ id: c ? c.id : null, name: c ? c.name : "", full: c ? (c.full || "") : "", email: c ? (c.email || "") : "", address: c ? (c.address || "") : "", type: c ? (c.type || "Retail") : "Retail", limit: c ? String((c.limit || 0) / 100) : "0", notes: c ? (c.notes || "") : "" });
+  const custDirty = () => { const f = S.cu; return !!f.draft && JSON.stringify(f.draft) !== JSON.stringify(custDraft(custOf(f.draft.id))); };
+  function custErrors(d) {
+    const e = {}, digits = d.full.replace(/\D/g, "");
+    if (!d.name.trim()) e.name = "Name is required";
+    if (!digits) e.full = "A phone number is required so the customer can be found at the till";
+    else if (digits.length !== 10 || digits[0] !== "0") e.full = "Use a 10-digit number, e.g. 077 345 6321";
+    else { const o = custAdmin().find(c => c.id !== d.id && c.full === digits); if (o) e.full = `${o.name} already has this number`; }
+    if (d.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(d.email)) e.email = "Check the e-mail address";
+    const lim = parseFloat(d.limit || "0");
+    if (isNaN(lim) || lim < 0) e.limit = "Enter 0 or more";
+    else if (d.id && Math.round(lim * 100) < custLedger(custOf(d.id)).bal) e.limit = `Below the current balance of ${fmt(custLedger(custOf(d.id)).bal)}`;
+    return e;
+  }
+  function openCustomer(id) {
+    const f = S.cu, c = id ? custOf(id) : null;
+    f.open = id; f.draft = custDraft(c); f.tab = "profile"; f.showErr = false; S.view = "customer"; render();
+    if (!c) focusId("cu-name");
+  }
+  function custSave() {
+    const f = S.cu, d = f.draft, er = custErrors(d);
+    if (Object.keys(er).length) { f.showErr = true; render(); toast(Object.values(er)[0], { error: true }); return; }
+    let c = custOf(d.id), isNew = !c;
+    if (!c) { c = { id: "c" + Date.now().toString(36), points: 0, since: new Date(), lifetime: 0, consent: { sms: false, email: false, at: new Date(), by: meShort() }, log: [] }; CUSTOMERS.push(c); d.id = c.id; }
+    const digits = d.full.replace(/\D/g, ""), lim = Math.round(parseFloat(d.limit || "0") * 100);
+    if (!isNew && lim !== c.limit) c.log.unshift({ when: new Date(), who: meShort(), what: `Credit limit ${fmt(c.limit)} → ${fmt(lim)}` });
+    Object.assign(c, { name: d.name.trim(), initials: initialsOf(d.name), full: digits, phone: maskPhone(digits), email: d.email.trim(), address: d.address.trim(), type: d.type, limit: lim, credit: lim > 0, notes: d.notes });
+    if (isNew) c.log.unshift({ when: new Date(), who: meShort(), what: "Customer created" });
+    custRefresh(c); f.open = c.id; f.draft = custDraft(c); f.showErr = false; render(); toast(`${c.name} ${isNew ? "added" : "saved"}`);
+  }
+  function custView() {
+    const f = S.cu, c = custOf(f.open), d = f.draft, er = f.showErr ? custErrors(d) : {}, dirty = custDirty();
+    const L = c ? custLedger(c) : { rows: [], bal: 0, open: [], overdue: 0 }, sales = c ? custSales(c) : [];
+    const tabs = c ? [["profile", "Profile"], ["purchases", `Purchases · ${sales.length}`], ...(c.credit || L.rows.length ? [["ledger", "Credit ledger"]] : []), ["consent", "Consent & privacy"], ["history", "History"]] : [["profile", "Profile"]];
+    if (!tabs.some(x => x[0] === f.tab)) f.tab = "profile";
+    const fld = (k, label, ph, extra = "") => `<label class="field">${label}<input data-cu="${k}" data-fid="cu-${k}" id="cu-${k}" value="${esc(d[k])}" placeholder="${ph}" class="${er[k] ? "bad" : ""}" ${extra}>${er[k] ? `<span class="err">${esc(er[k])}</span>` : ""}</label>`;
+    let body = "";
+    if (f.tab === "profile") {
+      body = `<section class="card"><div class="form-2">${fld("name", "Name *", "e.g. Perera Stores")}${fld("full", "Mobile or phone *", "077 345 6321", 'inputmode="tel"')}${fld("email", "E-mail", "For statements and e-receipts", 'inputmode="email"')}
+          <label class="field">Type<select data-cu="type" data-fid="cu-type">${["Retail", "Business"].map(x => `<option ${d.type === x ? "selected" : ""}>${x}</option>`).join("")}</select></label>
+          ${fld("address", "Address", "Street, town")}${fld("limit", "Credit limit (Rs)", "0 = no credit", 'inputmode="decimal"')}</div>
+        <label class="field">Notes<textarea data-cu="notes" data-fid="cu-notes" placeholder="Who may sign for credit, delivery details…">${esc(d.notes)}</textarea></label>
+        <div class="note">${ic("lock", 16)}Only managers can change the credit limit. Every change is in the History tab.</div>
+        <div class="card-actions"><button class="btn secondary" data-act="cu-discard" ${dirty ? "" : "disabled"}>Discard</button><button class="btn primary" data-act="cu-save" ${dirty ? "" : "disabled"}>${ic("check", 18)}${c ? "Save changes" : "Add customer"} <kbd>Ctrl S</kbd></button></div></section>`;
+    } else if (f.tab === "purchases") {
+      body = `<section class="card">${sales.length ? `<div class="dlines">${sales.map(s => `<div class="dline"><span class="thumb tile-blue">${ic(METHOD[s.method][1], 18)}</span><span class="grow"><b>${s.no}</b><small>${s.date.toLocaleDateString("en-GB", { day: "numeric", month: "short" })} ${hm(s.date)} · ${s.lines.length} item${s.lines.length === 1 ? "" : "s"} · ${METHOD[s.method][0]} · ${esc(s.cashier)}</small></span><b>${fmt(saleTotal(s))}</b></div>`).join("")}</div>`
+        : `<div class="empty"><span class="circle">${ic("receipt", 28)}</span><h3>No purchases in the last 30 days</h3><span>Older sales are in the reports.</span></div>`}
+        <div class="note">${ic("chart", 16)}Lifetime spend ${fmt(c.lifetime + sales.reduce((a, s) => a + saleTotal(s), 0))} since ${c.since.toLocaleDateString("en-GB", { month: "short", year: "numeric" })}</div></section>`;
+    } else if (f.tab === "ledger") {
+      body = `<section class="card"><div class="card-head"><h2>Credit ledger</h2><button class="btn secondary" data-act="toast" data-msg="Statement for ${esc(c.name)} sent to the printer${c.email ? " and e-mailed to " + esc(c.email) : ""}">${ic("printer", 18)}Print statement</button><button class="btn primary" data-act="cu-settle" ${L.bal > 0 ? "" : "disabled"}>${ic("wallet", 18)}Record settlement</button></div>
+        ${L.open.length ? `<div class="aging">${[["Current", 0, 30], ["31–60 days", 31, 60], ["Over 60 days", 61, 9999]].map(([l, a, b]) => { const v = L.open.filter(o => o.age >= a && o.age <= b).reduce((x, o) => x + o.left, 0); return `<div class="${v && a > 0 ? "late-b" : ""}"><span>${l}</span><b>${fmt(v)}</b></div>`; }).join("")}</div>` : ""}
+        <div class="ledger" role="table" aria-label="Ledger"><div class="grow-row head" role="row"><span>Date</span><span>Details</span><span class="r">Charge</span><span class="r">Payment</span><span class="r">Balance</span></div>
+          ${L.rows.slice().reverse().map(r => { const o = L.open.find(x => x.ref === r.ref && r.type === "sale"); return `<div class="grow-row" role="row"><span class="muted">${r.date.toLocaleDateString("en-GB", { day: "numeric", month: "short" })}</span><span><b>${r.type === "sale" ? "Credit sale " : ""}${esc(r.ref)}</b>${o ? `<small class="${o.age > PAY_TERMS_DAYS ? "late" : "muted"}">${fmt(o.left)} unpaid · ${o.age} days${o.age > PAY_TERMS_DAYS ? " · overdue" : ""}</small>` : r.type === "sale" ? `<small class="muted">Paid</small>` : ""}</span>
+            <span class="r">${r.amt > 0 ? fmt(r.amt) : ""}</span><span class="r" style="color:var(--success-text)">${r.amt < 0 ? fmt(-r.amt) : ""}</span><span class="r"><b>${fmt(r.bal)}</b></span></div>`; }).join("")}</div>
+        <div class="note">${ic("help", 16)}Payments clear the oldest credit sales first. Terms: ${PAY_TERMS_DAYS} days.</div></section>`;
+    } else if (f.tab === "consent") {
+      const tg = (k, l, s) => `<label class="check-row"><input type="checkbox" data-act="cu-consent" data-k="${k}" ${c.consent[k] ? "checked" : ""}><span><b>${l}</b><small>${s}</small></span></label>`;
+      body = `<section class="card"><h2>Marketing consent</h2>${tg("sms", "SMS offers and reminders", "Promotions and loyalty updates by SMS. Receipts and credit reminders are always allowed.")}${tg("email", "E-mail offers", "Newsletters and promotions by e-mail.")}
+        <div class="note">${ic("clock", 16)}Last changed ${c.consent.at.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })} · ${esc(c.consent.by)}</div></section>
+        <section class="card"><h2>Personal data (PDPA)</h2><p class="sub" style="margin:0">The customer can ask for a copy of their data, or ask us to delete it. Sales stay in the books for tax, but the name, phone and e-mail are removed.</p>
+          <div class="card-actions" style="justify-content:flex-start"><button class="btn secondary" data-act="toast" data-msg="Data export for ${esc(c.name)} prepared · ready to hand over within 30 days">Export their data</button>
+          <button class="btn danger-outline" data-act="cu-forget" ${L.bal > 0 ? "disabled" : ""}>Delete personal data</button></div>
+          ${L.bal > 0 ? `<div class="note">${ic("lock", 16)}Not possible while ${fmt(L.bal)} is owed. Settle the balance first.</div>` : ""}</section>`;
+    } else {
+      const items = [...c.log, { when: c.since, who: "System", what: "Customer created" }];
+      body = `<section class="card"><div class="dlines">${items.map(x => `<div class="dline"><span class="grow"><b>${esc(x.what)}</b><small>${x.when.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })} ${hm(x.when)} · ${esc(x.who)}</small></span></div>`).join("")}</div></section>`;
+    }
+    const stats = c ? `<div class="stats4">
+        <div class="stat"><span>Balance owed</span><b style="color:${L.overdue ? "var(--error-text)" : "var(--text)"}">${fmt(Math.max(0, L.bal))}</b>${L.overdue ? `<small class="late">${fmt(L.overdue)} overdue</small>` : ""}</div>
+        <div class="stat"><span>Credit available</span><b>${c.credit ? fmt(Math.max(0, c.limit - L.bal)) : "No credit"}</b>${c.credit ? `<small class="muted">of ${fmt(c.limit)}</small>` : ""}</div>
+        <div class="stat"><span>Loyalty points</span><b>${c.points.toLocaleString("en-US")}</b></div>
+        <div class="stat"><span>Last visit</span><b>${lastVisit(c) ? (dayDiff(lastVisit(c)) === 0 ? "Today" : dayDiff(lastVisit(c)) + " days ago") : "—"}</b></div></div>` : "";
+    return `<div class="page cust">
+      <div class="cust-head"><button class="btn ghost" data-act="cu-back">${ic("arrowRight", 18)}All customers</button>
+        <span class="avatar l">${esc(c ? c.initials : initialsOf(d.name || "New"))}</span><div class="grow"><h2>${esc(c ? c.name : d.name || "New customer")}</h2><span class="sub">${c ? `${esc(fmtPhone(c.full))} · customer since ${c.since.toLocaleDateString("en-GB", { month: "short", year: "numeric" })}` : "Fill in the profile and save"}</span></div>
+        ${c ? (c.type === "Business" ? badge("info", "Business", "store") : badge("", "Retail", null)) : badge("info", "New", "plus")}${dirty ? badge("warning", "Unsaved", "pencil") : ""}</div>
+      ${stats}
+      <div class="seg tabs" role="tablist">${tabs.map(([k, l]) => `<button role="tab" data-act="cu-tab" data-v="${k}" aria-pressed="${f.tab === k}" aria-selected="${f.tab === k}">${l}</button>`).join("")}</div>
+      ${body}
+    </div>`;
+  }
+  function settleModal(m, head) {
+    const c = custOf(m.cid), L = custLedger(c), amt = Math.round((parseFloat(m.amount) || 0) * 100), needRef = m.method === "transfer" || m.method === "cheque";
+    const over = amt > L.bal, ok = amt > 0 && !over && (!needRef || m.ref.trim());
+    let left = amt; const covers = L.open.map(o => { const use = Math.min(left, o.left); left -= use; return use ? `${o.ref}${use < o.left ? ` (part, ${fmt(use)})` : ""}` : null; }).filter(Boolean);
+    return `<div class="modal" role="dialog" aria-modal="true" aria-labelledby="mt" style="width:min(520px,100%)">${head("Record settlement", `${c.name} · owes ${fmt(L.bal)}`)}
+      <div class="cm-kinds" style="grid-template-columns:repeat(4,1fr)">${[["cash", "Cash", "cash"], ["transfer", "Bank transfer", "landmark"], ["cheque", "Cheque", "note"], ["card", "Card", "card"]].map(([k, l, i]) => `<button class="method" data-act="set-method" data-k="${k}" aria-pressed="${m.method === k}">${ic(i, 20)}<span>${l}</span></button>`).join("")}</div>
+      <label class="field">Amount (Rs)<input data-set="amount" data-fid="set-amount" id="setamt" inputmode="decimal" value="${esc(m.amount)}" class="${over ? "bad" : ""}">${over ? `<span class="err">More than the balance of ${fmt(L.bal)}</span>` : covers.length ? `<span class="hint">Clears ${covers.join(", ")}</span>` : ""}</label>
+      <div class="chips wrap">${[["Full balance", L.bal], ...(L.overdue ? [["Overdue only", L.overdue]] : [])].map(([l, v]) => `<button class="chip" data-act="set-quick" data-v="${(v / 100).toFixed(2)}">${l} · ${fmt(v)}</button>`).join("")}</div>
+      ${needRef ? `<label class="field">${m.method === "cheque" ? "Cheque number and bank" : "Transfer reference"} *<input data-set="ref" data-fid="set-ref" value="${esc(m.ref)}" placeholder="${m.method === "cheque" ? "e.g. 004613 · Commercial Bank" : "e.g. CEFT 88213409"}"></label>` : ""}
+      <div class="note">${ic("printer", 16)}A settlement receipt is printed${c.email ? " and e-mailed" : ""}. ${m.method === "cash" ? "Cash goes into the drawer of the open shift." : ""}</div>
+      <button class="btn primary l block" data-act="set-save" ${ok ? "" : "disabled"}>${ic("check")}Record ${amt ? fmt(amt) : "payment"} <kbd>Enter</kbd></button></div>`;
+  }
+  function settleSave() {
+    const m = S.modal, c = custOf(m.cid), L = custLedger(c), amt = Math.round((parseFloat(m.amount) || 0) * 100);
+    if (!(amt > 0) || amt > L.bal) { toast(amt > L.bal ? "More than the balance" : "Enter an amount", { error: true }); return; }
+    if ((m.method === "transfer" || m.method === "cheque") && !m.ref.trim()) { toast("Add the reference", { error: true }); return; }
+    const no = `PAY-${String(S.paySeq++).padStart(4, "0")}`, label = { cash: "Cash", transfer: "Bank transfer", cheque: "Cheque", card: "Card" }[m.method];
+    (S.custPays[c.id] = S.custPays[c.id] || []).push({ date: new Date(), type: "pay", ref: `${label}${m.ref.trim() ? " " + m.ref.trim() : ""} · ${no}`, amt: -amt });
+    c.log.unshift({ when: new Date(), who: meShort(), what: `Settlement ${fmt(amt)} · ${label} · ${no}` });
+    custRefresh(c); closeModal(); render(); toast(`${no} · ${fmt(amt)} recorded · receipt printed`);
+  }
+  function mergeModal(m, head) {
+    const cs = m.ids.map(custOf), keep = custOf(m.keep);
+    return `<div class="modal" role="dialog" aria-modal="true" aria-labelledby="mt" style="width:min(560px,100%)">${head("Merge duplicate customers", "Choose the record to keep")}
+      <div class="opt-list" role="radiogroup">${cs.map(c => `<button class="opt" role="radio" data-act="merge-keep" data-id="${c.id}" aria-selected="${m.keep === c.id}" aria-checked="${m.keep === c.id}"><span class="avatar s">${esc(c.initials)}</span><span class="grow"><b>${esc(c.name)}</b><small>Since ${c.since.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })} · ${custSales(c).length} recent sale${custSales(c).length === 1 ? "" : "s"} · ${c.points} points${c.email ? " · " + esc(c.email) : ""}</small></span>${m.keep === c.id ? badge("success", "Keep", "check") : ""}</button>`).join("")}</div>
+      <div class="banner">${ic("alert")}<span>Sales, points (${cs.reduce((a, c) => a + c.points, 0)} in total) and the credit ledger move to <b>${esc(keep.name)}</b>. Empty details are filled from the other record. This cannot be undone; the audit log keeps both IDs.</span></div>
+      <div style="display:flex;gap:8px;justify-content:flex-end"><button class="btn secondary" data-act="close">Cancel</button><button class="btn primary" data-act="merge-do">${ic("users", 18)}Merge into ${esc(keep.name)} <kbd>Enter</kbd></button></div></div>`;
+  }
+  function mergeDo() {
+    const m = S.modal, keep = custOf(m.keep), others = m.ids.filter(id => id !== m.keep).map(custOf);
+    for (const o of others) {
+      keep.points += o.points; keep.lifetime += o.lifetime;
+      for (const k of ["email", "address", "notes"]) if (!keep[k] && o[k]) keep[k] = o[k];
+      if (o.since < keep.since) keep.since = o.since;
+      for (const s of S.history) if (s.customer && s.customer.id === o.id) s.customer = keep;
+      if (S.custPays[o.id]) (S.custPays[keep.id] = S.custPays[keep.id] || []).push(...S.custPays[o.id]);
+      if (S.customer && S.customer.id === o.id) S.customer = keep;
+      CUSTOMERS.splice(CUSTOMERS.indexOf(o), 1);
+      keep.log.unshift({ when: new Date(), who: meShort(), what: `Merged with ${o.name} (${o.id})` });
+    }
+    custRefresh(keep); closeModal(); render(); toast(`Merged into ${keep.name} · ${keep.points} points`);
+  }
+
+  // ---------- Shifts & cash review (A-55) ----------
+  const shExp = r => r.float + r.cashSales - r.refunds + r.cashIn - r.cashOut;
+  const shAt = (d, h, m) => daysAgo(d, h, m);
+  S.sr = { filter: "review", sel: "SH-0321", note: "", err: false, list: [
+    { id: "SH-0321", branch: "CMB01", reg: "R01", cashier: "Anushka De Silva", opened: shAt(0, 7, 30), closed: shAt(0, 13, 2), float: 500000, cashSales: 1864000, refunds: 0, cashIn: 0, cashOut: 0, card: 1120000, qr: 286000, credit: 0, count: 64, counted: 2239000, reason: "Gave wrong change", cnote: "Rush at 12:30, I think I gave change for Rs 5,000 instead of Rs 1,000 once.", status: "review",
+      moves: [] },
+    { id: "SH-0319", branch: "CMB01", reg: "R03", cashier: "Nimal Perera", opened: shAt(1, 14, 0), closed: shAt(1, 21, 5), float: 500000, cashSales: 3120000, refunds: 45000, cashIn: 200000, cashOut: 150000, card: 1430000, qr: 512000, credit: 380000, count: 112, counted: 3695000, reason: "Customer did not wait for change", cnote: "Two customers left without their change.", status: "review",
+      moves: [["in", 200000, "Float top-up", "18:10"], ["out", 150000, "Petty cash: cleaning", "19:40"]] },
+    { id: "SH-0318", branch: "KDY01", reg: "R01", cashier: "Chamari Wijesinghe", opened: shAt(1, 8, 0), closed: shAt(1, 17, 30), float: 400000, cashSales: 2260000, refunds: 0, cashIn: 0, cashOut: 0, card: 980000, qr: 210000, credit: 0, count: 91, counted: 2660000, reason: "", cnote: "", status: "approved", by: "Auto", mnote: "Exact count · no review needed", at: shAt(1, 17, 30), moves: [] },
+    { id: "SH-0317", branch: "GAL01", reg: "R02", cashier: "Roshan Fernando", opened: shAt(1, 8, 30), closed: shAt(1, 18, 0), float: 400000, cashSales: 1540000, refunds: 30000, cashIn: 0, cashOut: 0, card: 640000, qr: 120000, credit: 0, count: 70, counted: 1890000, reason: "", cnote: "", status: "approved", by: "Auto", mnote: "Within Rs 500 · approved automatically (BR-08)", at: shAt(1, 18, 0), moves: [] },
+    { id: "SH-0316", branch: "CMB01", reg: "R02", cashier: "Sachini Kumari", opened: shAt(1, 7, 45), closed: shAt(1, 14, 0), float: 500000, cashSales: 2410000, refunds: 0, cashIn: 0, cashOut: 50000, card: 1310000, qr: 330000, credit: 760000, count: 88, counted: 2795000, reason: "Counting mistake", cnote: "Recounted coins, still short.", status: "approved", by: "Malini J.", mnote: "Checked the CCTV for 12:10. Small coin mistake, accepted.", at: shAt(1, 15, 20),
+      moves: [["out", 50000, "Petty cash: transport", "11:05"]] }
+  ] };
+  function liveShifts() {
+    return Object.entries(S.shifts).map(([uid, sh]) => { const u = USERS.find(x => x.id === uid); return { id: "LIVE-" + uid, live: true, branch: "CMB01", reg: "R02", cashier: u ? u.name : uid, opened: new Date(sh.start), closed: null, float: sh.float, cashSales: sh.cashSales, refunds: sh.refunds, cashIn: sh.cashIn, cashOut: sh.cashOut, card: sh.cardSales, qr: sh.qrSales, credit: sh.creditSales, count: sh.count, counted: null, status: "open", moves: (sh.moves || []).map(m => [m.kind === "in" ? "in" : "out", m.amount, m.reason, hm(m.time)]) }; });
+  }
+  const srAll = () => [...liveShifts(), ...S.sr.list];
+  const srPending = () => S.sr.list.filter(r => r.status === "review").length;
+  function srList() { const f = S.sr.filter; return srAll().filter(r => f === "all" || r.status === f || (f === "review" && r.status === "recount")); }
+  function srMove(d) {
+    const list = srList(); if (!list.length) return;
+    const i = list.findIndex(r => r.id === S.sr.sel);
+    S.sr.sel = list[Math.max(0, Math.min(list.length - 1, i < 0 ? 0 : i + d))].id; S.sr.note = ""; S.sr.err = false; render();
+    const row = app.querySelector('.shrow[aria-selected="true"]'); if (row) row.scrollIntoView({ block: "nearest" });
+  }
+  function srDecide(kind) {
+    const f = S.sr, r = f.list.find(x => x.id === f.sel); if (!r || r.status !== "review") return;
+    if (kind === "recount" && f.note.trim().length < 5) { f.err = true; render(); toast("Tell the cashier what to check (a short note)", { error: true }); focusId("srnote"); return; }
+    r.status = kind === "approve" ? "approved" : "recount"; r.by = meShort(); r.at = new Date(); r.mnote = f.note.trim() || (kind === "approve" ? "Approved" : "");
+    const next = S.sr.list.find(x => x.status === "review");
+    f.sel = next ? next.id : r.id; f.note = ""; f.err = false; render();
+    toast(kind === "approve" ? `${r.id} approved · difference ${signed(r.counted - shExp(r))} booked to cash over/short` : `Recount requested from ${r.cashier.split(" ")[0]}`);
+  }
+  function srZ(r) {
+    return { sh: { float: r.float, cashSales: r.cashSales, cardSales: r.card, qrSales: r.qr, creditSales: r.credit, refunds: r.refunds, cashIn: r.cashIn, cashOut: r.cashOut, count: r.count, start: r.opened },
+      counted: r.counted, exp: shExp(r), diff: r.counted - shExp(r), reason: r.reason, user: { name: r.cashier }, closed: r.closed, no: `Z-${r.branch}-${r.reg}-${r.id.slice(3)}`, reg: `${r.branch} · ${r.reg}` };
+  }
+  function shiftsView() {
+    if (S.user.role !== "Manager") return closeShiftView();
+    const f = S.sr, list = srList(), all = srAll();
+    if (!list.some(r => r.id === f.sel)) { f.sel = list[0] ? list[0].id : null; f.note = ""; }
+    const chip = (v, l) => `<button class="chip" data-act="sr-filter" data-v="${v}" aria-pressed="${f.filter === v}">${l}</button>`;
+    const pendingDiff = S.sr.list.filter(r => r.status === "review").reduce((a, r) => a + (r.counted - shExp(r)), 0);
+    const left = `<section class="products" aria-label="Shifts">
+      <div class="stats"><div class="stat"><span>Waiting for approval</span><b style="color:${srPending() ? "var(--warning-text)" : "var(--text)"}">${srPending()}</b></div><div class="stat"><span>Net difference waiting</span><b>${signed(pendingDiff)}</b></div><div class="stat"><span>Open now</span><b>${liveShifts().length}</b></div></div>
+      <div class="chips">${chip("review", `Needs approval · ${all.filter(r => r.status === "review" || r.status === "recount").length}`)}${chip("open", `Open now · ${all.filter(r => r.status === "open").length}`)}${chip("approved", "Approved")}${chip("all", `All · ${all.length}`)}</div>
+      ${list.length ? `<div class="htable" role="listbox" aria-label="Shift list">
+        <div class="shrow head" aria-hidden="true"><span>Register</span><span>Cashier</span><span class="amt">Expected</span><span class="amt">Difference</span><span>Status</span></div>
+        ${list.map(r => { const d = r.counted == null ? null : r.counted - shExp(r); return `<button class="shrow" role="option" aria-selected="${r.id === f.sel}" data-act="sr-sel" data-id="${r.id}">
+          <span><b>${r.branch} · ${r.reg}</b><small>${r.live ? "Open shift" : r.id}</small></span><span class="nm"><b>${esc(r.cashier)}</b><small>${r.closed ? "Closed " + (dayDiff(r.closed) === 0 ? "today " : "yesterday ") + hm(r.closed) : "Since " + hm(r.opened)}</small></span>
+          <span class="amt">${fmt(shExp(r))}</span><span class="amt ${d == null ? "" : d < 0 ? "neg" : d > 0 ? "pos" : ""}">${d == null ? `<span class="muted">counting later</span>` : d === 0 ? "Exact" : signed(d)}</span>
+          <span>${srBadge(r)}</span></button>`; }).join("")}</div>`
+        : `<div class="empty card"><span class="circle">${ic("check", 28)}</span><h3>${f.filter === "review" ? "Nothing waiting" : "No shifts"}</h3><span>${f.filter === "review" ? "Every closed shift is approved." : "Try another filter."}</span></div>`}
+      <div class="note">${ic("help", 16)}Differences up to ${fmt(CS_THRESHOLD)} are approved automatically (BR-08). Bigger ones wait here with the cashier's reason.</div>
+    </section>`;
+    return `<div class="body">${left}${srPanel(all.find(r => r.id === f.sel))}</div>`;
+  }
+  const srBadge = r => r.status === "open" ? badge("info", "Open", "clock") : r.status === "review" ? badge("warning", "Needs approval", "alert") : r.status === "recount" ? badge("error", "Recount asked", "undo") : badge("success", r.by === "Auto" ? "Auto-approved" : "Approved", "check");
+  function srPanel(r) {
+    if (!r) return `<aside class="order sr-panel"><div class="empty" style="flex:1"><span class="circle">${ic("wallet", 28)}</span><h3>Select a shift</h3><span>Click a row, or use ↑ ↓.</span></div></aside>`;
+    const f = S.sr, exp = shExp(r), d = r.counted == null ? null : r.counted - exp;
+    const kvr = (l, v, cls = "") => `<dt>${l}</dt><dd class="${cls}">${v}</dd>`;
+    return `<aside class="order sr-panel" aria-label="Shift details">
+      <div class="order-head"><div class="order-title"><div style="flex:1;min-width:0"><h2>${esc(r.cashier)}</h2><div class="sub">${r.branch} · Register ${r.reg} · ${r.opened.toLocaleDateString("en-GB", { day: "numeric", month: "short" })} ${hm(r.opened)}–${r.closed ? hm(r.closed) : "now"} · ${r.count} sales</div></div>${srBadge(r)}</div>
+        ${d != null ? `<div class="sr-diff ${d < 0 ? "neg" : d > 0 ? "pos" : ""}"><span>Difference</span><b>${d === 0 ? "Exact" : signed(d)}</b><small>Counted ${fmt(r.counted)} · expected ${fmt(exp)}</small></div>` : `<div class="sr-diff"><span>Expected in the drawer now</span><b>${fmt(exp)}</b><small>The cashier counts when closing the shift</small></div>`}</div>
+      <div class="panel-body">
+        <div class="field">Cash<dl class="kv exc-kv">${kvr("Opening float", fmt(r.float))}${kvr("Cash sales", fmt(r.cashSales))}${kvr("Cash refunds", r.refunds ? "−" + fmt(r.refunds) : fmt(0))}${kvr("Cash in", fmt(r.cashIn))}${kvr("Cash out", r.cashOut ? "−" + fmt(r.cashOut) : fmt(0))}${kvr("<b>Expected</b>", `<b>${fmt(exp)}</b>`)}${r.counted != null ? kvr("<b>Counted</b>", `<b>${fmt(r.counted)}</b>`) : ""}</dl></div>
+        <div class="field">Other payments (checked against the terminal settlement)<dl class="kv exc-kv">${kvr("Card", fmt(r.card))}${kvr("LankaQR", fmt(r.qr))}${kvr("Customer credit", fmt(r.credit))}</dl></div>
+        ${r.moves.length ? `<div class="field">Cash movements<div class="dlines">${r.moves.map(([k, a, why, tm]) => `<div class="dline"><span class="grow"><b>${esc(why)}</b><small>${tm}</small></span><b style="color:${k === "in" ? "var(--success-text)" : "var(--error-text)"}">${k === "in" ? "+" : "−"}${fmt(a)}</b></div>`).join("")}</div></div>` : ""}
+        ${r.reason ? `<div class="field">Cashier's reason<p class="exc-problem warning"><b>${esc(r.reason)}</b>${r.cnote ? ` · ${esc(r.cnote)}` : ""}</p></div>` : ""}
+        ${r.status === "approved" || r.status === "recount" ? `<div class="banner" style="${r.status === "approved" ? "background:var(--success-tint);color:var(--success-text)" : ""}">${ic(r.status === "approved" ? "check" : "undo")}<span>${r.status === "approved" ? "Approved" : "Recount asked"} by ${esc(r.by)}${r.at ? " · " + r.at.toLocaleDateString("en-GB", { day: "numeric", month: "short" }) + " " + hm(r.at) : ""}${r.mnote ? ` · “${esc(r.mnote)}”` : ""}</span></div>` : ""}
+        ${r.status === "review" ? `<label class="field">Manager note<textarea id="srnote" data-fid="srnote" placeholder="What did you check? Required when asking for a recount.">${esc(f.note)}</textarea>${f.err ? `<span class="err">A short note is required</span>` : ""}</label>` : ""}
+      </div>
+      <div class="order-foot">${r.status === "review" ? `<button class="btn primary l block" data-act="sr-approve">${ic("check")}Approve difference <kbd>Ctrl Enter</kbd></button>
+        <div class="two"><button class="btn secondary" data-act="sr-recount">${ic("undo", 18)}Ask for a recount</button><button class="btn secondary" data-act="sr-z" data-id="${r.id}">${ic("printer", 18)}Z-report</button></div>`
+        : r.status === "open" ? `<button class="btn secondary l block" data-act="toast" data-msg="X-report (mid-shift) printed for ${esc(r.cashier)}">${ic("printer")}Print X-report</button>`
+        : `<button class="btn secondary l block" data-act="sr-z" data-id="${r.id}">${ic("printer")}Reprint Z-report</button>`}</div>
+    </aside>`;
+  }
+
   // ---------- Render: main ----------
   function render() {
     const fid = document.activeElement && document.activeElement.dataset ? document.activeElement.dataset.fid : null;
@@ -2178,6 +2472,9 @@ Yesterday 09:15  SYNC-003 Catalog cursor too old · catalog snapshot downloaded<
     else if (S.view === "returns") main = topbar(t("returns"), S.ret.done ? "Refund recorded" : S.ret.sale ? "Choose the items the customer is bringing back" : "Find the original sale") + returnsView();
     else if (S.view === "stock") main = topbar(t("stock"), "Stock on hand by product and batch") + stockView();
     else if (S.view === "expiry") main = topbar(t("expiry"), "Batches expiring in the next 90 days · act before they are lost") + expiryView();
+    else if (S.view === "customers") main = topbar(t("customers"), "Credit accounts, loyalty and contact details") + customersView();
+    else if (S.view === "customer") main = topbar(t("customers"), S.cu.open ? `Customers › ${esc(custOf(S.cu.open).name)}` : "Customers › New") + custView();
+    else if (S.view === "shifts") main = topbar(t("cash"), "Shifts on every register · approve differences and reprint Z-reports") + shiftsView();
     else if (S.view === "exceptions") main = topbar("Sale exceptions", "Sales the server recorded but flagged for a manager · all branches") + exceptionsView();
     else if (S.view === "suppliers") main = topbar(t("suppliers"), "Who we buy from, what we owe and what they supply") + suppliersView();
     else if (S.view === "counts") main = topbar("Stock counts", S.cnt.cur ? `${S.cnt.cur.no} · ${CNT_TYPES[S.cnt.cur.type][0]} · CMB01` : "Count what is on the shelf and correct the stock") + countsView();
@@ -2276,6 +2573,13 @@ Yesterday 09:15  SYNC-003 Catalog cursor too old · catalog snapshot downloaded<
       return;
     } else if (m.type === "cash") {
       h = cashModal(m, head);
+    } else if (m.type === "settle") {
+      h = settleModal(m, head);
+    } else if (m.type === "merge") {
+      h = mergeModal(m, head);
+    } else if (m.type === "zprint") {
+      const r = srAll().find(x => x.id === m.id);
+      h = `<div class="modal" role="dialog" aria-modal="true" aria-labelledby="mt" style="width:min(460px,100%)">${head("Z-report", `${r.branch} · ${r.reg} · ${r.cashier}`)}<div class="zwrap"><div class="paper">${esc(zText(srZ(r)))}</div></div><div style="display:flex;gap:8px;justify-content:flex-end"><button class="btn secondary" data-act="close">Close</button><button class="btn primary" data-act="toast" data-msg="Z-report reprinted · marked COPY">${ic("printer", 18)}Print copy</button></div></div>`;
     } else if (m.type === "cntpin") {
       h = cntPinModal(m, head);
     } else if (m.type === "adjust") {
@@ -2320,7 +2624,7 @@ Yesterday 09:15  SYNC-003 Catalog cursor too old · catalog snapshot downloaded<
         if (S.view === "product") S.pe = null;
         if (v === "cash" && S.cs.step === 3) resetCs();
         if (v === "returns" && S.ret.done) S.ret = emptyRet();
-        S.view = v === "sell" && !S.shifts[S.user.id] ? "openshift" : v; S.modal = null; renderModal(); render();
+        S.view = v === "sell" && !S.shifts[S.user.id] ? "openshift" : v === "cash" && S.user.role === "Manager" ? "shifts" : v; S.modal = null; renderModal(); render();
         if (v === "returns" && !S.ret.sale) focusId("rsearch"); break; }
       case "grn-demo": grnScan(el.dataset.code); break;
       case "grn-del": { const id = +el.dataset.id; S.grn.lines = S.grn.lines.filter(l => l.id !== id); render(); break; }
@@ -2331,6 +2635,27 @@ Yesterday 09:15  SYNC-003 Catalog cursor too old · catalog snapshot downloaded<
       case "pc-pick": S.pc.pid = el.dataset.pid; S.pc.error = ""; render(); break;
       case "pc-clear": S.pc.pid = null; S.pc.error = ""; S.pc.query = ""; render(); focusId("pcsearch"); break;
       case "pc-add": { const p = byId(S.pc.pid); if (!p) break; if (!S.shifts[S.user.id]) { S.view = "openshift"; render(); toast("Open a shift first", { error: true }); break; } S.view = "sell"; render(); addProduct(p); break; }
+      case "cu-filter": S.cu.filter = el.dataset.v; render(); break;
+      case "cu-open": openCustomer(el.dataset.id); break;
+      case "cu-new": openCustomer(null); break;
+      case "cu-back": if (custDirty()) { toast("Save or discard your changes first", { error: true }); break; } S.view = "customers"; S.cu.open = null; render(); break;
+      case "cu-tab": if (custDirty() && el.dataset.v !== "profile") { toast("Save or discard your changes first", { error: true }); break; } S.cu.tab = el.dataset.v; render(); break;
+      case "cu-save": custSave(); break;
+      case "cu-discard": if (!S.cu.open) { S.view = "customers"; render(); break; } S.cu.draft = custDraft(custOf(S.cu.open)); S.cu.showErr = false; render(); toast("Changes discarded"); break;
+      case "cu-settle": { const c = custOf(S.cu.open); openModal({ type: "settle", cid: c.id, method: "cash", amount: (custLedger(c).bal / 100).toFixed(2), ref: "" }); focusId("setamt"); break; }
+      case "set-method": S.modal.method = el.dataset.k; renderModal(); if (S.modal.method === "transfer" || S.modal.method === "cheque") focusId("set-ref"); break;
+      case "set-quick": S.modal.amount = el.dataset.v; renderModal(); break;
+      case "set-save": settleSave(); break;
+      case "cu-consent": { const c = custOf(S.cu.open), k = el.dataset.k; c.consent[k] = el.checked; c.consent.at = new Date(); c.consent.by = meShort() + " (customer asked in person)"; c.log.unshift({ when: new Date(), who: meShort(), what: `${k === "sms" ? "SMS" : "E-mail"} marketing ${el.checked ? "allowed" : "turned off"}` }); render(); toast(`${k === "sms" ? "SMS" : "E-mail"} offers ${el.checked ? "on" : "off"} · recorded with time and user`); break; }
+      case "cu-forget": { const c = custOf(S.cu.open); c.log.unshift({ when: new Date(), who: meShort(), what: "Deletion of personal data requested (PDPA)" }); render(); toast(`Deletion request logged for ${c.name} · personal data is removed within 30 days`); break; }
+      case "cu-merge": { const ids = el.dataset.ids.split(","), cs = ids.map(custOf).sort((a, b) => a.since - b.since); openModal({ type: "merge", ids, keep: cs[0].id }); break; }
+      case "merge-keep": S.modal.keep = el.dataset.id; renderModal(); break;
+      case "merge-do": mergeDo(); break;
+      case "sr-filter": S.sr.filter = el.dataset.v; render(); break;
+      case "sr-sel": if (S.sr.sel !== el.dataset.id) { S.sr.sel = el.dataset.id; S.sr.note = ""; S.sr.err = false; } render(); break;
+      case "sr-approve": srDecide("approve"); break;
+      case "sr-recount": srDecide("recount"); break;
+      case "sr-z": openModal({ type: "zprint", id: el.dataset.id }); break;
       case "exc-sel": excSelect(el.dataset.id); render(); break;
       case "exc-status": S.exc.status = el.dataset.v; S.exc.sel = null; render(); break;
       case "exc-type": S.exc.type = el.dataset.v; render(); break;
@@ -2517,6 +2842,10 @@ Yesterday 09:15  SYNC-003 Catalog cursor too old · catalog snapshot downloaded<
     if (e.target.id === "stsearch") { S.stk.q = e.target.value; render(); }
     if (e.target.id === "cntscan" && S.cnt.cur) { S.cnt.cur.q = e.target.value; }
     if (e.target.id === "excnote") { S.exc.note = e.target.value; render(); }
+    if (e.target.id === "srnote") { S.sr.note = e.target.value; if (S.sr.err && S.sr.note.trim().length >= 5) { S.sr.err = false; render(); } }
+    if (e.target.id === "cusearch") { S.cu.q = e.target.value; render(); }
+    if (e.target.dataset && e.target.dataset.cu && S.cu.draft) { S.cu.draft[e.target.dataset.cu] = e.target.value; render(); }
+    if (e.target.dataset && e.target.dataset.set && S.modal && S.modal.type === "settle") { const k = e.target.dataset.set; S.modal[k] = k === "amount" ? e.target.value.replace(/[^0-9.]/g, "") : e.target.value; const id = e.target.id || ("set-" + k); renderModal(); setTimeout(() => { const x = document.querySelector(`[data-set="${k}"]`); if (x) { x.focus(); x.setSelectionRange(x.value.length, x.value.length); } }); }
     if (e.target.dataset && e.target.dataset.xf) { S.exc[e.target.dataset.xf] = e.target.value; render(); }
     if (e.target.id === "supsearch") { S.sup.q = e.target.value; render(); }
     if (e.target.dataset && e.target.dataset.sup) { S.sup.draft[e.target.dataset.sup] = e.target.value; render(); }
@@ -2622,6 +2951,9 @@ Yesterday 09:15  SYNC-003 Catalog cursor too old · catalog snapshot downloaded<
       if (m.type === "batch") { if (k === "ArrowDown" || k === "ArrowUp") { e.preventDefault(); const n = byId(m.pid).batches.length; m.choice = (m.choice + (k === "ArrowDown" ? 1 : -1) + n) % n; renderModal(); return; } if (k === "Enter") { e.preventDefault(); const p = byId(m.pid); S.modal = null; renderModal(); addProduct(p, { batch: p.batches[m.choice].id }); } return; }
       if (m.type === "weight" || m.type === "qty") { if (/^[0-9.]$/.test(k)) { modalKey(k); return; } if (k === "Backspace") { modalKey("⌫"); return; } if (k === "Enter") { e.preventDefault(); confirmQty(); } return; }
       if (m.type === "discount") { if (/^[0-9]$/.test(k) && m.pct > DISCOUNT_LIMIT) { pinKey(k); return; } if (k === "Backspace") { pinKey("⌫"); return; } if (k === "Enter") { e.preventDefault(); confirmDiscount(); } return; }
+      if (m.type === "settle") { if (k === "Enter") { e.preventDefault(); settleSave(); } return; }
+      if (m.type === "merge") { if (k === "Enter") { e.preventDefault(); mergeDo(); } return; }
+      if (m.type === "zprint") return;
       if (m.type === "cntpin") {
         if (k === "Enter") { e.preventDefault(); cntApprove(); return; }
         if (/^[0-9]$/.test(k)) { m.pinErr = false; if (m.pin.length < 4) m.pin += k; renderModal(); return; }
@@ -2684,6 +3016,25 @@ Yesterday 09:15  SYNC-003 Catalog cursor too old · catalog snapshot downloaded<
     }
     if (S.view === "settings") {
       if ((e.ctrlKey || e.metaKey) && k.toLowerCase() === "s") { e.preventDefault(); saveSettings(); }
+      return;
+    }
+    if (S.view === "customers") {
+      if (e.target.id === "cusearch") { if (k === "Escape") { S.cu.q = ""; render(); focusId("cusearch"); } return; }
+      if (inInput || e.target.tagName === "SELECT") return;
+      if (k === "Enter" && e.target.dataset && e.target.dataset.act === "cu-open") { e.preventDefault(); openCustomer(e.target.dataset.id); return; }
+      if (k === "ArrowDown" || k === "ArrowUp") { const rows = [...app.querySelectorAll(".lrow[data-act]")]; if (!rows.length) return; e.preventDefault(); const i = rows.indexOf(document.activeElement); (rows[Math.max(0, Math.min(rows.length - 1, i < 0 ? 0 : i + (k === "ArrowDown" ? 1 : -1)))]).focus(); return; }
+      if (k === "/") { e.preventDefault(); focusId("cusearch"); return; }
+      if (k === "n" || k === "N") { e.preventDefault(); openCustomer(null); return; }
+      return;
+    }
+    if (S.view === "customer") {
+      if ((e.ctrlKey || e.metaKey) && k.toLowerCase() === "s") { e.preventDefault(); if (S.cu.tab === "profile") custSave(); return; }
+      return;
+    }
+    if (S.view === "shifts") {
+      if ((e.ctrlKey || e.metaKey) && k === "Enter") { e.preventDefault(); srDecide("approve"); return; }
+      if (inInput || e.target.tagName === "SELECT") return;
+      if (k === "ArrowDown" || k === "ArrowUp") { e.preventDefault(); srMove(k === "ArrowDown" ? 1 : -1); return; }
       return;
     }
     if (S.view === "exceptions") {
@@ -2858,9 +3209,9 @@ Yesterday 09:15  SYNC-003 Catalog cursor too old · catalog snapshot downloaded<
   let rz; window.addEventListener("resize", () => { clearTimeout(rz); rz = setTimeout(render, 120); });
   if (S.theme) document.documentElement.dataset.theme = S.theme;
   const hash = location.hash.replace("#", "");
-  if (["sell", "dashboard", "signin", "openshift", "returns", "cash", "orders", "receiving", "pricecheck", "status", "settings", "products", "stock", "expiry", "counts", "import", "exceptions", "suppliers"].includes(hash)) S.view = hash;
+  if (["sell", "dashboard", "signin", "openshift", "returns", "cash", "orders", "receiving", "pricecheck", "status", "settings", "products", "stock", "expiry", "counts", "import", "exceptions", "suppliers", "customers", "shifts"].includes(hash)) S.view = hash;
   if (hash === "stock" || hash === "expiry" || hash === "counts") S.user = USERS[4]; // Kasun, stock keeper
-  if (hash === "import" || hash === "exceptions" || hash === "suppliers") S.user = USERS[3]; // Malini, manager
+  if (hash === "import" || hash === "exceptions" || hash === "suppliers" || hash === "customers" || hash === "shifts") S.user = USERS[3]; // Malini, manager
   // File picker and drag-and-drop for the import wizard (A-23)
   document.addEventListener("change", e => { if (e.target.id === "impfile" && e.target.files && e.target.files[0]) { const fl = e.target.files[0]; impSetFile(fl.name, fl.size); } });
   document.addEventListener("dragover", e => { const z = e.target.closest && e.target.closest(".dropzone"); if (z) { e.preventDefault(); z.classList.add("over"); } });
