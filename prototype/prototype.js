@@ -129,9 +129,9 @@
   const SUPPLIERS = ["Hemas Pharmaceuticals", "Cargills Distribution", "Lanka Milk Foods", "Ceylon Biscuits Ltd", "Fresh Farms Nuwara Eliya"];
   const LOW_STOCK = 5;
   const tracked = p => p.cat === "Pharmacy" || p.cat === "Dairy" || p.id === "eg";   // batch + expiry required (INV-14)
-  const unitsFor = p => p.weighed ? [{ k: "kg", l: "kg", f: 1 }, { k: "sack", l: "Sack (25 kg)", f: 25 }]
-    : p.cat === "Pharmacy" ? [{ k: "strip", l: "Strip", f: 1 }, { k: "box", l: "Box (10 strips)", f: 10 }]
-    : [{ k: "pc", l: "Piece", f: 1 }, { k: "case", l: "Case (12)", f: 12 }];
+  const unitsFor = p => { const c = S.uconv || { case: 12, box: 10, sack: 25 }; return p.weighed ? [{ k: "kg", l: "kg", f: 1 }, { k: "sack", l: `Sack (${c.sack} kg)`, f: c.sack }]
+    : p.cat === "Pharmacy" ? [{ k: "strip", l: "Strip", f: 1 }, { k: "box", l: `Box (${c.box} strips)`, f: c.box }]
+    : [{ k: "pc", l: "Piece", f: 1 }, { k: "case", l: `Case (${c.case})`, f: c.case }]; };
   const COST_RATIO = { Pharmacy: 0.78, Grocery: 0.86, Dairy: 0.82, Beverages: 0.73, "Personal care": 0.70, Vegetables: 0.75, Household: 0.72 };
   const baseCost = p => Math.round(p.price * (COST_RATIO[p.cat] || 0.72) / 100) * 100;                     // demo supplier cost per base unit
   const gtinOf = p => "0" + p.code;
@@ -399,7 +399,7 @@
     ["setup", [["business", "landmark"], ["branches", "monitor"], ["receipts", "printer"], ["audit", "lock"]]]
   ];
   function sidebar() {
-    const cur = S.view === "complete" ? "sell" : S.view === "product" || S.view === "import" ? "products" : S.view === "counts" ? "stock" : S.view === "customer" ? "customers" : S.view === "shifts" ? "cash" : S.view === "vat" || S.view === "taxrates" ? "tax" : S.view === "batch" ? "stock" : S.view === "discounts" || S.view === "pricelists" ? "pricing" : S.view === "categories" ? "products" : S.view === "sales" || S.view === "sale" ? "orders" : S.view === "returnslist" ? "returns" : S.view === "grns" ? "receiving" : S.view;
+    const cur = S.view === "complete" ? "sell" : S.view === "product" || S.view === "import" ? "products" : S.view === "counts" ? "stock" : S.view === "customer" ? "customers" : S.view === "shifts" ? "cash" : S.view === "vat" || S.view === "taxrates" ? "tax" : S.view === "batch" ? "stock" : S.view === "discounts" || S.view === "pricelists" ? "pricing" : S.view === "categories" ? "products" : S.view === "sales" || S.view === "sale" ? "orders" : S.view === "returnslist" ? "returns" : S.view === "grns" ? "receiving" : S.view === "units" ? "products" : S.view === "adjustments" ? "stock" : S.view === "devices" ? "branches" : S.view;
     let h = `<aside class="sidebar" aria-label="Main navigation"><div class="brand"><span class="mark">R</span><span class="brand-name">RetailOS</span><button class="icon-btn" data-act="collapse" title="Collapse sidebar">${ic("panel")}</button></div><nav>`;
     for (const [g, items] of NAV) {
       h += `<div class="nav-label">${t(g)}</div>`;
@@ -1038,7 +1038,7 @@
         <div class="success-mark"><div>${ic("truck", 40)}</div></div>
         <h1>Goods received</h1><div class="sub">${d.no} · ${esc(d.supplier)} · invoice ${esc(d.invoice)} · ${fmt(d.total)}</div>
         <div class="card" style="width:min(560px,100%);text-align:left"><h2>Stock updated</h2><div class="dlines">${d.updates.map(u => `<div class="dline"><span class="thumb tile-${u.p.tone}">${ic(u.p.icon, 18)}</span><span class="grow"><b>${esc(u.p.name)}</b><small>${u.batch ? `Batch ${esc(u.batch)} · exp ${fmtExpIso(u.exp)}` : "No batch"}</small></span><b style="color:var(--success-text)">+${u.p.weighed ? u.base.toFixed(3) + " kg" : u.base}</b><span class="sub" style="font-size:13px;min-width:90px;text-align:right">now ${u.p.weighed ? u.p.stock.toFixed(1) + " kg" : u.p.stock}</span></div>`).join("")}</div></div>
-        <div class="actions"><button class="btn primary l" data-act="grn-new">New receipt <kbd>Enter</kbd></button><button class="btn secondary l" data-act="toast" data-msg="GRN printed">${ic("printer")}Print GRN</button><button class="btn ghost l" data-act="nav" data-view="pricecheck">${ic("tag")}Price check</button></div>
+        <div class="actions"><button class="btn primary l" data-act="grn-new">New receipt <kbd>Enter</kbd></button><button class="btn secondary l" data-act="grn-print" data-no="${d.no}">${ic("printer")}Print GRN</button><button class="btn ghost l" data-act="nav" data-view="pricecheck">${ic("tag")}Price check</button></div>
       </section></div>`;
     }
     const issues = grnIssues(), total = g.lines.reduce((a, l) => a + glCost(l), 0), inv = Math.round((parseFloat(g.invTotal) || 0) * 100);
@@ -1281,6 +1281,7 @@ Yesterday 09:15  SYNC-003 Catalog cursor too old · catalog snapshot downloaded<
         <button class="toggle-btn" data-act="pf-missing" aria-pressed="${f.missing}">සිං/தமி missing · ${missingCount}</button>
         <span class="spacer"></span>
         <button class="btn secondary" data-act="nav" data-view="categories">${ic("grid", 18)}Categories</button>
+        <button class="btn secondary" data-act="goto" data-view="units">Units</button>
         <button class="btn secondary" data-act="nav" data-view="pricing">${ic("tag", 18)}Change prices</button>
         <button class="btn secondary" data-act="nav" data-view="import">${ic("upload", 18)}Import</button>
         <button class="btn secondary" data-act="toast" data-msg="products.xlsx exported (${list.length} rows)">Export</button>
@@ -1465,6 +1466,7 @@ Yesterday 09:15  SYNC-003 Catalog cursor too old · catalog snapshot downloaded<
         <select data-sk="cat" data-fid="sk-cat" aria-label="Category"><option value="All">All categories</option>${CATS_ADMIN.map(c => `<option ${s.cat === c ? "selected" : ""}>${c}</option>`).join("")}</select>
         <div class="chips">${chip("all", "All")}${chip("low", `Low · ${low}`)}${chip("out", `Out · ${out}`)}${chip("exp", "Expiring ≤ 90 days")}</div>
         <span class="spacer"></span>
+        <button class="btn secondary" data-act="goto" data-view="adjustments">${ic("list", 18)}Adjustments</button>
         <button class="btn secondary" data-act="nav" data-view="counts">${ic("list", 18)}Stock count</button>
         <button class="btn secondary" data-act="toast" data-msg="stock-${s.branch}.xlsx exported">Export</button>
       </div>
@@ -2305,7 +2307,7 @@ Yesterday 09:15  SYNC-003 Catalog cursor too old · catalog snapshot downloaded<
         : `<div class="empty"><span class="circle">${ic("receipt", 28)}</span><h3>No purchases in the last 30 days</h3><span>Older sales are in the reports.</span></div>`}
         <div class="note">${ic("chart", 16)}Lifetime spend ${fmt(c.lifetime + sales.reduce((a, s) => a + saleTotal(s), 0))} since ${c.since.toLocaleDateString("en-GB", { month: "short", year: "numeric" })}</div></section>`;
     } else if (f.tab === "ledger") {
-      body = `<section class="card"><div class="card-head"><h2>Credit ledger</h2><button class="btn secondary" data-act="toast" data-msg="Statement for ${esc(c.name)} sent to the printer${c.email ? " and e-mailed to " + esc(c.email) : ""}">${ic("printer", 18)}Print statement</button><button class="btn primary" data-act="cu-settle" ${L.bal > 0 ? "" : "disabled"}>${ic("wallet", 18)}Record settlement</button></div>
+      body = `<section class="card"><div class="card-head"><h2>Credit ledger</h2><button class="btn secondary" data-act="cu-statement">${ic("printer", 18)}Print statement</button><button class="btn primary" data-act="cu-settle" ${L.bal > 0 ? "" : "disabled"}>${ic("wallet", 18)}Record settlement</button></div>
         ${L.open.length ? `<div class="aging">${[["Current", 0, 30], ["31–60 days", 31, 60], ["Over 60 days", 61, 9999]].map(([l, a, b]) => { const v = L.open.filter(o => o.age >= a && o.age <= b).reduce((x, o) => x + o.left, 0); return `<div class="${v && a > 0 ? "late-b" : ""}"><span>${l}</span><b>${fmt(v)}</b></div>`; }).join("")}</div>` : ""}
         <div class="ledger" role="table" aria-label="Ledger"><div class="grow-row head" role="row"><span>Date</span><span>Details</span><span class="r">Charge</span><span class="r">Payment</span><span class="r">Balance</span></div>
           ${L.rows.slice().reverse().map(r => { const o = L.open.find(x => x.ref === r.ref && r.type === "sale"); return `<div class="grow-row" role="row"><span class="muted">${r.date.toLocaleDateString("en-GB", { day: "numeric", month: "short" })}</span><span><b>${r.type === "sale" ? "Credit sale " : ""}${esc(r.ref)}</b>${o ? `<small class="${o.age > PAY_TERMS_DAYS ? "late" : "muted"}">${fmt(o.left)} unpaid · ${o.age} days${o.age > PAY_TERMS_DAYS ? " · overdue" : ""}</small>` : r.type === "sale" ? `<small class="muted">Paid</small>` : ""}</span>
@@ -3279,7 +3281,7 @@ Yesterday 09:15  SYNC-003 Catalog cursor too old · catalog snapshot downloaded<
     S.bizLogo = d.logo; S.bizLang = { si: d.si, ta: d.ta, def: d.def }; S.bizFy = d.fy; S.bizDraft = null; S.bizErr = false;
     render(); toast("Business profile saved · new tax documents use these details");
   }
-  const setupTabs = cur => `<div class="seg tabs big" role="tablist">${[["business", "Business"], ["branches", "Branches & registers"], ["receipts", "Receipts"], ["audit", "Audit log"]].map(([v, l]) => `<button role="tab" data-act="nav" data-view="${v}" aria-pressed="${cur === v}" aria-selected="${cur === v}">${l}</button>`).join("")}</div>`;
+  const setupTabs = cur => `<div class="seg tabs big" role="tablist">${[["business", "Business"], ["branches", "Branches & registers"], ["devices", "Devices"], ["receipts", "Receipts"], ["audit", "Audit log"]].map(([v, l]) => `<button role="tab" data-act="nav" data-view="${v}" aria-pressed="${cur === v}" aria-selected="${cur === v}">${l}</button>`).join("")}</div>`;
   const setupGuard = () => isMgr() ? null : `<div class="placeholder"><div class="empty"><span class="circle">${ic("lock", 28)}</span><h3>Setup is for the owner</h3><span>Managers can look; the owner changes it.</span><button class="btn primary s" data-act="logout">Switch user</button></div></div>`;
   function businessView() {
     const g0 = setupGuard(); if (g0) return g0;
@@ -3312,7 +3314,7 @@ Yesterday 09:15  SYNC-003 Catalog cursor too old · catalog snapshot downloaded<
   S.br = { sel: "CMB01", plan: { branches: 5, registers: 10 }, draft: null, list: [
     { code: "CMB01", name: "Colombo 03", address: "No. 12, Galle Road, Colombo 03", phone: "0112504411", manager: "Malini Jayasuriya", opened: "2024-03-01", regs: [mkReg("R01", "WIN-CMB01-01", "Windows", "online", minsAgo(1), "1.6.0"), mkReg("R02", "WIN-CMB01-02", "Windows", "online", minsAgo(0), "1.6.0"), mkReg("R03", "AND-CMB01-03", "Android tablet", "offline", minsAgo(130), "1.5.2")] },
     { code: "KDY01", name: "Kandy", address: "45 Dalada Veediya, Kandy", phone: "0812223344", manager: "Chamari Wijesinghe", opened: "2025-02-10", regs: [mkReg("R01", "WIN-KDY01-01", "Windows", "offline", minsAgo(1620), "1.5.2"), mkReg("R02", "AND-KDY01-02", "Android tablet", "online", minsAgo(2), "1.6.0")] },
-    { code: "GAL01", name: "Galle", address: "88 Matara Road, Galle", phone: "0912234567", manager: "Dilan Wickrama", opened: "2025-11-01", regs: [mkReg("R01", "WIN-GAL01-01", "Windows", "online", minsAgo(3), "1.6.0"), mkReg("R02", "WIN-GAL01-02", "Windows", "online", minsAgo(1), "1.6.0")] }
+    { code: "GAL01", name: "Galle", address: "88 Matara Road, Galle", phone: "0912234567", manager: "Dilan Wickrama", opened: "2025-11-01", regs: [mkReg("R01", "WIN-GAL01-01", "Windows", "online", minsAgo(3), "1.6.0"), mkReg("R02", "WIN-GAL01-02", "Windows", "online", minsAgo(1), "1.5.9")] }
   ] };
   const regCount = () => S.br.list.reduce((a, b) => a + b.regs.length, 0);
   const enrollCode = () => { const A = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"; let s = ""; for (let i = 0; i < 8; i++) s += A[Math.floor(Math.random() * A.length)]; return s.slice(0, 4) + "-" + s.slice(4); };
@@ -3636,7 +3638,7 @@ Yesterday 09:15  SYNC-003 Catalog cursor too old · catalog snapshot downloaded<
           <div class="summary"><div class="total"><span>Cost total</span><span>${fmt(g.lines ? tot : g.total)}</span></div></div>
           ${!g.invoice && d ? `<div class="note">${ic("help", 16)}Add the supplier invoice number before posting, so payments can be matched.</div>` : ""}</div>
         <div class="order-foot">${d ? `<button class="btn primary l block" data-act="gl-post" data-no="${g.no}" ${g.invoice ? "" : "disabled"}>${ic("check")}Post receipt · add to stock</button><div class="two"><button class="btn secondary" data-act="gl-inv" data-no="${g.no}">Add invoice no.</button><button class="btn ghost" data-act="gl-del" data-no="${g.no}">Delete draft</button></div>`
-          : `<div class="two"><button class="btn secondary" data-act="toast" data-msg="${g.no} printed">${ic("printer", 18)}Print</button><button class="btn secondary" data-act="gl-sup" data-sup="${esc(g.supplier)}">${ic("store", 18)}Supplier</button></div>`}</div></aside>`;
+          : `<div class="two"><button class="btn secondary" data-act="grn-print" data-no="${g.no}">${ic("printer", 18)}Print</button><button class="btn secondary" data-act="gl-sup" data-sup="${esc(g.supplier)}">${ic("store", 18)}Supplier</button></div>`}</div></aside>`;
     }
     return `<div class="body">${left}${right}</div>`;
   }
@@ -3891,6 +3893,170 @@ Yesterday 09:15  SYNC-003 Catalog cursor too old · catalog snapshot downloaded<
     else if (L.mode === "mfasetup") app.querySelector('[data-act="lg-mfaset"]') && app.querySelector('[data-act="lg-mfaset"]').click();
   }
 
+  // ---------- Units (A-24) ----------
+  S.units = [
+    { id: "pc", name: "Piece", sym: "pcs", type: "Count", dec: 0 }, { id: "strip", name: "Strip", sym: "strip", type: "Count", dec: 0 }, { id: "kg", name: "Kilogram", sym: "kg", type: "Weight", dec: 3 },
+    { id: "g", name: "Gram", sym: "g", type: "Weight", dec: 0 }, { id: "l", name: "Litre", sym: "L", type: "Volume", dec: 3 },
+    { id: "case", name: "Case", sym: "case", type: "Pack", of: "pc", f: 12, for: "Grocery, dairy, drinks, personal care" },
+    { id: "box", name: "Box", sym: "box", type: "Pack", of: "strip", f: 10, for: "Pharmacy" },
+    { id: "sack", name: "Sack", sym: "sack", type: "Pack", of: "kg", f: 25, for: "Weighed vegetables" }
+  ];
+  S.uconv = { case: 12, box: 10, sack: 25 }; S.uDraft = null; S.uLog = [];
+  const unitUse = u => u.id === "pc" ? PRODUCTS.filter(p => !p.weighed && p.cat !== "Pharmacy").length : u.id === "strip" ? PRODUCTS.filter(p => p.cat === "Pharmacy").length : u.id === "kg" ? PRODUCTS.filter(p => p.weighed).length : 0;
+  const unitName = id => (S.units.find(u => u.id === id) || { name: id }).name;
+  function unitsView() {
+    if (!isMgr()) return `<div class="placeholder"><div class="empty"><span class="circle">${ic("lock", 28)}</span><h3>Units are set by managers</h3><button class="btn primary s" data-act="logout">Switch user</button></div></div>`;
+    if (!S.uDraft) S.uDraft = { ...S.uconv };
+    const D = S.uDraft, dirty = Object.keys(D).some(k => D[k] !== S.uconv[k]);
+    const base = S.units.filter(u => u.type !== "Pack"), packs = S.units.filter(u => u.type === "Pack");
+    return `<div class="page setup">
+      <div class="cust-head"><button class="btn ghost" data-act="goto" data-view="products">${ic("arrowRight", 18)}Products</button><div class="grow"><h2>Units of measure</h2><span class="sub">Stock is always counted in the base unit. Pack units convert when you receive goods.</span></div><button class="btn primary" data-act="unit-new">${ic("plus", 18)}Add unit</button></div>
+      <div class="setup-grid">
+        <section class="card"><h2>Base units</h2>
+          <div class="ctable" role="table"><div class="unrow head" role="row"><span>Unit</span><span>Type</span><span>Decimals</span><span class="r">Products</span><span></span></div>
+          ${base.map(u => `<div class="unrow" role="row"><span><b>${esc(u.name)}</b> <span class="mono muted">${esc(u.sym)}</span></span><span>${u.type}</span><span>${u.dec ? `${u.dec} (e.g. ${(1.25).toFixed(u.dec)})` : "Whole numbers"}</span><span class="r">${unitUse(u)}</span><span class="r">${unitUse(u) ? badge("", "In use", null) : `<button class="btn ghost s" data-act="unit-del" data-v="${u.id}">Delete</button>`}</span></div>`).join("")}</div>
+          <div class="note">${ic("lock", 16)}A unit with products cannot be deleted or changed between count and weight, because past stock is stored in it.</div></section>
+        <section class="card"><div class="card-head"><h2>Pack units and conversions</h2>${dirty ? badge("warning", "Unsaved", "pencil") : ""}</div>
+          <div class="dlines">${packs.map(u => `<div class="dline conv"><span class="grow"><b>1 ${esc(u.name.toLowerCase())}</b><small>${esc(u.for || "Any product")}</small></span><span class="eq">=</span>
+            <input class="plin" data-uc="${u.id}" data-fid="uc-${u.id}" inputmode="decimal" value="${D[u.id] != null ? D[u.id] : u.f}" aria-label="${esc(u.name)} contains"><span class="muted">${esc(unitName(u.of).toLowerCase())}${D[u.id] === 1 ? "" : "s"}</span></div>`).join("")}</div>
+          <div class="note">${ic("truck", 16)}Receiving shows these packs. Receiving 2 boxes of Paracetamol adds ${2 * (D.box || 10)} strips to stock.</div>
+          <div class="card-actions"><button class="btn secondary" data-act="uc-discard" ${dirty ? "" : "disabled"}>Discard</button><button class="btn primary" data-act="uc-save" ${dirty && Object.values(D).every(v => v >= 1) ? "" : "disabled"}>${ic("check", 18)}Save conversions</button></div></section>
+      </div>
+      ${S.uLog.length ? `<section class="card"><h2>Changes</h2><div class="dlines">${S.uLog.map(x => `<div class="dline"><span class="grow"><b>${esc(x.what)}</b><small>${hm(x.when)} · ${esc(x.who)}</small></span></div>`).join("")}</div></section>` : ""}
+    </div>`;
+  }
+  function unitModal(m, head) {
+    const ok = m.name.trim() && m.sym.trim() && !S.units.some(u => u.name.toLowerCase() === m.name.trim().toLowerCase()) && (m.utype !== "Pack" || (+m.f >= 2 && m.of));
+    return `<div class="modal" role="dialog" aria-modal="true" aria-labelledby="mt" style="width:min(480px,100%)">${head("Add a unit", "Base unit or pack")}
+      <div class="form-2"><label class="field">Name<input data-un="name" data-fid="un-name" id="unname" value="${esc(m.name)}" placeholder="e.g. Bottle"></label><label class="field">Symbol<input data-un="sym" data-fid="un-sym" value="${esc(m.sym)}" placeholder="btl" maxlength="6"></label></div>
+      <div class="field">Type<div class="seg" role="group">${["Count", "Weight", "Volume", "Pack"].map(t => `<button data-act="un-type" data-v="${t}" aria-pressed="${m.utype === t}">${t}</button>`).join("")}</div></div>
+      ${m.utype === "Pack" ? `<div class="form-2"><label class="field">Contains<input data-un="f" data-fid="un-f" inputmode="numeric" value="${esc(m.f)}"></label><label class="field">of<select data-un="of" data-fid="un-of">${S.units.filter(u => u.type !== "Pack").map(u => `<option value="${u.id}" ${m.of === u.id ? "selected" : ""}>${esc(u.name)}</option>`).join("")}</select></label></div>`
+        : `<label class="field">Decimals<select data-un="dec" data-fid="un-dec">${[0, 1, 2, 3].map(d => `<option ${+m.dec === d ? "selected" : ""}>${d}</option>`).join("")}</select></label>`}
+      ${S.units.some(u => u.name.toLowerCase() === m.name.trim().toLowerCase()) ? `<div class="scan-error">${ic("alert", 16)}That unit already exists</div>` : ""}
+      <button class="btn primary l block" data-act="un-save" ${ok ? "" : "disabled"}>${ic("check")}Add unit <kbd>Enter</kbd></button></div>`;
+  }
+
+  // ---------- Stock adjustments (A-43) ----------
+  const ADJ_SEED = [[1, "CMB01", "sh", "SH2510", -1, "Damaged", "Kasun S.", null], [2, "CMB01", "eg", "EG1110", -2, "Damaged", "Kasun S.", null], [3, "KDY01", "ct", "CT2601", -3, "Theft or loss", "Chamari W.", null],
+    [4, "CMB01", "am", "AM2505", -10, "Expired write-off", "Rizwan F.", "Malini J."], [6, "GAL01", "bw", "", -6, "Damaged", "Roshan F.", null], [8, "CMB01", "tp", "", 2, "Found in store", "Kasun S.", null],
+    [9, "KDY01", "br", "", -2, "Theft or loss", "Chamari W.", "Chamari W."], [11, "CMB01", "pc", "B1", -20, "Returned to supplier", "Kasun S.", null], [13, "GAL01", "cc", "CC2601", -4, "Expired write-off", "Roshan F.", null],
+    [16, "CMB01", "co", "", -1, "Own use", "Malini J.", null], [19, "KDY01", "mp", "MP7540", -2, "Damaged", "Ruwan B.", null], [22, "CMB01", "br", "", -3, "Count correction · CNT-0040", "Kasun S.", "Malini J."], [27, "GAL01", "sh", "", 1, "Count correction", "Ishara P.", null]];
+  S.adjHist = ADJ_SEED.map(([d, br, pid, lot, qty, reason, who, approver]) => ({ when: daysAgo(d, 10 + d % 7, (d * 13) % 60), branch: br, pid, lot, qty, reason, who, approver }));
+  S.aj = { q: "", period: "30d", branch: "all", reason: "all", sel: null };
+  const isAdjReason = r => !/^Goods receipt/.test(r);
+  function adjAll() {
+    const sess = S.moves.filter(m => isAdjReason(m.reason)).map(m => ({ when: m.when, branch: "CMB01", pid: (PRODUCTS.find(p => p.name === m.product) || {}).id, lot: m.lot, qty: m.qty, reason: m.reason, who: m.who, approver: m.approver, note: m.note, live: true }));
+    return [...sess, ...S.adjHist].filter(a => a.pid).map((a, i) => ({ ...a, key: a.live ? "s" + i + +a.when : "h" + +a.when, value: Math.round(a.qty * byId(a.pid).cost) })).sort((a, b) => b.when - a.when);
+  }
+  const reasonGroup = r => r.replace(/ · .*/, "");
+  function adjustmentsView() {
+    if (!["Owner", "Manager", "Stock keeper"].includes(S.user.role)) return stockView();
+    const f = S.aj, days = f.period === "7d" ? 7 : 30, q = f.q.trim().toLowerCase(), all = adjAll().filter(a => dayDiff(a.when) <= days && (f.branch === "all" || a.branch === f.branch));
+    const list = all.filter(a => (f.reason === "all" || reasonGroup(a.reason) === f.reason) && (!q || [byId(a.pid).name, a.lot, a.reason, a.who, a.approver || ""].join(" ").toLowerCase().includes(q)));
+    const lost = all.filter(a => a.value < 0).reduce((x, a) => x - a.value, 0), found = all.filter(a => a.value > 0).reduce((x, a) => x + a.value, 0);
+    const byReason = {}; all.forEach(a => { const g = reasonGroup(a.reason); byReason[g] = (byReason[g] || 0) + Math.max(0, -a.value); });
+    const reasons = [...new Set(adjAll().map(a => reasonGroup(a.reason)))].sort();
+    if (!list.some(a => a.key === f.sel)) f.sel = list[0] ? list[0].key : null;
+    const sel = list.find(a => a.key === f.sel);
+    const left = `<section class="products" aria-label="Stock adjustments">
+      <div class="search-row"><label class="search">${ic("search")}<span class="sr">Search adjustments</span><input id="ajsearch" data-fid="ajsearch" autocomplete="off" placeholder="Product, batch, reason or person…" value="${esc(f.q)}"></label><button class="btn primary" data-act="aj-new">${ic("plus", 18)}New adjustment</button></div>
+      <div class="filters"><div class="seg" role="group">${[["7d", "7 days"], ["30d", "30 days"]].map(([v, l]) => `<button data-act="aj-period" data-v="${v}" aria-pressed="${f.period === v}">${l}</button>`).join("")}</div>
+        <select data-aj="branch" data-fid="aj-branch" aria-label="Branch"><option value="all">All branches</option>${BRANCHES.map(b => `<option value="${b[0]}" ${f.branch === b[0] ? "selected" : ""}>${b[1]}</option>`).join("")}</select>
+        <select data-aj="reason" data-fid="aj-reason" aria-label="Reason"><option value="all">Any reason</option>${reasons.map(r => `<option ${f.reason === r ? "selected" : ""}>${esc(r)}</option>`).join("")}</select></div>
+      <div class="stats"><div class="stat"><span>Written down at cost</span><b style="color:var(--error-text)">${signed(-lost)}</b></div><div class="stat"><span>Found or corrected up</span><b style="color:var(--success-text)">${signed(found)}</b></div><div class="stat"><span>Needed approval</span><b>${all.filter(a => a.approver).length} of ${all.length}</b></div></div>
+      <section class="card"><h2>Loss by reason</h2>${barsH(Object.entries(byReason).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]).map(([l, v]) => ({ l, v })), kRs)}</section>
+      ${list.length ? `<div class="htable" role="listbox" aria-label="Adjustments"><div class="ajrow head" aria-hidden="true"><span>When</span><span>Product</span><span>Reason</span><span class="amt">Qty</span><span class="amt">Value</span></div>
+        ${list.map(a => { const p = byId(a.pid); return `<button class="ajrow" role="option" aria-selected="${a.key === f.sel}" data-act="aj-sel" data-k="${a.key}"><span class="muted">${dayDiff(a.when) === 0 ? "Today " + hm(a.when) : a.when.toLocaleDateString("en-GB", { day: "numeric", month: "short" })}</span>
+          <span class="no"><b>${esc(p.name)}</b><small>${a.branch}${a.lot ? " · " + esc(a.lot) : ""} · ${esc(a.who)}</small></span><span>${esc(reasonGroup(a.reason))}${a.approver ? " " + badge("warning", "Approved", "lock") : ""}</span>
+          <span class="amt ${a.qty < 0 ? "neg" : "pos"}">${a.qty > 0 ? "+" : "−"}${fq(p, Math.abs(a.qty))}</span><span class="amt">${signed(a.value)}</span></button>`; }).join("")}</div>`
+        : `<div class="empty card"><span class="circle">${ic("warehouse", 28)}</span><h3>No adjustments match</h3></div>`}
+    </section>`;
+    const right = sel ? (() => { const p = byId(sel.pid); return `<aside class="order rl-panel" aria-label="Adjustment"><div class="order-head"><div class="order-title"><span class="thumb tile-${p.tone}">${ic(p.icon, 20)}</span><div style="flex:1;min-width:0"><h2>${esc(p.name)}</h2><div class="sub">${sel.when.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })} ${hm(sel.when)} · ${sel.branch}</div></div></div>
+        <div class="sr-diff ${sel.qty < 0 ? "neg" : "pos"}"><span>${esc(sel.reason)}</span><b>${sel.qty > 0 ? "+" : "−"}${fq(p, Math.abs(sel.qty))}</b><small>${signed(sel.value)} at cost</small></div></div>
+      <div class="panel-body"><dl class="kv exc-kv"><dt>By</dt><dd>${esc(sel.who)}</dd><dt>Approved by</dt><dd>${sel.approver ? esc(sel.approver) : "Not needed (under " + fmt(ADJ_LIMIT) + ")"}</dd>${sel.lot ? `<dt>Batch</dt><dd>${esc(sel.lot)}</dd>` : ""}${sel.note ? `<dt>Note</dt><dd>${esc(sel.note)}</dd>` : ""}<dt>Product now</dt><dd>${fq(p, p.stock)} on hand at CMB01</dd></dl>
+        <div class="note">${ic("lock", 16)}Adjustments are stock movements. They are never edited; a mistake is fixed with another adjustment.</div></div>
+      <div class="order-foot">${sel.lot && findLot(p.id, sel.lot) ? `<button class="btn secondary l block" data-act="bd-open" data-id="${p.id}" data-lot="${esc(sel.lot)}">${ic("package")}Batch ${esc(sel.lot)}</button>` : ""}<button class="btn secondary l block" data-act="adj-open" data-id="${p.id}">Adjust ${esc(p.name.split(" ")[0])} again</button></div></aside>`; })()
+      : `<aside class="order rl-panel"><div class="empty" style="flex:1"><span class="circle">${ic("warehouse", 28)}</span><h3>Select an adjustment</h3></div></aside>`;
+    return `<div class="body">${left}${right}</div>`;
+  }
+  function adjPickModal(m, head) {
+    const q = m.q.trim().toLowerCase(), list = PRODUCTS.filter(p => p.active !== false && (!q || (p.name + " " + p.sku + " " + p.code).toLowerCase().includes(q))).slice(0, 8);
+    return `<div class="modal" role="dialog" aria-modal="true" aria-labelledby="mt" style="width:min(520px,100%)">${head("Which product?", "Scan the barcode or search")}
+      <label class="search">${ic("scan", 20, "scan")}<span class="sr">Find product</span><input id="ajpick" data-ajp="q" data-fid="ajpick" autocomplete="off" placeholder="Name, SKU or barcode" value="${esc(m.q)}"></label>
+      <div class="opt-list">${list.map(p => `<button class="opt" data-act="aj-pick" data-id="${p.id}"><span class="thumb tile-${p.tone}" style="width:36px;height:36px">${ic(p.icon, 18)}</span><span class="grow"><b>${esc(p.name)}</b><small>${esc(p.sku)} · ${fq(p, p.stock)} on hand</small></span></button>`).join("") || `<div class="note">${ic("help", 16)}Nothing matches.</div>`}</div></div>`;
+  }
+
+  // ---------- Devices (A-83) ----------
+  const LATEST = "1.6.0";
+  S.dv = { filter: "all", sel: "CMB01-R02", updating: {} };
+  function devAll() {
+    return S.br.list.flatMap(b => b.regs.filter(r => r.status !== "pending").map(r => {
+      const id = `${b.code}-${r.id}`, h = hashOf(id), and = r.kind === "Android tablet", off = r.status === "offline" || r.status === "locked", long = off && Date.now() - r.seen > 86400000;
+      const queue = id === "CMB01-R02" ? S.history.filter(s => s.sync && s.sync !== "synced").length : off ? 3 + h % 9 : 0;
+      const skew = id === "KDY01-R01" ? 11 : h % 3 === 0 ? 1 : 0;
+      return { id, b, r, and, os: and ? "Android 14" : "Windows 11 Pro", ver: S.dv.updating[id] ? "Updating…" : r.ver, old: r.ver !== LATEST && !S.dv.updating[id], queue, skew, long,
+        printer: off ? "Unknown" : id === "CMB01-R03" ? "Paper low" : "Ready", disk: and ? `${8 + h % 20} GB free` : `${40 + h % 120} GB free`, battery: and ? (off ? "—" : `${40 + h % 55}%`) : null };
+    }));
+  }
+  const devHelp = d => d.long || d.old || d.skew > 5 || (d.r.status !== "online" && d.queue > 0) || d.r.status === "locked";
+  function devicesView() {
+    const g0 = setupGuard(); if (g0) return g0;
+    const f = S.dv, all = devAll(), list = all.filter(d => f.filter === "all" || (f.filter === "help" && devHelp(d)) || (f.filter === "offline" && d.r.status !== "online") || (f.filter === "old" && d.old));
+    if (!list.some(d => d.id === f.sel)) f.sel = list[0] ? list[0].id : null;
+    const d = all.find(x => x.id === f.sel), chip = (v, l) => `<button class="chip" data-act="dv-filter" data-v="${v}" aria-pressed="${f.filter === v}">${l}</button>`;
+    const checks = d ? [["Connection", d.r.status === "online" ? ["success", "Online"] : d.r.status === "locked" ? ["error", "Locked"] : [d.long ? "error" : "warning", `Offline ${ageOf(d.r.seen)}`]], ["Sales waiting to sync", d.queue ? [d.r.status === "online" ? "warning" : "error", `${d.queue}`] : ["success", "0"]],
+      ["App version", d.old ? ["warning", `${d.r.ver} · ${LATEST} available`] : ["success", d.ver]], ["Clock", d.skew > 5 ? ["error", `${d.skew} min slow`] : ["success", d.skew ? `${d.skew} min off · fine` : "Correct"]], ["Printer", d.printer === "Ready" ? ["success", "Ready"] : d.printer === "Paper low" ? ["warning", "Paper low"] : ["", "Unknown"]]] : [];
+    return `<div class="page setup">${setupTabs("devices")}${ownerOnly("devices")}
+      <div class="dv-grid">
+        <section class="card"><div class="card-head"><h2>Registers · ${all.length}</h2><div class="chips">${chip("all", "All")}${chip("help", `Needs help · ${all.filter(devHelp).length}`)}${chip("offline", "Offline")}${chip("old", "Old version")}</div></div>
+          <div class="ctable" role="listbox" aria-label="Devices"><div class="dvrow head" aria-hidden="true"><span>Register</span><span>Device</span><span>Version</span><span>Last seen</span><span class="amt">Queue</span><span>Status</span></div>
+          ${list.map(x => `<button class="dvrow" role="option" aria-selected="${x.id === f.sel}" data-act="dv-sel" data-v="${x.id}"><span><b>${x.id}</b>${x.id === "CMB01-R02" ? "<small>this register</small>" : ""}</span><span class="muted">${esc(x.r.device)}<small>${x.os}</small></span><span class="${x.old ? "warn-t" : ""}">${x.ver}</span><span class="muted">${x.r.status === "online" ? "Now" : ageOf(x.r.seen) + " ago"}</span><span class="amt ${x.queue && x.r.status !== "online" ? "neg" : ""}">${x.queue}</span><span>${devHelp(x) ? badge("error", "Needs help", "alert") : regBadge(x.r)}</span></button>`).join("") || `<div class="empty"><h3>Nothing here</h3></div>`}</div>
+          <div class="note">${ic("help", 16)}Needs help: offline over a day, sales waiting while offline, an old version, a clock more than 5 minutes off, or locked.</div></section>
+        ${d ? `<section class="card"><div class="card-head"><div style="flex:1"><h2>${d.id}</h2><span class="sub">${esc(d.r.device)} · ${d.os} · ${esc(d.b.name)}</span></div>${regBadge(d.r)}</div>
+          <div class="dlines">${checks.map(([l, [tone, v]]) => `<div class="dline"><span class="grow">${l}</span>${badge(tone, v, tone === "success" ? "check" : tone ? "alert" : null)}</div>`).join("")}</div>
+          <dl class="kv exc-kv"><dt>Storage</dt><dd>${d.disk}</dd>${d.battery ? `<dt>Battery</dt><dd>${d.battery}</dd>` : ""}<dt>Enrolled</dt><dd>${fmtExpIso(d.b.opened)}</dd></dl>
+          ${d.skew > 5 ? `<div class="banner">${ic("clock")}<span>The clock is ${d.skew} minutes slow, so its sales are flagged (exception EX-1043). Fix the time zone or turn on automatic time on the PC.</span></div>` : ""}
+          ${d.long ? `<div class="banner error">${ic("wifiOff")}<span>Offline for ${ageOf(d.r.seen)}. ${d.queue} sales are saved on the device and will sync when it reconnects. Call the branch to check the network cable or router.</span></div>` : ""}
+          <div class="card-actions" style="justify-content:flex-start;flex-wrap:wrap">
+            <button class="btn secondary" data-act="dv-ping" data-v="${d.id}">${ic("activity", 18)}Ping</button><button class="btn secondary" data-act="dv-logs" data-v="${d.id}" ${d.r.status === "online" ? "" : "disabled"}>Request logs</button>
+            ${d.old ? `<button class="btn primary" data-act="dv-update" data-v="${d.id}" ${isOwner() && d.r.status === "online" ? "" : "disabled"}>${ic("refresh", 18)}Update to ${LATEST}</button>` : ""}
+            ${isOwner() && d.id !== "CMB01-R02" ? `<button class="btn ${d.r.status === "locked" ? "secondary" : "danger-outline"}" data-act="dv-lock" data-v="${d.id}">${d.r.status === "locked" ? "Unlock" : "Lock device"}</button>` : ""}</div>
+          ${d.old && d.r.status !== "online" ? `<div class="note">${ic("help", 16)}It updates by itself the next time it is online and idle.</div>` : ""}</section>` : ""}
+      </div></div>`;
+  }
+
+  // ---------- Printed documents: D-05 customer statement, D-06 goods received note ----------
+  const docHead = (title, sub) => `<div class="a4-top"><div>${S.bizLogo ? `<img src="${S.bizLogo}" alt="" class="a4-logo">` : ""}<b>${esc(SELLER.name)}</b><span>${esc(SELLER.address)}</span><span>Tel ${esc(SELLER.phone)} · VAT reg. no. ${SELLER.vat}</span></div><div class="a4-title">${title}<small>${sub}</small></div></div>`;
+  function statementModal(m, head) {
+    const c = custOf(m.cid), L = custLedger(c), from = daysAgo(60, 0, 0), rows = L.rows.filter(r => r.date >= from), before = L.rows.filter(r => r.date < from), open = before.length ? before[before.length - 1].bal : 0;
+    const ag = [["Current (0–30)", 0, 30], ["31–60 days", 31, 60], ["Over 60 days", 61, 9999]].map(([l, a, b]) => [l, L.open.filter(o => o.age >= a && o.age <= b).reduce((x, o) => x + o.left, 0)]);
+    return `<div class="modal wide doc-modal" role="dialog" aria-modal="true" aria-labelledby="mt">${head("Customer statement", `${c.name} · last 60 days`)}
+      <div class="doc-stage"><div class="a4doc">${docHead("STATEMENT OF ACCOUNT", `${from.toLocaleDateString("en-GB")} – ${new Date().toLocaleDateString("en-GB")}`)}
+        <div class="a4-meta"><div><span>Customer</span><b>${esc(c.name)}</b>${c.address ? `<em>${esc(c.address)}</em>` : ""}${c.vat ? `<em>VAT reg. no. ${esc(c.vat)}</em>` : ""}</div><div><span>Account</span><b class="mono">${c.id.toUpperCase()}-${String(hashOf(c.id) % 9000 + 1000)}</b><em>Credit limit ${fmt(c.limit || 0)} · terms ${PAY_TERMS_DAYS} days</em></div></div>
+        <table class="a4-tab"><thead><tr><th>Date</th><th>Reference</th><th>Charges</th><th>Payments</th><th>Balance</th></tr></thead><tbody>
+          <tr class="sub"><td>${from.toLocaleDateString("en-GB")}</td><td>Opening balance</td><td></td><td></td><td>${fmt(open)}</td></tr>
+          ${rows.map(r => `<tr><td>${r.date.toLocaleDateString("en-GB")}</td><td>${r.type === "sale" ? "Credit sale " : ""}${esc(r.ref)}</td><td>${r.amt > 0 ? fmt(r.amt) : ""}</td><td>${r.amt < 0 ? fmt(-r.amt) : ""}</td><td>${fmt(r.bal)}</td></tr>`).join("")}
+          <tr class="tot"><td></td><td>Amount due</td><td></td><td></td><td>${fmt(Math.max(0, L.bal))}</td></tr></tbody></table>
+        <div class="a4-age">${ag.map(([l, v]) => `<div class="${v && l !== "Current (0–30)" ? "late" : ""}"><span>${l}</span><b>${fmt(v)}</b></div>`).join("")}</div>
+        <div class="a4-note">Please pay by bank transfer to Commercial Bank, City Pharmacy &amp; Mart (Pvt) Ltd, account 1000 2345 6789, with your account number as the reference. Payments received after ${new Date().toLocaleDateString("en-GB")} are not shown.</div>
+        <div class="a4-foot">Questions about this statement? Call ${esc(SELLER.phone)} · Printed ${new Date().toLocaleString("en-GB")}</div></div></div>
+      <div class="doc-acts"><button class="btn secondary" data-act="close">Close</button><button class="btn secondary" data-act="toast" data-msg="statement-${c.id}.pdf downloaded">${ic("upload", 18)}PDF</button>${c.email ? `<button class="btn secondary" data-act="stmt-mail" data-id="${c.id}">${ic("mail", 18)}E-mail to ${esc(c.email)}</button>` : ""}<button class="btn primary" data-act="toast" data-msg="Statement sent to the A4 printer">${ic("printer", 18)}Print</button></div></div>`;
+  }
+  function grnDocModal(m, head) {
+    const g = grnListAll().find(x => x.no === m.no); if (!g) return "";
+    const lines = grnLinesOf(g), tot = lines.reduce((a, l) => a + grnLineTotal(l), 0), sx = SUP.find(x => x.name === g.supplier);
+    return `<div class="modal wide doc-modal" role="dialog" aria-modal="true" aria-labelledby="mt">${head("Goods received note", `${g.no} · ${g.supplier}`)}
+      <div class="doc-stage"><div class="a4doc">${docHead("GOODS RECEIVED NOTE", g.status === "draft" ? "DRAFT · not posted" : "Posted")}
+        <div class="a4-meta"><div><span>Supplier</span><b>${esc(g.supplier)}</b>${sx && sx.address ? `<em>${esc(sx.address)}</em>` : ""}${sx && sx.vat ? `<em>VAT reg. no. ${esc(sx.vat)}</em>` : "<em>Not VAT registered</em>"}</div>
+          <div><span>GRN</span><b class="mono">${g.no}</b><em>${g.date.toLocaleDateString("en-GB")} ${hm(g.date)} · CMB01</em><em>Supplier invoice ${esc(g.invoice || "—")}</em></div></div>
+        <table class="a4-tab"><thead><tr><th>Item</th><th>Batch</th><th>Expiry</th><th>Qty</th><th>Unit cost</th><th>Total</th></tr></thead><tbody>
+          ${lines.map(l => { const p = byId(l.pid); return `<tr><td>${esc(p.name)}<em>${esc(p.sku)} · GTIN ${gtinOf(p)}</em></td><td class="mono">${esc(l.batch || "—")}</td><td>${l.exp ? fmtExpIso(l.exp) : "—"}</td><td>${fq(p, l.qty)}</td><td>${fmt(p.cost)}</td><td>${fmt(grnLineTotal(l))}</td></tr>`; }).join("")}
+          <tr class="tot"><td colspan="5">Cost total (${lines.length} line${lines.length === 1 ? "" : "s"})</td><td>${fmt(g.lines ? tot : g.total)}</td></tr></tbody></table>
+        <div class="a4-sign"><div><span></span>Received by · ${esc(g.by)}</div><div><span></span>Checked by</div><div><span></span>Supplier's driver</div></div>
+        <div class="a4-foot">${g.status === "draft" ? "Draft: stock is added only when this receipt is posted." : "Stock was added to each batch when this note was posted (stock movements in the audit log)."}</div></div></div>
+      <div class="doc-acts"><button class="btn secondary" data-act="close">Close</button><button class="btn secondary" data-act="toast" data-msg="${g.no}.pdf downloaded">${ic("upload", 18)}PDF</button><button class="btn primary" data-act="toast" data-msg="${g.no} sent to the A4 printer">${ic("printer", 18)}Print</button></div></div>`;
+  }
+
   // ---------- Render: main ----------
   function render() {
     const fid = document.activeElement && document.activeElement.dataset ? document.activeElement.dataset.fid : null;
@@ -3917,6 +4083,9 @@ Yesterday 09:15  SYNC-003 Catalog cursor too old · catalog snapshot downloaded<
     else if (S.view === "returns") main = topbar(t("returns"), S.ret.done ? "Refund recorded" : S.ret.sale ? "Choose the items the customer is bringing back" : "Find the original sale") + returnsView();
     else if (S.view === "stock") main = topbar(t("stock"), "Stock on hand by product and batch") + stockView();
     else if (S.view === "expiry") main = topbar(t("expiry"), "Batches expiring in the next 90 days · act before they are lost") + expiryView();
+    else if (S.view === "units") main = topbar(t("products"), "Catalog › Units of measure") + unitsView();
+    else if (S.view === "adjustments") main = topbar(t("stock"), "Stock adjustments · every write-down and correction with its reason") + adjustmentsView();
+    else if (S.view === "devices") main = topbar(t("setup"), "Devices · health of every register") + devicesView();
     else if (S.view === "sales") main = topbar("Sales", "Every receipt from every branch · read-only, sales are never edited") + salesView();
     else if (S.view === "sale") main = topbar("Sales", "Sale detail · lines, batches, payments, documents and audit trail") + saleDetailView();
     else if (S.view === "returnslist") main = topbar(t("returns"), "Refunds on every branch, each linked to its original sale") + returnsListView();
@@ -4040,6 +4209,14 @@ Yesterday 09:15  SYNC-003 Catalog cursor too old · catalog snapshot downloaded<
       return;
     } else if (m.type === "cash") {
       h = cashModal(m, head);
+    } else if (m.type === "unit") {
+      h = unitModal(m, head);
+    } else if (m.type === "adjpick") {
+      h = adjPickModal(m, head);
+    } else if (m.type === "statement") {
+      h = statementModal(m, head);
+    } else if (m.type === "grndoc") {
+      h = grnDocModal(m, head);
     } else if (m.type === "enroll") {
       h = enrollModal(m, head);
     } else if (m.type === "newbranch") {
@@ -4118,6 +4295,25 @@ Yesterday 09:15  SYNC-003 Catalog cursor too old · catalog snapshot downloaded<
       case "pc-pick": S.pc.pid = el.dataset.pid; S.pc.error = ""; render(); break;
       case "pc-clear": S.pc.pid = null; S.pc.error = ""; S.pc.query = ""; render(); focusId("pcsearch"); break;
       case "pc-add": { const p = byId(S.pc.pid); if (!p) break; if (!S.shifts[S.user.id]) { S.view = "openshift"; render(); toast("Open a shift first", { error: true }); break; } S.view = "sell"; render(); addProduct(p); break; }
+      case "unit-new": openModal({ type: "unit", name: "", sym: "", utype: "Count", dec: 0, f: "6", of: "pc" }); focusId("unname"); break;
+      case "un-type": S.modal.utype = el.dataset.v; renderModal(); break;
+      case "un-save": { const m = S.modal; if (!m.name.trim() || !m.sym.trim() || S.units.some(u => u.name.toLowerCase() === m.name.trim().toLowerCase())) break; const id = m.sym.trim().toLowerCase().replace(/[^a-z0-9]/g, "") + Date.now() % 1000; const u = m.utype === "Pack" ? { id, name: m.name.trim(), sym: m.sym.trim(), type: "Pack", of: m.of, f: Math.max(2, parseInt(m.f, 10) || 2), for: "Any product" } : { id, name: m.name.trim(), sym: m.sym.trim(), type: m.utype, dec: +m.dec }; S.units.push(u); if (u.type === "Pack") S.uconv[id] = u.f; S.uLog.unshift({ when: new Date(), who: meShort(), what: `Unit added: ${u.name}${u.type === "Pack" ? ` = ${u.f} ${unitName(u.of).toLowerCase()}s` : ""}` }); auditAdd("Settings", "Units", `Unit added: ${u.name}`); S.uDraft = null; closeModal(); render(); toast(`${u.name} added`); break; }
+      case "unit-del": { const u = S.units.find(x => x.id === el.dataset.v); if (!u || unitUse(u)) break; S.units = S.units.filter(x => x !== u); S.uLog.unshift({ when: new Date(), who: meShort(), what: `Unit deleted: ${u.name}` }); render(); toast(`${u.name} deleted`); break; }
+      case "uc-save": { const D = S.uDraft; for (const k of Object.keys(D)) if (D[k] !== S.uconv[k]) { const u = S.units.find(x => x.id === k); S.uLog.unshift({ when: new Date(), who: meShort(), what: `1 ${u.name.toLowerCase()} = ${D[k]} ${unitName(u.of).toLowerCase()}s (was ${S.uconv[k]})` }); auditAdd("Settings", "Units", `${u.name} conversion changed`, { before: String(S.uconv[k]), after: String(D[k]) }); S.uconv[k] = D[k]; u.f = D[k]; } S.uDraft = null; render(); toast("Conversions saved · receiving uses them from now on"); break; }
+      case "uc-discard": S.uDraft = null; render(); break;
+      case "aj-new": openModal({ type: "adjpick", q: "" }); focusId("ajpick"); break;
+      case "aj-pick": closeModal(); openAdjust(el.dataset.id); break;
+      case "aj-period": S.aj.period = el.dataset.v; render(); break;
+      case "aj-sel": S.aj.sel = el.dataset.k; render(); break;
+      case "dv-filter": S.dv.filter = el.dataset.v; render(); break;
+      case "dv-sel": S.dv.sel = el.dataset.v; render(); break;
+      case "dv-ping": { const d = devAll().find(x => x.id === el.dataset.v); toast(d.r.status === "online" ? `${d.id} replied in ${40 + hashOf(d.id + Date.now()) % 120} ms` : `No reply from ${d.id} · offline for ${ageOf(d.r.seen)}`, d.r.status === "online" ? {} : { error: true }); break; }
+      case "dv-logs": toast(`Logs requested from ${el.dataset.v} · they appear in Support in about a minute`); break;
+      case "dv-update": { const id = el.dataset.v; S.dv.updating[id] = true; render(); toast(`Updating ${id} · it restarts when no sale is open`); setTimeout(() => { const d = devAll().find(x => x.id === id); delete S.dv.updating[id]; if (d) { d.r.ver = LATEST; auditAdd("Settings", id, `Register updated to ${LATEST}`); } if (S.view === "devices") render(); toast(`${id} is on ${LATEST}`); }, 2500); break; }
+      case "dv-lock": { const d = devAll().find(x => x.id === el.dataset.v), r = d.r; if (r.status === "locked") { r.status = r.prev || "offline"; auditAdd("Settings", d.id, "Register unlocked"); toast(`${d.id} unlocked`); } else { r.prev = r.status; r.status = "locked"; auditAdd("Settings", d.id, "Register locked (lost or stolen)"); toast(`${d.id} locked`); } render(); break; }
+      case "cu-statement": openModal({ type: "statement", cid: S.cu.open }); break;
+      case "stmt-mail": { const c = custOf(el.dataset.id); c.log.unshift({ when: new Date(), who: meShort(), what: "Statement e-mailed" }); closeModal(); render(); toast(`Statement e-mailed to ${c.email}`); break; }
+      case "grn-print": openModal({ type: "grndoc", no: el.dataset.no }); break;
       case "ds-from": S.ds = { ...S.ds, step: 1, code: el.dataset.v, err: "" }; S.modal = null; renderModal(); S.view = "device"; render(); focusId("dscode"); break;
       case "ds-kind": S.ds.kind = el.dataset.v; render(); break;
       case "ds-next": if (S.ds.step === 0) { S.ds.step = 1; render(); focusId("dscode"); } else if (S.ds.step === 3) { S.ds.step = 4; render(); } break;
@@ -4468,6 +4664,10 @@ Yesterday 09:15  SYNC-003 Catalog cursor too old · catalog snapshot downloaded<
     if (e.target.id === "tdsearch") { S.tax.q = e.target.value; render(); }
     if (e.target.id === "bpsearch") { S.bp.q = e.target.value; render(); }
     if (e.target.id === "catname") { S.cat2.rename = e.target.value; }
+    if (e.target.dataset && e.target.dataset.uc && S.uDraft) { S.uDraft[e.target.dataset.uc] = Math.max(0, parseInt(e.target.value.replace(/\D/g, ""), 10) || 0); render(); }
+    if (e.target.id === "ajsearch") { S.aj.q = e.target.value; render(); }
+    if (e.target.dataset && e.target.dataset.aj) { S.aj[e.target.dataset.aj] = e.target.value; render(); }
+    if (e.target.dataset && (e.target.dataset.un || e.target.dataset.ajp) && S.modal) { const attr = e.target.dataset.un ? "un" : "ajp", k = e.target.dataset[attr]; S.modal[k] = e.target.value; const pos = e.target.tagName === "SELECT" ? null : e.target.selectionStart; renderModal(); if (pos != null) setTimeout(() => { const x = document.querySelector(`[data-${attr}="${k}"]`); if (x) { x.focus(); try { x.setSelectionRange(pos, pos); } catch (er) {} } }); }
     if (e.target.dataset && e.target.dataset.ds) { const k = e.target.dataset.ds; if (k === "code") { let v = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 8); if (v.length > 4) v = v.slice(0, 4) + "-" + v.slice(4); S.ds.code = v; S.ds.err = ""; render(); setTimeout(() => { const x = document.getElementById("dscode"); if (x) { x.focus(); x.setSelectionRange(v.length, v.length); } }); } else S.ds[k] = e.target.value; }
     if (e.target.dataset && e.target.dataset.lg) { const k = e.target.dataset.lg; let v = e.target.value; if (k === "mfaCode" && !S.lg.useRec) { v = v.replace(/\D/g, "").slice(0, 6); if (v.length > 3) v = v.slice(0, 3) + " " + v.slice(3); } if (k === "mfaCode" && S.lg.useRec) { v = v.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 8); if (v.length > 4) v = v.slice(0, 4) + "-" + v.slice(4); } S.lg[k] = v; S.lg.err = ""; render(); if (k === "mfaCode") setTimeout(() => { const x = document.getElementById("mfacode"); if (x) { x.focus(); x.setSelectionRange(v.length, v.length); } }); }
     if (e.target.dataset && e.target.dataset.ob) { const k = e.target.dataset.ob, O = S.ob; let v = e.target.value; if (k === "brCode") { v = v.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 5); O.codeTouched = true; } O[k] = v; if (k === "brName" && !O.codeTouched) O.brCode = obCode(v); if (O.err[k]) delete O.err[k]; render(); }
@@ -4614,6 +4814,9 @@ Yesterday 09:15  SYNC-003 Catalog cursor too old · catalog snapshot downloaded<
       if (m.type === "batch") { if (k === "ArrowDown" || k === "ArrowUp") { e.preventDefault(); const n = byId(m.pid).batches.length; m.choice = (m.choice + (k === "ArrowDown" ? 1 : -1) + n) % n; renderModal(); return; } if (k === "Enter") { e.preventDefault(); const p = byId(m.pid); S.modal = null; renderModal(); addProduct(p, { batch: p.batches[m.choice].id }); } return; }
       if (m.type === "weight" || m.type === "qty") { if (/^[0-9.]$/.test(k)) { modalKey(k); return; } if (k === "Backspace") { modalKey("⌫"); return; } if (k === "Enter") { e.preventDefault(); confirmQty(); } return; }
       if (m.type === "discount") { if (/^[0-9]$/.test(k) && discNeeds(S.cart[S.sel], m.pct) && !discBlock(S.cart[S.sel], m.pct)) { pinKey(k); return; } if (k === "Backspace") { pinKey("⌫"); return; } if (k === "Enter") { e.preventDefault(); confirmDiscount(); } return; }
+      if (m.type === "unit") { if (k === "Enter" && e.target.tagName !== "SELECT") { e.preventDefault(); modalRoot.querySelector('[data-act="un-save"]').click(); } return; }
+      if (m.type === "adjpick") { if (k === "Enter") { e.preventDefault(); const b = modalRoot.querySelector('[data-act="aj-pick"]'); if (b) b.click(); } return; }
+      if (m.type === "statement" || m.type === "grndoc") return;
       if (m.type === "enroll") { if (k === "Enter") { e.preventDefault(); closeModal(); } return; }
       if (m.type === "newbranch") { if (k === "Enter") { e.preventDefault(); modalRoot.querySelector('[data-act="nb-save"]').click(); } return; }
       if (m.type === "invite") { if (k === "Enter" && e.target.tagName !== "SELECT") { e.preventDefault(); inviteSave(); } return; }
@@ -4689,6 +4892,7 @@ Yesterday 09:15  SYNC-003 Catalog cursor too old · catalog snapshot downloaded<
       if ((e.ctrlKey || e.metaKey) && k.toLowerCase() === "s") { e.preventDefault(); saveSettings(); }
       return;
     }
+    if (S.view === "units" || S.view === "adjustments" || S.view === "devices") return;
     if (S.view === "sales") { if (e.target.id === "sasearch") { if (k === "Escape") { S.sa.q = ""; render(); focusId("sasearch"); } return; } if (inInput || e.target.tagName === "SELECT") return; if (k === "/") { e.preventDefault(); focusId("sasearch"); return; } if (k === "Enter" && e.target.dataset && e.target.dataset.act === "sa-open") { e.preventDefault(); e.target.click(); return; } if (k === "ArrowDown" || k === "ArrowUp") { const rows = [...app.querySelectorAll(".sarow[data-act]")]; if (!rows.length) return; e.preventDefault(); const i0 = rows.indexOf(document.activeElement); rows[Math.max(0, Math.min(rows.length - 1, i0 < 0 ? 0 : i0 + (k === "ArrowDown" ? 1 : -1)))].focus(); } return; }
     if (S.view === "sale") { if (k === "Escape" && !inInput) { S.view = "sales"; render(); } return; }
     if (S.view === "returnslist" || S.view === "grns") { if (inInput || e.target.tagName === "SELECT") return; if (k === "ArrowDown" || k === "ArrowUp") { e.preventDefault(); const rows = [...app.querySelectorAll(S.view === "grns" ? ".grow2[data-act]" : ".rlrow[data-act]")], st = S.view === "grns" ? S.gl : S.rl, i0 = rows.findIndex(r => r.dataset.no === st.sel), nx = rows[Math.max(0, Math.min(rows.length - 1, i0 + (k === "ArrowDown" ? 1 : -1)))]; if (nx) { st.sel = nx.dataset.no; render(); } } return; }
@@ -4905,10 +5109,10 @@ Yesterday 09:15  SYNC-003 Catalog cursor too old · catalog snapshot downloaded<
   let rz; window.addEventListener("resize", () => { clearTimeout(rz); rz = setTimeout(render, 120); });
   if (S.theme) document.documentElement.dataset.theme = S.theme;
   const hash = location.hash.replace("#", "");
-  if (["sell", "dashboard", "signin", "openshift", "returns", "cash", "orders", "receiving", "pricecheck", "status", "settings", "products", "stock", "expiry", "counts", "import", "exceptions", "suppliers", "customers", "shifts", "tax", "vat", "batch", "pricing", "discounts", "taxrates", "categories", "pricelists", "staff", "reports", "business", "branches", "receipts", "audit", "sales", "returnslist", "grns", "profile", "device", "login", "onboard"].includes(hash)) S.view = hash;
+  if (["sell", "dashboard", "signin", "openshift", "returns", "cash", "orders", "receiving", "pricecheck", "status", "settings", "products", "stock", "expiry", "counts", "import", "exceptions", "suppliers", "customers", "shifts", "tax", "vat", "batch", "pricing", "discounts", "taxrates", "categories", "pricelists", "staff", "reports", "business", "branches", "receipts", "audit", "sales", "returnslist", "grns", "profile", "device", "login", "onboard", "units", "adjustments", "devices"].includes(hash)) S.view = hash;
   if (hash === "stock" || hash === "expiry" || hash === "counts") S.user = USERS[4]; // Kasun, stock keeper
-  if (hash === "import" || hash === "exceptions" || hash === "suppliers" || hash === "customers" || hash === "shifts" || hash === "tax" || hash === "vat" || hash === "batch" || hash === "pricing" || hash === "discounts" || hash === "taxrates" || hash === "categories" || hash === "pricelists" || hash === "staff" || hash === "reports" || hash === "sales" || hash === "returnslist" || hash === "grns" || hash === "profile") S.user = USERS[3];
-  if (["business", "branches", "receipts", "audit"].includes(hash)) S.user = USERS.find(u => u.id === "dw"); // Dilan, owner // Malini, manager
+  if (hash === "import" || hash === "exceptions" || hash === "suppliers" || hash === "customers" || hash === "shifts" || hash === "tax" || hash === "vat" || hash === "batch" || hash === "pricing" || hash === "discounts" || hash === "taxrates" || hash === "categories" || hash === "pricelists" || hash === "staff" || hash === "reports" || hash === "sales" || hash === "returnslist" || hash === "grns" || hash === "profile" || hash === "units" || hash === "adjustments") S.user = USERS[3];
+  if (["business", "branches", "receipts", "audit", "devices"].includes(hash)) S.user = USERS.find(u => u.id === "dw"); // Dilan, owner // Malini, manager
   // File picker and drag-and-drop for the import wizard (A-23)
   document.addEventListener("change", e => { if (e.target.id !== "logofile" || !e.target.files || !e.target.files[0] || !S.bizDraft) return; const fl = e.target.files[0]; if (fl.size > 500 * 1024) { toast("The logo is over 500 KB. Use a smaller file.", { error: true }); return; } if (!/^image\/(png|jpeg|svg\+xml)$/.test(fl.type)) { toast("Use a PNG, JPG or SVG file", { error: true }); return; } const rd = new FileReader(); rd.onload = () => { S.bizDraft.logo = rd.result; render(); }; rd.readAsDataURL(fl); });
   document.addEventListener("change", e => { if (e.target.id === "impfile" && e.target.files && e.target.files[0]) { const fl = e.target.files[0]; impSetFile(fl.name, fl.size); } });
