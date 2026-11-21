@@ -19,7 +19,7 @@ System design for RetailOS, DevCity's offline-first POS for retail, pharmacy and
 | `prototype/` | Clickable prototype of every MVP screen (`index.html`, `prototype.js`, `prototype.css`). No build step; open `prototype/index.html#<route>`. Screen-to-route list and demo PINs: `ui-screens.html#prototype` |
 | `assets/db-map.svg` | Whole-database diagram (also inline in `data-model.html#db-map`). Regenerate after a schema change: `python tools/build_db_map.py` |
 | `data-dictionary.html` | Generated: every table explained. Edit `tools/build_data_dictionary.py` (columns, meanings, rules) and run it after `tools/build_db_map.py` |
-| `backend-build.html` | Generated: backend tasks in build order with progress tick boxes. Edit `tools/build_backend_plan.py` (tasks, and the `DONE` set for shared progress) and run it |
+| `build-order.html` | Generated: every MVP task (backend, admin web, register app, Try it checks) in build order with progress tick boxes. Edit `tools/build_order.py` (tasks, and the `DONE` set for shared progress) and run it |
 | `tools/` | Doc maintenance scripts |
 
 ## Editing rules
