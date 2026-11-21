@@ -13,7 +13,8 @@
     { group: "Business analysis", items: [
       ["requirements.html", "Requirements & scope"],
       ["roadmap.html", "Roadmap & phases"],
-      ["mvp.html", "MVP build list"]
+      ["mvp.html", "MVP build list"],
+      ["backend-build.html", "Backend build order"]
     ]},
     { group: "User interface", items: [
       ["ui-screens.html", "Screens & navigation"],
