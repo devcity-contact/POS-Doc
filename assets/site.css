@@ -324,3 +324,14 @@ kbd {
 .db-scroll.fit { max-height: none; }
 .db-scroll.fit svg { width: 100%; height: auto; }
 .db-map-fig figcaption { font-size: 13px; color: var(--text-3); margin-top: 10px; }
+
+/* Data dictionary (data-dictionary.html) */
+.dd-dot { display: inline-block; width: 11px; height: 11px; border-radius: 3px; margin-right: 8px; vertical-align: middle; }
+.dd-dot.st { background: #2F68D8; } .dd-dot.ca { background: #D2612B; } .dd-dot.in { background: #16855A; } .dd-dot.sa { background: #2E3A5A; }
+:root[data-theme="dark"] .dd-dot.sa { background: #B4C0DE; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .dd-dot.sa { background: #B4C0DE; } }
+.content h3[id^="t-"] { font-family: var(--mono); font-size: 18px; margin-top: 36px; padding-top: 12px; border-top: 1px solid var(--border); }
+.dd-h { font-weight: 700; margin: 14px 0 4px; }
+.dd-rel { margin-top: 4px; }
+.dd-used { font-size: 14px; color: var(--text-2); }
+.dd-cols td:first-child { white-space: nowrap; }

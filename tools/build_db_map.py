@@ -34,9 +34,9 @@ TABLES = {
     "device_enrollment": ("st", 6, 6, ["id PK", "register_id FK", "code_hash", "expires_at, used_at"]),
     "device_heartbeat": ("st", 5, 7, ["device_id FK", "at", "queue_depth", "printer_status"]),
     "audit_log": ("st", 6, 7, ["seq PK", "actor_id, action", "entity, entity_id", "before, after", "prev_hash, hash"]),
-    "sync_change_log": ("st", 5, 8, ["seq PK", "entity, entity_id, op", "scope"]),
+    "sync_change_log": ("st", 5, 8, ["seq PK", "branch_id (null = all)", "scope, entity, entity_id", "op, payload"]),
     "sync_cursor": ("st", 6, 8, ["device_id FK", "scope", "last_seq"]),
-    "sync_inbox": ("st", 5, 9, ["id PK (client UUID)", "device_id FK", "kind, status", "last_error"]),
+    "sync_inbox": ("st", 5, 9, ["client_id PK (sale or return id)", "register_id FK", "kind", "result (stored reply)"]),
     "catalog_snapshot": ("st", 6, 9, ["id PK", "branch_id FK", "cursor", "file_url"]),
     # 2 Catalog (columns 0-1)
     "brand": ("ca", 0, 0, ["id PK", "name"]),
@@ -56,9 +56,9 @@ TABLES = {
     "stock_location": ("in", 4, 0, ["id PK", "branch_id FK@st", "name"]),
     "goods_receipt_line": ("in", 2, 1, ["id PK", "receipt_id FK", "sku_id FK@ca", "batch_no, expiry_date", "qty, unit_cost"]),
     "batch": ("in", 3, 1, ["id PK", "sku_id, location_id FK", "batch_no, expiry_date", "unit_cost", "status (OPEN BLOCKED)"]),
-    "stock_balance": ("in", 4, 1, ["batch_id PK", "on_hand", "last_movement_seq"]),
+    "stock_balance": ("in", 4, 1, ["batch_id PK", "sku_id, location_id", "on_hand", "updated_at"]),
     "stock_count": ("in", 2, 2, ["id PK", "location_id FK", "type (FULL CYCLE)", "status"]),
-    "stock_movement": ("in", 4, 2, ["id PK", "batch_id FK", "qty (signed)", "ref_type, ref_id", "reason, occurred_at"]),
+    "stock_movement": ("in", 4, 2, ["id PK, seq", "batch_id FK", "type, qty (signed)", "ref_type, ref_id", "reason_code, occurred_at"]),
     "stock_count_line": ("in", 2, 3, ["count_id FK", "sku_id FK@ca", "expected, counted"]),
     "stock_exception": ("in", 4, 3, ["id PK", "sale_id FK@sa", "type (NEGATIVE_STOCK…)", "status, resolution"]),
     # 4 Sales (columns 2-4, rows 3-8)
@@ -76,6 +76,7 @@ TABLES = {
     "credit_account": ("sa", 3, 7, ["customer_id FK", "credit_limit", "terms_days"]),
     "customer": ("sa", 4, 7, ["id PK", "name, phone, vat_no", "consent_sms, consent_email"]),
     "held_bill": ("sa", 2, 8, ["id PK", "register_id FK@st", "cart (json)", "held_at"]),
+    "receipt_registry": ("sa", 3, 8, ["register_id, receipt_seq PK@st", "sale_id FK", "business_date"]),
 }
 
 # (from, side, offset, to, side, offset, end_at_from, end_at_to, via); ends: one, many, zone (0..1), zmany (0..n)

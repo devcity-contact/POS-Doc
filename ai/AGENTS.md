@@ -51,6 +51,7 @@ listed there without adding it (with a reason) in the same change; new datastore
 | Task | Code | Doc |
 |---|---|---|
 | Is it in the MVP? (scope, modules, screens, out of scope) | — | `Doc/mvp.html` |
+| What a table or column means, and how tables relate | `backend/.../db/migration` | `Doc/data-dictionary.html`, `Doc/data-model.html#db-map` |
 | Any screen (find by ID R-xx / A-xx / P-xx / D-xx) | `apps/register/src/screens`, `apps/admin/src/routes` | `Doc/ui-screens.html`, `Doc/ui-design.html` |
 | What a screen should look and behave like | Reference only, not production code | `Doc/prototype/` (open `index.html#<route>`; route per screen in `Doc/ui-screens.html#prototype`) |
 | Checkout / cart | `packages/register-core/src/cart` | `Doc/flows.html#sale-states` |

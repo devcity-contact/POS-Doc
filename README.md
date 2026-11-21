@@ -18,6 +18,7 @@ System design for RetailOS, DevCity's offline-first POS for retail, pharmacy and
 | `DESIGN.md` | Design system (palette, tokens, contrast rules) + all Google Stitch prompts in Markdown. Regenerate after editing `stitch-prompts.html`: `python tools/build_design_md.py` |
 | `prototype/` | Clickable prototype of every MVP screen (`index.html`, `prototype.js`, `prototype.css`). No build step; open `prototype/index.html#<route>`. Screen-to-route list and demo PINs: `ui-screens.html#prototype` |
 | `assets/db-map.svg` | Whole-database diagram (also inline in `data-model.html#db-map`). Regenerate after a schema change: `python tools/build_db_map.py` |
+| `data-dictionary.html` | Generated: every table explained. Edit `tools/build_data_dictionary.py` (columns, meanings, rules) and run it after `tools/build_db_map.py` |
 | `tools/` | Doc maintenance scripts |
 
 ## Editing rules

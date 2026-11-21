@@ -27,6 +27,7 @@
       ["modules.html", "Backend modules"],
       ["extensions.html", "Industry extensions"],
       ["data-model.html", "Data model"],
+      ["data-dictionary.html", "Data dictionary"],
       ["offline-sync.html", "Offline & sync"],
       ["flows.html", "Key flows"],
       ["api.html", "API design"]
