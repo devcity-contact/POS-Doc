@@ -39,7 +39,7 @@
 <thead><tr><th>#</th><th>Module</th><th>What it must do in the MVP</th><th>Main tables</th></tr></thead>
 <tbody>
 <tr><td>1</td><td>Tenancy</td><td>Tenant → branch → register model, settings, enabled modules</td><td>tenant, branch, register, tenant_module, settings</td></tr>
-<tr><td>2</td><td>Identity &amp; access</td><td>E-mail + password login, two-step sign-in (TOTP), refresh-token rotation, staff PINs, roles and permissions, manager override</td><td>app_user, role, permission, user_role, refresh_token, staff_pin</td></tr>
+<tr><td>2</td><td>Identity &amp; access</td><td>E-mail + password login, two-step sign-in (TOTP), refresh-token rotation, staff PINs, roles and permissions, manager override</td><td>app_user (with the staff PIN hash), role, role_permission, user_role, refresh_token</td></tr>
 <tr><td>3</td><td>Devices</td><td>One-time enrollment codes, device keys, heartbeat, remote lock</td><td>device, device_enrollment, device_heartbeat</td></tr>
 <tr><td>4</td><td>Audit</td><td>Append-only, hash-chained log of every money, stock, price, staff and settings action (INV-09)</td><td>audit_log</td></tr>
 <tr><td>5</td><td>Catalog</td><td>Products, variants (each its own SKU), barcodes, units and conversions, categories, brands, Excel/CSV import with dry run then commit</td><td>product, product_variant, sku, barcode, unit, unit_conversion, category, brand</td></tr>
@@ -50,7 +50,7 @@
 <tr><td>10</td><td>Payments</td><td>Cash, card and LankaQR (reference only, INV-11), customer credit, split payment</td><td>payment, tender_type, refund_payment</td></tr>
 <tr><td>11</td><td>Cash</td><td>Shift open and close, opening float, cash in/out, blind count, difference review</td><td>cash_session, cash_movement, cash_count</td></tr>
 <tr><td>12</td><td>Customers</td><td>Profiles, credit accounts, credit ledger, settlements, consent records. Loyalty is R2.</td><td>customer, credit_account, credit_ledger</td></tr>
-<tr><td>13</td><td>Tax</td><td>Tax rates with valid-from dates, tax invoice series, credit and debit notes, a fiscal adapter port that does nothing until the IRD publishes its specification</td><td>tax_rate, tax_rule, tax_invoice, credit_note, fiscal_submission</td></tr>
+<tr><td>13</td><td>Tax</td><td>Tax rates with valid-from dates, tax invoice series, credit and debit notes, a fiscal adapter port that does nothing until the IRD publishes its specification</td><td>tax_rate, tax_document (tax invoices, credit and debit notes), fiscal_submission</td></tr>
 <tr><td>14</td><td>Sync</td><td>Catalog snapshot, change feed (pull), push of facts with idempotency (INV-05), receipt sequence for replacement devices</td><td>sync_change_log, sync_cursor, sync_inbox, catalog_snapshot</td></tr>
 <tr><td>15</td><td>Reporting</td><td>Materialized views for sales, profit, stock valuation, expiry, Z-report, credit ageing and VAT; asynchronous exports</td><td>mv_*, report_job</td></tr>
 </tbody>
@@ -182,6 +182,7 @@
 </ol></div>
 
 <h2 id="build-order">Build order</h2>
+<p><strong>Database first:</strong> create all 55 tables in four migrations (store &amp; staff, catalog, inventory, sales) before the features, as described in <a href="data-model.html#db-build-order">Data model › Build order</a>, with the <a href="data-model.html#db-map">whole-database diagram</a>. Then build the features in the phase order below.</p>
 <p>From the <a href="roadmap.html">roadmap</a>. The phases add up to about 49 weeks: roughly 10–12 months for one engineer, or 7–8 months with a second engineer from phase 4.</p>
 <table>
 <thead><tr><th>Phase</th><th>Length</th><th>What it builds</th></tr></thead>

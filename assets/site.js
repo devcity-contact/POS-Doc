@@ -203,6 +203,15 @@
     });
   }
 
+  // ---------- Fit-to-width toggle for large diagrams ----------
+  Array.prototype.forEach.call(document.querySelectorAll("[data-fit-toggle]"), function (b) {
+    b.addEventListener("click", function () {
+      var t = document.getElementById(b.getAttribute("data-fit-toggle")); if (!t) return;
+      var on = t.classList.toggle("fit");
+      b.textContent = on ? "Actual size" : "Fit to width";
+    });
+  });
+
   // ---------- Theme + Mermaid ----------
   function isDark() {
     var t = document.documentElement.dataset.theme;

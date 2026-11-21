@@ -22,7 +22,7 @@
 <thead><tr><th>Module</th><th>Package</th><th>Owns</th><th>Style</th><th>Release</th></tr></thead>
 <tbody>
 <tr><td>Tenancy</td><td><code>platform.tenancy</code></td><td>tenant, branch, register, tenant_module, settings</td><td>CRUD</td><td><span class="badge b-mvp">MVP</span></td></tr>
-<tr><td>Identity & access</td><td><code>platform.iam</code></td><td>app_user, role, permission, user_role, refresh_token, staff_pin</td><td>CRUD + security</td><td><span class="badge b-mvp">MVP</span></td></tr>
+<tr><td>Identity & access</td><td><code>platform.iam</code></td><td>app_user (with the staff PIN hash), role, role_permission, user_role, refresh_token</td><td>CRUD + security</td><td><span class="badge b-mvp">MVP</span></td></tr>
 <tr><td>Devices</td><td><code>devices</code></td><td>device, device_enrollment, device_heartbeat</td><td>CRUD</td><td><span class="badge b-mvp">MVP</span></td></tr>
 <tr><td>Audit</td><td><code>platform.audit</code></td><td>audit_log (append-only, hash-chained)</td><td>Append-only</td><td><span class="badge b-mvp">MVP</span></td></tr>
 <tr><td>Catalog</td><td><code>catalog</code></td><td>product, product_variant, sku, barcode, unit, unit_conversion, category, brand</td><td>CRUD + import</td><td><span class="badge b-mvp">MVP</span></td></tr>
@@ -33,7 +33,7 @@
 <tr><td>Payments</td><td><code>payments</code></td><td>payment, tender_type, refund_payment</td><td>Rich domain</td><td><span class="badge b-mvp">MVP</span></td></tr>
 <tr><td>Cash</td><td><code>cash</code></td><td>cash_session, cash_movement, cash_count</td><td>Rich domain</td><td><span class="badge b-mvp">MVP</span></td></tr>
 <tr><td>Customers</td><td><code>customers</code></td><td>customer, credit_account, credit_ledger, loyalty_account</td><td>CRUD + ledger</td><td><span class="badge b-mvp">MVP</span> (loyalty <span class="badge b-r2">R2</span>)</td></tr>
-<tr><td>Tax</td><td><code>tax</code></td><td>tax_rate, tax_rule, tax_invoice, credit_note, fiscal_submission</td><td>Rich domain + adapter</td><td><span class="badge b-mvp">MVP</span></td></tr>
+<tr><td>Tax</td><td><code>tax</code></td><td>tax_rate, tax_document (tax invoices, credit and debit notes), fiscal_submission</td><td>Rich domain + adapter</td><td><span class="badge b-mvp">MVP</span></td></tr>
 <tr><td>Sync</td><td><code>sync</code></td><td>sync_change_log, sync_cursor, sync_inbox, catalog_snapshot</td><td>Infrastructure</td><td><span class="badge b-mvp">MVP</span></td></tr>
 <tr><td>Reporting</td><td><code>reporting</code></td><td>materialized views (mv_*), report_job</td><td>Read-only</td><td><span class="badge b-mvp">MVP</span></td></tr>
 <tr><td>Notifications</td><td><code>notifications</code></td><td>notification, message_template, outbound_message</td><td>Adapter</td><td><span class="badge b-r2">R2</span></td></tr>
