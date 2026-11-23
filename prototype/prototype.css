@@ -815,7 +815,8 @@ details.card > summary::-webkit-details-marker { display: none; }
 .sheet-mode .media { height: 132px; }
 @media (max-width: 1180px) { .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } .row2 { grid-template-columns: 1fr; } .row3 { grid-template-columns: 1fr; } .pay-grid { grid-template-columns: 1fr; } }
 @media (max-width: 760px) {
-  .app { grid-template-columns: 0 minmax(0,1fr); }
+  .app { grid-template-columns: minmax(0, 1fr); }
+  .main { grid-column: 1; }   /* the hidden sidebar leaves the grid, so main must not land in a 0-wide column */
   .sidebar { display: none; }
   .sheet-mode .order { left: 0; }
   .topbar { padding: 0 12px; gap: 8px; }
@@ -1541,3 +1542,58 @@ details.card > summary::-webkit-details-marker { display: none; }
 .support-bar.on { background: #1E2028; color: #FDFFFC; border-color: #1E2028; }
 .support-bar .btn.s { height: 30px; font-size: 12.5px; }
 @media (max-width: 1180px) { .con-body { grid-template-columns: 72px minmax(0, 1fr); } .con-rail span, .con-who > span:last-child, .con-rail > .btn { display: none; } .tnrow { grid-template-columns: minmax(0, 1fr) 90px 150px; } .tnrow > :nth-child(2), .tnrow > :nth-child(3), .tnrow > :nth-child(4), .tnrow > :nth-child(7) { display: none; } .flrow { grid-template-columns: 110px minmax(0, 1fr) 70px 120px; } .flrow > :nth-child(4), .flrow > :nth-child(5), .flrow > :nth-child(6), .flrow > :nth-child(7) { display: none; } .acrow { grid-template-columns: 130px minmax(0, 1fr) 140px; } .acrow > :nth-child(3), .acrow > :nth-child(4), .acrow > :nth-child(6) { display: none; } }
+
+/* ---------- Plans: A-80 plan card, plan dialogs (Doc/plans.html) ---------- */
+.link-btn { background: none; border: 0; padding: 0; font: inherit; color: var(--primary-text); text-decoration: underline; cursor: pointer; }
+.plan-card .pl-price, .pl-col .pl-price { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; margin: -2px 0 6px; }
+.pl-price b { font-size: 20px; font-weight: 700; }
+.pl-price .sub { font-size: 13px; color: var(--text-2); }
+.pl-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 8px; font-size: 13px; margin: 10px 0; }
+.pl-row .r { text-align: right; color: var(--text-2); }
+.pl-row .r b { color: var(--text); }
+.pl-meter { grid-column: 1 / -1; height: 6px; border-radius: 3px; background: var(--subtle); overflow: hidden; }
+.pl-meter i { display: block; height: 100%; border-radius: 3px; background: var(--primary); }
+.pl-meter i.near { background: var(--warning); }
+.pl-meter i.full { background: var(--error); }
+.note.warn-note { background: var(--warning-tint); color: var(--warning-text); border-radius: 12px; padding: 8px 10px; }
+.plans-modal { width: min(960px, 100%); }
+.pl-cols { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.pl-col { position: relative; border: 1px solid var(--border); border-radius: 16px; padding: 16px 14px 14px; display: flex; flex-direction: column; gap: 6px; }
+.pl-col.cur { border: 2px solid var(--primary); }
+.pl-tag { position: absolute; top: -11px; left: 14px; font-size: 11px; font-weight: 700; background: var(--primary); color: var(--on-primary); padding: 2px 9px; border-radius: 999px; }
+.pl-name { font-size: 17px; }
+.pl-col small { color: var(--text-2); min-height: 2.6em; }
+.pl-col ul { margin: 2px 0 8px; padding-left: 18px; font-size: 13px; flex: 1; }
+@media (max-width: 900px) { .pl-cols { grid-template-columns: 1fr 1fr; } }
+
+/* ---------- Phone layout (Lite plan): the register inside a 390 x 844 phone frame ---------- */
+body.phone { background: var(--canvas); }
+.phone-wrap { min-height: 100vh; min-height: 100dvh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding: 16px; }
+/* transform makes the frame the containing block for the fixed bottom sheet, camera button and drawer */
+.phone-frame { position: relative; width: 390px; max-width: 100%; height: min(844px, calc(100dvh - 64px)); border: 10px solid #15171d; border-radius: 42px; overflow: hidden; background: var(--bg); transform: translateZ(0); box-shadow: 0 24px 64px rgba(0, 0, 0, .28); }
+.phone-cap { font-size: 12px; color: var(--text-2); }
+.phone-frame .app { --side-w: 0px; grid-template-columns: minmax(0, 1fr); height: 100%; }
+.phone-frame .main { grid-column: 1; }
+.phone-frame .sidebar { display: none; }
+.phone-frame.nav-open .sidebar { display: flex; position: fixed; top: 0; bottom: 0; left: 0; width: 272px; z-index: 62; overflow: auto; }
+.phone-scrim { position: fixed; inset: 0; background: var(--scrim); z-index: 61; }
+.phone-frame .topbar { padding: 0 10px; gap: 6px; }
+.phone-frame .topbar h1 { font-size: 17px; }
+.phone-frame .topbar .sub, .phone-frame .topbar .hide-t, .phone-frame .topbar .seg, .phone-frame .topbar [data-act="help"], .phone-frame .topbar [data-act="theme"] { display: none; }
+.phone-frame .products { padding: 12px 12px 112px; }
+.phone-frame .search-row .toggle-btn, .phone-frame .search-row .view-seg, .phone-frame .search kbd { display: none; }
+.phone-frame .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.phone-frame .media { height: 92px; }
+.phone-frame .order { left: 0 !important; }
+.phone-frame .order.open { height: 90%; }
+.phone-frame .sheet-bar { padding: 12px 14px; gap: 10px; }
+.phone-frame .sheet-bar .thumbs { display: none; }
+.phone-frame .sheet-bar .tot { font-size: 18px; }
+.phone-frame .fab { right: 14px; bottom: 96px; }
+.phone-frame .kpis, .phone-frame .row2, .phone-frame .row3, .phone-frame .pay-grid { grid-template-columns: 1fr; }
+body.phone .proto { left: 16px; bottom: 16px; }
+body.phone .overlay .modal { width: min(370px, 100%) !important; max-height: min(820px, calc(100dvh - 32px)); padding: 20px 16px; overflow-x: hidden; }
+body.phone .pay-grid { grid-template-columns: minmax(0, 1fr); }
+body.phone .pay-grid > * { min-width: 0; }
+body.phone .methods { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+body.phone .quick { grid-template-columns: repeat(2, minmax(0, 1fr)); }

@@ -201,7 +201,7 @@
     view: "sell", cat: "All", inStock: false, query: "", list: false, scanError: null,
     cart: [line("pc", 2, { batch: "B2" }), line("br", 1), line("mp", 1), line("ca", 1.25)], sel: 3,
     customer: CUSTOMERS[1], mode: "sale", held: [], seq: 155, offline: false, waiting: 12, printerError: false,
-    lang: "en", theme: store("retailos-proto-theme") || null, collapsed: false, tablet: false, touch: false, sheetOpen: false,
+    lang: "en", theme: store("retailos-proto-theme") || null, collapsed: false, tablet: false, phone: false, phoneNav: false, touch: false, sheetOpen: false,
     loading: true, modal: null, pay: null, last: null, undo: null, protoOpen: false, countdown: 0,
     user: USERS[0],
     // Open cash session per cashier (BR-08). Sachini's shift already has a morning of trading.
@@ -287,7 +287,7 @@
   const modalRoot = document.getElementById("modal-root");
   const toastRoot = document.getElementById("toast-root");
   const coarse = () => window.matchMedia && window.matchMedia("(pointer: coarse)").matches;
-  const sheetMode = () => S.tablet || window.innerWidth <= 1180 || (coarse() && window.innerWidth <= 1366);
+  const sheetMode = () => S.phone || S.tablet || window.innerWidth <= 1180 || (coarse() && window.innerWidth <= 1366);
   function toast(msg, opts = {}) {
     const el = document.createElement("div");
     el.className = "toast";
@@ -420,7 +420,7 @@
   }
   function topbar(title, sub, extra) {
     const dark = document.documentElement.dataset.theme === "dark" || (!document.documentElement.dataset.theme && matchMedia("(prefers-color-scheme: dark)").matches);
-    return `<header class="topbar"><div><h1>${esc(title)}</h1>${sub ? `<div class="sub">${esc(sub)}</div>` : ""}</div>${extra || ""}<div class="spacer"></div>
+    return `<header class="topbar">${S.phone ? `<button class="icon-btn" data-act="phone-nav" aria-label="Menu" aria-expanded="${S.phoneNav}">${ic("panel")}</button>` : ""}<div><h1>${esc(title)}</h1>${sub ? `<div class="sub">${esc(sub)}</div>` : ""}</div>${extra || ""}<div class="spacer"></div>
       ${S.view !== "dashboard" ? `<button class="badge ${S.offline ? "b-warning" : "b-success"}" data-act="toggle-offline" title="Click to simulate ${S.offline ? "reconnecting" : "going offline"}">${ic(S.offline ? "wifiOff" : "cloudCheck", 14)}${S.offline ? `Offline · ${S.waiting} waiting` : "Synced 10:41"}</button>
       <button class="badge hide-t ${S.printerError ? "b-error" : "b-success"}" data-act="toggle-printer" title="Click to simulate a printer problem">${ic("printer", 14)}${S.printerError ? "Printer: no paper" : "Printer ready"}</button>
       <span class="badge hide-t ${S.shifts[S.user.id] ? "" : "b-warning"}">${ic("clock", 14)}${shiftLabel()}</span>` : ""}
@@ -3283,6 +3283,58 @@ Yesterday 09:15  SYNC-003 Catalog cursor too old · catalog snapshot downloaded<
   }
   const setupTabs = cur => `<div class="seg tabs big" role="tablist">${[["business", "Business"], ["branches", "Branches & registers"], ["devices", "Devices"], ["receipts", "Receipts"], ["audit", "Audit log"]].map(([v, l]) => `<button role="tab" data-act="nav" data-view="${v}" aria-pressed="${cur === v}" aria-selected="${cur === v}">${l}</button>`).join("")}</div>`;
   const setupGuard = () => isMgr() ? null : `<div class="placeholder"><div class="empty"><span class="circle">${ic("lock", 28)}</span><h3>Setup is for the owner</h3><span>Managers can look; the owner changes it.</span><button class="btn primary s" data-act="logout">Switch user</button></div></div>`;
+
+  // ---------- Plans (Doc/plans.html): one catalog used by A-80, A-81 and the console ----------
+  const PLANS = {
+    LITE: { name: "Lite", price: "Rs 990", per: "per device / month", branches: 1, regs: 1, users: 2, products: 2000, note: "One Android phone or tablet" },
+    STARTER: { name: "Starter", price: "Rs 2,990", per: "per branch / month", branches: 1, regs: 2, users: 5, products: Infinity, note: "One shop with a counter PC" },
+    BUSINESS: { name: "Business", price: "Rs 5,990", per: "per branch / month", branches: 5, regs: 3, users: 25, products: Infinity, note: "Busy shops and small chains" },
+    ENTERPRISE: { name: "Enterprise", price: "From Rs 9,990", per: "per branch / month", branches: Infinity, regs: Infinity, users: Infinity, products: Infinity, note: "Chains, pharmacy groups, supermarkets" }
+  };
+  const lim = n => n === Infinity ? "unlimited" : n.toLocaleString("en-US");
+  const shopT = () => TENANTS.find(t => t.id === "city");
+  const planOf = (t = shopT()) => PLANS[t.plan];
+  const regLimit = b => planOf().regs + ((shopT().extra || {})[b.code] || 0);
+  const shopUsers = () => USERS.length + STAFF_OTHER.length;
+  const SHOP_PRODUCTS = 1248;
+  S.planReq = null;
+  function planMeter(label, used, max) {
+    const pct = max === Infinity ? 6 : Math.min(100, Math.round(used / max * 100)), full = max !== Infinity && used >= max;
+    return `<div class="pl-row"><span>${label}</span><span class="r"><b>${used.toLocaleString("en-US")}</b> of ${lim(max)}</span><span class="pl-meter"><i class="${full ? "full" : pct >= 80 ? "near" : ""}" style="width:${pct}%"></i></span></div>`;
+  }
+  function planCard() {
+    const t = shopT(), p = planOf(t), B = S.br, full = B.list.filter(b => b.regs.length >= regLimit(b)), most = B.list.reduce((a, b) => b.regs.length > a.regs.length ? b : a, B.list[0]);
+    return `<section class="card plan-card"><div class="card-head"><h2>Plan</h2>${badge(t.status === "active" ? "success" : t.status === "trial" ? "info" : "error", p.name, null)}</div>
+      <div class="pl-price"><b>${p.price}</b><span class="sub">${p.per}</span></div>
+      <dl class="kv exc-kv"><dt>Paid until</dt><dd>${fmtExpIso(t.paidUntil)}</dd><dt>Add-ons</dt><dd>${t.mods.length ? t.mods.map(m => m + " module").join(", ") : "None"}</dd></dl>
+      ${planMeter("Branches", B.list.length, p.branches)}${planMeter(`Registers in ${esc(most.name)}`, most.regs.length, regLimit(most))}${planMeter("Users", shopUsers(), p.users)}${planMeter("Products", SHOP_PRODUCTS, p.products)}
+      ${full.length ? `<div class="note warn-note">${ic("alert", 16)}<span>${esc(full.map(b => b.name).join(" and "))} ${full.length === 1 ? "has" : "have"} all ${lim(p.regs)} registers the ${p.name} plan allows per branch. Add a register for Rs 990 / month, or move to Enterprise.</span></div>` : ""}
+      ${S.planReq ? `<div class="note">${ic("clock", 16)}<span>Asked DevCity at ${hm(S.planReq.at)} to move to ${PLANS[S.planReq.to].name}. Support will call you within one working day.</span></div>` : ""}
+      ${isOwner() ? `<button class="btn secondary block" data-act="plan-compare">${ic("chart", 18)}Compare plans</button>` : ""}</section>`;
+  }
+  function plansModal(m, head) {
+    const cur = shopT().plan;
+    return `<div class="modal plans-modal" role="dialog" aria-modal="true" aria-labelledby="mt">${head("Plans", "Monthly prices, excluding VAT. Nothing is deleted when you change plans.")}
+      <div class="pl-cols">${Object.entries(PLANS).map(([k, p]) => `<div class="pl-col ${k === cur ? "cur" : ""}">${k === cur ? `<span class="pl-tag">Your plan</span>` : ""}<b class="pl-name">${p.name}</b><small>${p.note}</small><div class="pl-price"><b>${p.price}</b><span class="sub">${p.per}</span></div>
+        <ul><li>${lim(p.branches)} branch${p.branches === 1 ? "" : "es"}</li><li>${k === "LITE" ? "1 Android device" : lim(p.regs) + " registers per branch"}</li><li>${lim(p.users)} users</li><li>${lim(p.products)} products</li></ul>
+        ${k === cur ? `<button class="btn secondary block" disabled>Current plan</button>` : `<button class="btn ${k === "ENTERPRISE" ? "primary" : "secondary"} block" data-act="plan-ask" data-v="${k}">Ask for ${p.name}</button>`}</div>`).join("")}</div>
+      <div class="note">${ic("help", 16)}<span>DevCity changes your plan after a short call, usually the same day. Every feature by plan is on the Plans page of the docs.</span></div></div>`;
+  }
+  function conPlanModal(m, head) {
+    const t = TENANTS.find(x => x.id === m.tid), p = PLANS[m.to], h = tenantHealth(t), per = {};
+    h.regs.forEach(r => { const b = r.id.split("-")[0]; per[b] = (per[b] || 0) + 1; });
+    const most = Math.max(0, ...Object.values(per)), over = [];
+    if (h.branches > p.branches) over.push(`${h.branches} branches (the plan allows ${lim(p.branches)})`);
+    if (most > p.regs) over.push(`${most} registers in one branch (the plan allows ${lim(p.regs)})`);
+    if (m.to === "LITE" && h.regs.some(r => !String(r.device).startsWith("AND"))) over.push("Windows registers (Lite runs on one Android device)");
+    const same = m.to === t.plan && [...m.mods].sort().join() === [...t.mods].sort().join();
+    return `<div class="modal" role="dialog" aria-modal="true" aria-labelledby="mt" style="width:min(580px,100%)">${head("Change plan", `${t.name} · now on ${PLANS[t.plan].name}`)}
+      <div class="opt-list" role="radiogroup">${Object.entries(PLANS).map(([k, x]) => `<button class="opt" role="radio" data-act="con-plan-pick" data-v="${k}" aria-checked="${m.to === k}" aria-selected="${m.to === k}"><span class="grow"><b>${x.name}${k === t.plan ? " · current" : ""}</b><small>${x.price} ${x.per} · ${lim(x.branches)} branch${x.branches === 1 ? "" : "es"} · ${k === "LITE" ? "1 Android device" : lim(x.regs) + " registers per branch"} · ${lim(x.users)} users</small></span></button>`).join("")}</div>
+      <div class="field">Modules switched on${["Pharmacy", "Grocery"].map(a => `<label class="check-row"><input type="checkbox" data-act="con-plan-addon" data-v="${a}" ${m.mods.includes(a) ? "checked" : ""}><span><b>${a} module</b><small>${m.to === "ENTERPRISE" ? "Included in Enterprise" : a === "Pharmacy" ? "Add-on · Rs 1,990 per branch / month" : "Add-on · Rs 1,490 per branch / month"}</small></span></label>`).join("")}</div>
+      <label class="field">Reason (kept in the shop's audit log)<input id="cpreason" value="${esc(m.reason)}" placeholder="e.g. Owner asked by phone · ticket DC-4480"></label>
+      ${over.length ? `<div class="note warn-note">${ic("alert", 16)}<span>Over the new plan's limits: ${over.join("; ")}. Nothing is deleted and nothing stops working, but the shop can't add more until it is under the limit.</span></div>` : ""}
+      <div style="display:flex;gap:8px;justify-content:flex-end"><button class="btn secondary" data-act="close">Cancel</button><button class="btn primary" data-act="con-plan-save" ${same ? "disabled" : ""}>Change plan</button></div></div>`;
+  }
   function businessView() {
     const g0 = setupGuard(); if (g0) return g0;
     if (!S.bizDraft) S.bizDraft = bizFrom();
@@ -3293,7 +3345,7 @@ Yesterday 09:15  SYNC-003 Catalog cursor too old · catalog snapshot downloaded<
         <section class="card"><h2>Company</h2><div class="form-2">${fld("legal", "Legal name *", "As registered")}${fld("trading", "Trading name", "On signboards and receipts")}${fld("vat", "VAT registration number *", "114128890-7000")}${fld("brn", "Company number *", "PV 00123456")}</div>
           ${fld("address", "Registered address", "Street, city")}<div class="form-2">${fld("phone", "Phone", "011 250 4411", 'inputmode="tel"')}${fld("email", "Accounts e-mail", "accounts@…", 'inputmode="email"')}</div>
           <div class="note">${ic("receipt", 16)}Tax invoices and credit notes print the legal name, VAT number and address. The receipt header is set in Receipts.</div></section>
-        <div class="cat-side">
+        <div class="cat-side">${planCard()}
           <section class="card"><h2>Logo</h2><div class="logo-box">${d.logo ? `<img src="${d.logo}" alt="Business logo">` : `<span class="muted">No logo</span>`}</div>
             <div class="card-actions" style="justify-content:flex-start">${isOwner() ? `<label class="btn secondary s" for="logofile">${ic("upload", 16)}Upload</label><input type="file" id="logofile" accept="image/png,image/jpeg,image/svg+xml" class="sr">
               <button class="btn ghost s" data-act="biz-demo-logo">Use demo logo</button>${d.logo ? `<button class="btn ghost s" data-act="biz-logo-del">Remove</button>` : ""}` : ""}</div>
@@ -3311,7 +3363,7 @@ Yesterday 09:15  SYNC-003 Catalog cursor too old · catalog snapshot downloaded<
 
   // ---------- Branches & registers (A-81) ----------
   const mkReg = (id, device, kind, status, seen, ver) => ({ id, device, kind, status, seen, ver });
-  S.br = { sel: "CMB01", plan: { branches: 5, registers: 10 }, draft: null, list: [
+  S.br = { sel: "CMB01", draft: null, list: [
     { code: "CMB01", name: "Colombo 03", address: "No. 12, Galle Road, Colombo 03", phone: "0112504411", manager: "Malini Jayasuriya", opened: "2024-03-01", regs: [mkReg("R01", "WIN-CMB01-01", "Windows", "online", minsAgo(1), "1.6.0"), mkReg("R02", "WIN-CMB01-02", "Windows", "online", minsAgo(0), "1.6.0"), mkReg("R03", "AND-CMB01-03", "Android tablet", "offline", minsAgo(130), "1.5.2")] },
     { code: "KDY01", name: "Kandy", address: "45 Dalada Veediya, Kandy", phone: "0812223344", manager: "Chamari Wijesinghe", opened: "2025-02-10", regs: [mkReg("R01", "WIN-KDY01-01", "Windows", "offline", minsAgo(1620), "1.5.2"), mkReg("R02", "AND-KDY01-02", "Android tablet", "online", minsAgo(2), "1.6.0")] },
     { code: "GAL01", name: "Galle", address: "88 Matara Road, Galle", phone: "0912234567", manager: "Dilan Wickrama", opened: "2025-11-01", regs: [mkReg("R01", "WIN-GAL01-01", "Windows", "online", minsAgo(3), "1.6.0"), mkReg("R02", "WIN-GAL01-02", "Windows", "online", minsAgo(1), "1.5.9")] }
@@ -3338,7 +3390,7 @@ Yesterday 09:15  SYNC-003 Catalog cursor too old · catalog snapshot downloaded<
       <div class="br-grid">
         <section class="card"><div class="card-head"><h2>Branches</h2><button class="btn secondary s" data-act="br-new" ${ro()}>${ic("plus", 16)}Add</button></div>
           <div class="opt-list">${B.list.map(x => `<button class="opt" data-act="br-sel" data-v="${x.code}" aria-selected="${x.code === b.code}"><span class="grow"><b>${x.code} · ${esc(x.name)}</b><small>${x.regs.length} register${x.regs.length === 1 ? "" : "s"} · ${x.regs.filter(r => r.status === "online").length} online</small></span>${x.regs.some(r => r.status === "offline" && Date.now() - r.seen > 86400000) ? badge("error", "Needs help", "alert") : ""}</button>`).join("")}</div>
-          <div class="note">${ic("chart", 16)}Plan: ${B.list.length} of ${B.plan.branches} branches · ${regCount()} of ${B.plan.registers} registers</div></section>
+          <div class="note">${ic("chart", 16)}<span>${planOf().name} plan: ${B.list.length} of ${lim(planOf().branches)} branches · up to ${lim(planOf().regs)} registers per branch · <button class="link-btn" data-act="nav" data-view="business">See plan</button></span></div></section>
         <div class="cat-side">
           <section class="card"><div class="card-head"><h2>${b.code} · ${esc(b.name)}</h2><span class="sub">Open since ${fmtExpIso(b.opened)}</span></div>
             <div class="form-2"><label class="field">Branch code<input value="${b.code}" disabled><span class="hint">Codes never change: they are part of every receipt number.</span></label>
@@ -3363,8 +3415,8 @@ Yesterday 09:15  SYNC-003 Catalog cursor too old · catalog snapshot downloaded<
   }
   function branchModal(m, head) {
     const code = m.code.trim().toUpperCase(), e = !/^[A-Z]{3}\d{2}$/.test(code) ? "Three letters and two digits, e.g. NEG01" : S.br.list.some(b => b.code === code) ? "This code is taken" : "";
-    const ok = !e && m.name.trim() && S.br.list.length < S.br.plan.branches;
-    return `<div class="modal" role="dialog" aria-modal="true" aria-labelledby="mt" style="width:min(480px,100%)">${head("Add a branch", `${S.br.list.length} of ${S.br.plan.branches} branches on your plan`)}
+    const ok = !e && m.name.trim() && S.br.list.length < planOf().branches;
+    return `<div class="modal" role="dialog" aria-modal="true" aria-labelledby="mt" style="width:min(480px,100%)">${head("Add a branch", `${S.br.list.length} of ${lim(planOf().branches)} branches on your ${planOf().name} plan`)}
       <div class="form-2"><label class="field">Code *<input data-nb="code" data-fid="nb-code" id="nbcode" value="${esc(m.code)}" placeholder="NEG01" maxlength="5" class="${m.code && e ? "bad" : ""}">${m.code && e ? `<span class="err">${e}</span>` : `<span class="hint">Cannot be changed later</span>`}</label>
         <label class="field">Name *<input data-nb="name" data-fid="nb-name" value="${esc(m.name)}" placeholder="Negombo"></label></div>
       <label class="field">Address<input data-nb="address" data-fid="nb-address" value="${esc(m.address)}" placeholder="Street, city"></label>
@@ -4064,18 +4116,19 @@ Yesterday 09:15  SYNC-003 Catalog cursor too old · catalog snapshot downloaded<
   const SUPPORT = { name: "Nuwan Perera", short: "Nuwan P.", email: "nuwan@devcity.lk" };
   const SUPPORT2 = { name: "Ayesha Rahman", short: "Ayesha R." };
   const TENANTS = [
-    { id: "city", name: "City Pharmacy & Mart (Pvt) Ltd", owner: "Dilan Wickrama", plan: "Growth", mods: ["Pharmacy", "Grocery"], status: "active", created: "2024-03-01", live: true },
-    { id: "lmart", name: "Lanka Mart Supermarket", owner: "Ruwan Senanayake", plan: "Growth", mods: ["Grocery"], status: "active", created: "2025-01-12", br: 4, regs: [["COL01-R01", "1.6.0", 0, 0, 0], ["COL01-R02", "1.6.0", 0, 0, 0], ["COL01-R03", "1.6.0", 1, 0, 0], ["MAH01-R01", "1.6.0", 0, 0, 0], ["MAH01-R02", "1.5.9", 0, 0, 0], ["NUG01-R01", "1.6.0", 0, 0, 0], ["NUG01-R02", "1.6.0", 0, 0, 0], ["NUG01-R07", "1.4.8", 40, 2, 0, 45], ["WAT01-R01", "1.6.0", 0, 0, 0], ["WAT01-R02", "1.6.0", 0, 0, 0], ["WAT01-R03", "1.6.0", 0, 0, 0]], exc: 9, imp: 1 },
-    { id: "green", name: "Green Leaf Pharmacy", owner: "Dr. Shalini Fonseka", plan: "Starter", mods: ["Pharmacy"], status: "active", created: "2025-06-03", br: 1, regs: [["MAT01-R01", "1.6.0", 0, 0, 7], ["MAT01-R02", "1.6.0", 0, 0, 0]], exc: 1, imp: 0 },
-    { id: "island", name: "Island Hardware", owner: "Mohamed Rizan", plan: "Starter", mods: [], status: "active", created: "2025-08-21", br: 2, regs: [["KUR01-R01", "1.6.0", 0, 0, 0], ["KUR01-R02", "1.6.0", 14, 0, 0, 4300], ["PUT01-R01", "1.5.9", 0, 0, 0]], exc: 0, imp: 3 },
-    { id: "kfresh", name: "Kandy Fresh Grocers", owner: "Nirosha Bandara", plan: "Trial", mods: ["Grocery"], status: "trial", trialLeft: 9, created: "2026-11-11", br: 1, regs: [["KAN01-R01", "1.6.0", 0, 0, 0]], exc: 0, imp: 2 },
-    { id: "medi", name: "MediPlus Pharmacies", owner: "Kamal Jayasinghe", plan: "Growth", mods: ["Pharmacy"], status: "suspended", suspendedDays: 21, created: "2024-10-05", br: 3, regs: [["NEG01-R01", "1.5.9", 0, 0, 0], ["NEG01-R02", "1.5.9", 0, 0, 0], ["CHI01-R01", "1.5.9", 3, 0, 0], ["CHI01-R02", "1.5.9", 0, 0, 0], ["JAE01-R01", "1.5.2", 0, 0, 0], ["JAE01-R02", "1.5.9", 0, 0, 0]], exc: 4, imp: 0 }
+    { id: "city", name: "City Pharmacy & Mart (Pvt) Ltd", owner: "Dilan Wickrama", plan: "BUSINESS", mods: ["Pharmacy", "Grocery"], status: "active", paidUntil: "2026-12-31", extra: {}, created: "2024-03-01", live: true },
+    { id: "lmart", name: "Lanka Mart Supermarket", owner: "Ruwan Senanayake", plan: "ENTERPRISE", mods: ["Grocery"], status: "active", paidUntil: "2027-03-31", created: "2025-01-12", br: 4, regs: [["COL01-R01", "1.6.0", 0, 0, 0], ["COL01-R02", "1.6.0", 0, 0, 0], ["COL01-R03", "1.6.0", 1, 0, 0], ["MAH01-R01", "1.6.0", 0, 0, 0], ["MAH01-R02", "1.5.9", 0, 0, 0], ["NUG01-R01", "1.6.0", 0, 0, 0], ["NUG01-R02", "1.6.0", 0, 0, 0], ["NUG01-R07", "1.4.8", 40, 2, 0, 45], ["WAT01-R01", "1.6.0", 0, 0, 0], ["WAT01-R02", "1.6.0", 0, 0, 0], ["WAT01-R03", "1.6.0", 0, 0, 0]], exc: 9, imp: 1 },
+    { id: "green", name: "Green Leaf Pharmacy", owner: "Dr. Shalini Fonseka", plan: "STARTER", mods: ["Pharmacy"], status: "active", paidUntil: "2026-12-15", created: "2025-06-03", br: 1, regs: [["MAT01-R01", "1.6.0", 0, 0, 7], ["MAT01-R02", "1.6.0", 0, 0, 0]], exc: 1, imp: 0 },
+    { id: "island", name: "Island Hardware", owner: "Mohamed Rizan", plan: "BUSINESS", mods: [], status: "active", paidUntil: "2026-12-08", created: "2025-08-21", br: 2, regs: [["KUR01-R01", "1.6.0", 0, 0, 0], ["KUR01-R02", "1.6.0", 14, 0, 0, 4300], ["PUT01-R01", "1.5.9", 0, 0, 0]], exc: 0, imp: 3 },
+    { id: "sampath", name: "Sampath Stores", owner: "Sampath Kumara", plan: "LITE", mods: [], status: "active", paidUntil: "2026-12-02", created: "2026-10-02", phone: true, br: 1, regs: [["SMP01-R01", "1.6.0", 0, 0, 0]], exc: 0, imp: 0 },
+    { id: "kfresh", name: "Kandy Fresh Grocers", owner: "Nirosha Bandara", plan: "BUSINESS", mods: ["Grocery"], status: "trial", trialLeft: 9, paidUntil: "2026-12-11", created: "2026-11-11", br: 1, regs: [["KAN01-R01", "1.6.0", 0, 0, 0]], exc: 0, imp: 2 },
+    { id: "medi", name: "MediPlus Pharmacies", owner: "Kamal Jayasinghe", plan: "BUSINESS", mods: ["Pharmacy"], status: "locked", lockedDays: 7, paidUntil: "2026-10-29", created: "2024-10-05", br: 3, regs: [["NEG01-R01", "1.5.9", 0, 0, 0], ["NEG01-R02", "1.5.9", 0, 0, 0], ["CHI01-R01", "1.5.9", 3, 0, 0], ["CHI01-R02", "1.5.9", 0, 0, 0], ["JAE01-R01", "1.5.2", 0, 0, 0], ["JAE01-R02", "1.5.9", 0, 0, 0]], exc: 4, imp: 0 }
   ];
   S.con = { signed: false, tapping: false, email: SUPPORT.email, tab: "tenants", tenant: null, reg: null, q: "", tf: "all", ff: "help", seqReq: null, requeued: {}, acts: [],
     access: [
       { id: "SA-0192", tenant: "lmart", by: SUPPORT.short, reason: "Prices not updating on register NUG01-R07", ticket: "DC-4471", hours: 2, status: "active", decidedBy: "Ruwan Senanayake (owner)", at: minsAgo(55), start: minsAgo(50) },
       { id: "SA-0191", tenant: "green", by: SUPPORT2.short, reason: "Help setting up the batch recall for a supplier notice", ticket: "DC-4466", hours: 1, status: "expired", decidedBy: "Dr. Shalini Fonseka (owner)", at: minsAgo(60 * 27), start: minsAgo(60 * 27) },
-      { id: "SA-0190", tenant: "medi", by: SUPPORT.short, reason: "Check why registers show the suspension notice", ticket: "DC-4459", hours: 1, status: "refused", decidedBy: "Kamal Jayasinghe (owner)", at: minsAgo(60 * 50) },
+      { id: "SA-0190", tenant: "medi", by: SUPPORT.short, reason: "Check why registers can't open a new shift", ticket: "DC-4459", hours: 1, status: "refused", decidedBy: "Kamal Jayasinghe (owner)", at: minsAgo(60 * 50) },
       { id: "SA-0188", tenant: "island", by: SUPPORT2.short, reason: "Import of 2,400 products failing at row 913", ticket: "DC-4431", hours: 4, status: "expired", decidedBy: "Mohamed Rizan (owner)", at: daysAgo(6, 10, 5), start: daysAgo(6, 10, 9) }
     ] };
   const accSeq = { n: 193 };
@@ -4083,7 +4136,7 @@ Yesterday 09:15  SYNC-003 Catalog cursor too old · catalog snapshot downloaded<
   function accTick() { for (const a of S.con.access) if (a.status === "active" && accEnd(a) <= new Date()) a.status = "expired"; }
   const accFor = tid => { accTick(); return S.con.access.find(a => a.tenant === tid && (a.status === "active" || a.status === "pending")); };
   const tenantRegs = t => t.live ? devAll().map(d => ({ id: d.id, ver: d.r.status === "locked" ? d.r.ver : d.ver, queue: d.queue, blocked: d.id === "CMB01-R02" ? S.history.filter(s => s.sync === "error").length : 0, skew: d.skew, status: d.r.status, seen: d.r.seen, device: d.r.device, os: d.os, live: true, d }))
-    : t.regs.map(([id, ver, queue, blocked, skew, offMin]) => ({ id, ver, queue, blocked, skew, status: offMin ? "offline" : "online", seen: offMin ? minsAgo(offMin) : minsAgo(1 + hashOf(id) % 3), device: (id.includes("R0") && hashOf(id) % 3 === 0 ? "AND-" : "WIN-") + id, os: hashOf(id) % 3 === 0 ? "Android 14" : "Windows 11 Pro" }));
+    : t.regs.map(([id, ver, queue, blocked, skew, offMin]) => ({ id, ver, queue, blocked, skew, status: offMin ? "offline" : "online", seen: offMin ? minsAgo(offMin) : minsAgo(1 + hashOf(id) % 3), device: (t.phone || (id.includes("R0") && hashOf(id) % 3 === 0) ? "AND-" : "WIN-") + id, os: t.phone ? "Android 14 · phone" : hashOf(id) % 3 === 0 ? "Android 14" : "Windows 11 Pro" }));
   const regHelp = r => r.status === "locked" || (r.status !== "online" && Date.now() - r.seen > 86400000) || r.blocked > 0 || r.skew > 5 || r.ver < "1.5.9" || (r.status !== "online" && r.queue > 0);
   function tenantHealth(t) {
     const regs = tenantRegs(t);
@@ -4115,22 +4168,23 @@ Yesterday 09:15  SYNC-003 Catalog cursor too old · catalog snapshot downloaded<
     const chip = (v, l) => `<button class="chip" data-act="con-tf" data-v="${v}" aria-pressed="${C.tf === v}">${l}</button>`;
     const tot = TENANTS.reduce((a, t) => { const h = tenantHealth(t); a.r += h.regs.length; a.o += h.online; return a; }, { r: 0, o: 0 });
     return `<h1 class="con-h">Tenants</h1>
-      <div class="stats4"><div class="stat"><span>Shops</span><b>${TENANTS.length}</b></div><div class="stat"><span>Registers online</span><b>${tot.o} of ${tot.r}</b></div><div class="stat"><span>On trial</span><b>${TENANTS.filter(t => t.status === "trial").length}</b></div><div class="stat"><span>Suspended</span><b style="color:var(--error-text)">${TENANTS.filter(t => t.status === "suspended").length}</b></div></div>
-      <div class="filters"><label class="search" style="flex:1;min-width:240px">${ic("search")}<span class="sr">Search shops</span><input id="consearch" data-con="q" data-fid="con-q" autocomplete="off" placeholder="Shop or owner…" value="${esc(C.q)}"></label><div class="chips">${chip("all", "All")}${chip("help", "Needs help")}${chip("trial", "Trial")}${chip("suspended", "Suspended")}</div></div>
+      <div class="stats4"><div class="stat"><span>Shops</span><b>${TENANTS.length}</b></div><div class="stat"><span>Registers online</span><b>${tot.o} of ${tot.r}</b></div><div class="stat"><span>On trial</span><b>${TENANTS.filter(t => t.status === "trial").length}</b></div><div class="stat"><span>Locked (late payment)</span><b style="color:var(--error-text)">${TENANTS.filter(t => t.status === "locked" || t.status === "suspended").length}</b></div></div>
+      <div class="filters"><label class="search" style="flex:1;min-width:240px">${ic("search")}<span class="sr">Search shops</span><input id="consearch" data-con="q" data-fid="con-q" autocomplete="off" placeholder="Shop or owner…" value="${esc(C.q)}"></label><div class="chips">${chip("all", "All")}${chip("help", "Needs help")}${chip("trial", "Trial")}${chip("locked", "Locked")}</div></div>
       <div class="ctable" role="table" aria-label="Tenants"><div class="tnrow head" role="row"><span>Shop</span><span>Plan</span><span>Modules</span><span class="r">Branches</span><span class="r">Registers</span><span>Health</span><span>Status</span></div>
-        ${list.map(t => { const h = tenantHealth(t); return `<div class="tnrow" role="row" tabindex="0" data-act="con-tenant" data-v="${t.id}"><span class="no"><b>${esc(t.name)}</b><small>${esc(t.owner)} · since ${fmtExpIso(t.created)}</small></span><span>${t.plan}</span><span class="muted">${t.mods.join(", ") || "General"}</span><span class="r">${h.branches}</span><span class="r">${h.online}/${h.regs.length}</span>
-          <span>${h.help ? badge("error", `${h.help} need${h.help === 1 ? "s" : ""} help`, "alert") : badge("success", "Healthy", "check")}</span><span>${t.status === "active" ? badge("success", "Active", null) : t.status === "trial" ? badge("info", `Trial · ${t.trialLeft} days left`, "clock") : badge("error", `Suspended · ${t.suspendedDays} days`, "lock")}</span></div>`; }).join("")}</div>
+        ${list.map(t => { const h = tenantHealth(t); return `<div class="tnrow" role="row" tabindex="0" data-act="con-tenant" data-v="${t.id}"><span class="no"><b>${esc(t.name)}</b><small>${esc(t.owner)} · since ${fmtExpIso(t.created)}</small></span><span>${PLANS[t.plan].name}</span><span class="muted">${t.mods.join(", ") || "General"}</span><span class="r">${h.branches}</span><span class="r">${h.online}/${h.regs.length}</span>
+          <span>${h.help ? badge("error", `${h.help} need${h.help === 1 ? "s" : ""} help`, "alert") : badge("success", "Healthy", "check")}</span><span>${t.status === "active" ? badge("success", "Active", null) : t.status === "trial" ? badge("info", `Trial · ${t.trialLeft} days left`, "clock") : t.status === "locked" ? badge("error", `Locked · ${t.lockedDays} days`, "lock") : badge("error", "Suspended", "lock")}</span></div>`; }).join("")}</div>
       <div class="note">${ic("lock", 16)}This list shows health and plan only. A shop's sales, customers and prices are visible only during approved support access.</div>`;
   }
   function conTenant() {
     const C = S.con, t = TENANTS.find(x => x.id === C.tenant), h = tenantHealth(t), acc = accFor(t.id), on = acc && acc.status === "active";
-    return `<div class="cust-head"><button class="btn ghost" data-act="con-tab" data-v="tenants">${ic("arrowRight", 18)}Tenants</button><div class="grow"><h2>${esc(t.name)}</h2><span class="sub">${esc(t.owner)} (owner) · ${t.plan} plan · ${t.mods.join(", ") || "General retail"} · tenant ${t.id}</span></div>
+    return `<div class="cust-head"><button class="btn ghost" data-act="con-tab" data-v="tenants">${ic("arrowRight", 18)}Tenants</button><div class="grow"><h2>${esc(t.name)}</h2><span class="sub">${esc(t.owner)} (owner) · ${PLANS[t.plan].name} plan · ${t.mods.join(", ") || "General retail"} · tenant ${t.id}</span></div>
         ${on ? badge("warning", `Access open · until ${hm(accEnd(acc))}`, "lock") : acc ? badge("info", "Waiting for the owner", "clock") : badge("", "No data access", "lock")}</div>
-      ${t.status === "suspended" ? `<div class="banner error">${ic("lock")}<span>Suspended for unpaid invoices (${t.suspendedDays} days). Registers kept selling for 14 days and are now read-only. Finance must lift it.</span></div>` : ""}
+      ${t.status === "locked" ? `<div class="banner error">${ic("lock")}<span>Locked for late payment: paid until ${fmtExpIso(t.paidUntil)}, and the 14 days of grace ended ${t.lockedDays} days ago. The back office is read-only and registers can't open a new shift; shifts already open finish normally. Recording the payment unlocks it.</span></div>` : t.status === "suspended" ? `<div class="banner error">${ic("lock")}<span>Suspended by DevCity support. Its users get TEN-001.</span></div>` : ""}
       <div class="stats4"><div class="stat"><span>Registers online</span><b>${h.online} of ${h.regs.length}</b></div><div class="stat"><span>Need help</span><b style="color:${h.help ? "var(--error-text)" : "var(--text)"}">${h.help}</b></div><div class="stat"><span>Open sale exceptions</span><b>${h.exc}</b></div><div class="stat"><span>Blocked sales in outboxes</span><b style="color:${h.blocked ? "var(--error-text)" : "var(--text)"}">${h.blocked}</b></div></div>
       <div class="bd-grid">
         <section class="card"><h2>Registers</h2><div class="dlines">${h.regs.map(r => `<button class="dline linkrow" data-act="con-reg" data-t="${t.id}" data-v="${r.id}"><span class="grow"><b>${r.id}</b><small>${r.os} · v${r.ver} · ${r.status === "online" ? "online" : r.status === "locked" ? "locked" : "last seen " + ageOf(r.seen) + " ago"}${r.queue ? ` · ${r.queue} waiting` : ""}${r.blocked ? ` · ${r.blocked} blocked` : ""}</small></span>${regHelp(r) ? badge("error", "Needs help", "alert") : badge("success", "OK", null)}</button>`).join("")}</div></section>
         <div class="bd-side">
+          ${conPlanCard(t, h)}
           <section class="card"><h2>Other checks</h2><dl class="kv exc-kv"><dt>Import errors (7 days)</dt><dd>${h.imp}</dd><dt>Fiscal (IRD RAMIS)</dt><dd>Not required yet · release 3</dd><dt>Data region</dt><dd>Mumbai (ap-south-1)</dd><dt>Last backup check</dt><dd>Today 03:10 · restored OK</dd></dl></section>
           <section class="card"><h2>Support access</h2>
             ${on ? `<div class="banner" style="background:var(--warning-tint);color:var(--warning-text)">${ic("lock")}<span>Approved by ${esc(acc.decidedBy)} · ${esc(acc.reason)} · ends ${hm(accEnd(acc))}</span></div>
@@ -4139,6 +4193,13 @@ Yesterday 09:15  SYNC-003 Catalog cursor too old · catalog snapshot downloaded<
             : acc ? `<div class="note">${ic("clock", 16)}Request ${acc.id} sent ${hm(acc.at)}. ${t.live ? "Dilan sees it in the shop and can approve or refuse." : "The owner gets an e-mail and an in-app notice."}</div>${t.live ? "" : `<button class="btn ghost block" data-act="con-sim" data-v="${acc.id}">Simulate the owner approving (demo)</button>`}<button class="btn ghost block" data-act="con-cancel" data-v="${acc.id}">Withdraw request</button>`
             : `<div class="note">${ic("lock", 16)}You see health only. To look at sales, products or settings, ask the owner. Access lasts at most 4 hours and the owner sees everything you do.</div><button class="btn primary block" data-act="con-req" data-v="${t.id}" ${t.status === "suspended" ? "disabled" : ""}>${ic("lock", 18)}Request support access</button>`}</section>
         </div></div>`;
+  }
+  function conPlanCard(t, h) {
+    const p = PLANS[t.plan], status = t.status === "active" ? badge("success", "Active", null) : t.status === "trial" ? badge("info", `Trial · ${t.trialLeft} days left`, "clock") : t.status === "locked" ? badge("error", `Locked · ${t.lockedDays} days`, "lock") : badge("error", "Suspended", "lock");
+    return `<section class="card"><div class="card-head"><h2>Plan</h2>${status}</div>
+      <dl class="kv exc-kv"><dt>Plan</dt><dd>${p.name} · ${p.price} ${p.per}</dd><dt>${t.status === "trial" ? "Trial ends" : "Paid until"}</dt><dd>${fmtExpIso(t.paidUntil)}</dd><dt>Modules</dt><dd>${t.mods.join(", ") || "None"}</dd><dt>Usage</dt><dd>${h.branches} of ${lim(p.branches)} branch${p.branches === 1 ? "" : "es"} · ${h.regs.length} register${h.regs.length === 1 ? "" : "s"} (${t.plan === "LITE" ? "1 Android device" : lim(p.regs) + " per branch"})</dd></dl>
+      ${t.id === "city" && S.planReq ? `<div class="note">${ic("clock", 16)}<span>The owner asked at ${hm(S.planReq.at)} to move to ${PLANS[S.planReq.to].name}.</span></div>` : ""}
+      <div class="card-actions">${t.status === "locked" ? `<button class="btn primary s" data-act="con-paid" data-v="${t.id}">${ic("check", 16)}Record payment</button>` : ""}<button class="btn secondary s" data-act="con-plan" data-v="${t.id}">Change plan</button></div></section>`;
   }
   function conFleet() {
     const C = S.con, all = TENANTS.flatMap(t => tenantRegs(t).map(r => ({ ...r, t }))), list = all.filter(r => C.ff === "all" || (C.ff === "help" && regHelp(r)) || (C.ff === "old" && r.ver < "1.6.0") || (C.ff === "blocked" && r.blocked));
@@ -4280,7 +4341,9 @@ Yesterday 09:15  SYNC-003 Catalog cursor too old · catalog snapshot downloaded<
     else if (S.view === "dashboard") main = topbar(t("overview"), "Thursday, 19 Nov 2026", `<span class="badge hide-t">${ic("store", 14)}All branches</span>`) + dashboard();
     else main = topbar(t(S.view) || "Settings", null) + `<div class="placeholder"><div class="empty"><span class="circle">${ic("package", 28)}</span><h3>${esc(t(S.view))} is not part of this prototype</h3><span>The prototype covers Sell, payment, sale complete and the Overview dashboard.</span><button class="btn primary s" data-act="nav" data-view="sell">Go to Sell</button></div></div>`;
     const trainBar = S.dev.training ? `<div class="training-bar" role="status">${ic("school", 16)}TRAINING MODE · sales are not real and are not counted · turn off in Settings</div>` : "";
-    app.innerHTML = `<div class="app ${S.collapsed ? "collapsed" : ""} ${S.tablet ? "tablet" : ""} ${!S.tablet && window.innerWidth > 1180 ? "desk" : ""}">${sidebar()}<main class="main">${trainBar}${supportBar()}${main}</main></div>${protoControls()}`;
+    const appHtml = `<div class="app ${S.collapsed ? "collapsed" : ""} ${S.tablet ? "tablet" : ""} ${!S.tablet && !S.phone && window.innerWidth > 1180 ? "desk" : ""}">${sidebar()}<main class="main">${trainBar}${supportBar()}${main}</main></div>`;
+    document.body.classList.toggle("phone", !!S.phone);
+    app.innerHTML = (S.phone ? `<div class="phone-wrap"><div class="phone-frame ${S.phoneNav ? "nav-open" : ""}">${appHtml}${S.phoneNav ? `<div class="phone-scrim" data-act="phone-nav"></div>` : ""}</div><div class="phone-cap">Lite plan · Android phone, 390 × 844 · switch off in the Prototype panel</div></div>` : appHtml) + protoControls();
     S.flash = null;
     if (fid) { const el = app.querySelector(`[data-fid="${fid}"]`); if (el) { el.focus({ preventScroll: true }); if (caret != null && el.setSelectionRange) el.setSelectionRange(caret, caret); } }
     const selLine = app.querySelector(".line.sel"); if (selLine && selLine.scrollIntoView) selLine.scrollIntoView({ block: "nearest" });
@@ -4291,6 +4354,7 @@ Yesterday 09:15  SYNC-003 Catalog cursor too old · catalog snapshot downloaded<
       <label>Offline<input type="checkbox" data-act="toggle-offline" ${S.offline ? "checked" : ""}></label>
       <label>Printer out of paper<input type="checkbox" data-act="toggle-printer" ${S.printerError ? "checked" : ""}></label>
       <label>Tablet layout (bottom sheet)<input type="checkbox" data-act="toggle-tablet" ${S.tablet ? "checked" : ""}></label>
+      <label>Phone layout (Lite plan)<input type="checkbox" data-act="toggle-phone" ${S.phone ? "checked" : ""}></label>
       <label>Touch mode (bigger targets)<input type="checkbox" data-act="toggle-touch" ${S.touch ? "checked" : ""}></label>
       <button class="btn secondary" data-act="replay-loading">Replay loading skeleton</button>
       <button class="btn secondary" data-act="reset">Reset demo</button>
@@ -4380,6 +4444,10 @@ Yesterday 09:15  SYNC-003 Catalog cursor too old · catalog snapshot downloaded<
       h = enrollModal(m, head);
     } else if (m.type === "newbranch") {
       h = branchModal(m, head);
+    } else if (m.type === "plans") {
+      h = plansModal(m, head);
+    } else if (m.type === "conplan") {
+      h = conPlanModal(m, head);
     } else if (m.type === "invite") {
       h = inviteModal(m, head);
     } else if (m.type === "recall") {
@@ -4438,7 +4506,7 @@ Yesterday 09:15  SYNC-003 Catalog cursor too old · catalog snapshot downloaded<
     const a = el.dataset.act, i = el.dataset.i != null ? parseInt(el.dataset.i, 10) : null;
     if (a === "overlay" && e.target !== el) return; // clicks inside the modal
     switch (a) {
-      case "nav": { const v = el.dataset.view;
+      case "nav": { S.phoneNav = false; const v = el.dataset.view;
         if (S.view === "product" && peDirty()) { openModal({ type: "leave", to: v }); break; }
         if (S.view === "product") S.pe = null;
         if (v === "cash" && S.cs.step === 3) resetCs();
@@ -4553,11 +4621,18 @@ Yesterday 09:15  SYNC-003 Catalog cursor too old · catalog snapshot downloaded<
       case "biz-save": bizSave(); break;
       case "biz-discard": S.bizDraft = null; S.bizErr = false; render(); toast("Changes discarded"); break;
       case "br-sel": S.br.sel = el.dataset.v; S.br.draft = null; render(); break;
-      case "br-new": if (!isOwner()) break; if (S.br.list.length >= S.br.plan.branches) { toast(`Your plan allows ${S.br.plan.branches} branches`, { error: true }); break; } openModal({ type: "newbranch", code: "", name: "", address: "" }); focusId("nbcode"); break;
+      case "plan-compare": openModal({ type: "plans" }); break;
+      case "plan-ask": { const k = el.dataset.v; S.planReq = { to: k, at: new Date() }; auditAdd("Settings", "Plan", `Asked DevCity to move to the ${PLANS[k].name} plan`); closeModal(); render(); toast(`Request sent · DevCity will call you about ${PLANS[k].name}`); break; }
+      case "con-plan": { const t = TENANTS.find(x => x.id === el.dataset.v), req = t.id === "city" && S.planReq; openModal({ type: "conplan", tid: t.id, to: req ? S.planReq.to : t.plan, mods: [...t.mods], reason: req ? "Owner asked from the business profile" : "" }); break; }
+      case "con-plan-pick": S.modal.to = el.dataset.v; renderModal(); break;
+      case "con-plan-addon": { const a = el.dataset.v, mm = S.modal.mods; S.modal.mods = mm.includes(a) ? mm.filter(x => x !== a) : [...mm, a]; renderModal(); break; }
+      case "con-plan-save": { const m = S.modal, t = TENANTS.find(x => x.id === m.tid), from = PLANS[t.plan].name; t.plan = m.to; t.mods = [...m.mods]; supportAct(t.id, `Plan changed: ${from} → ${PLANS[m.to].name}${m.reason.trim() ? " · " + m.reason.trim() : ""}`, { entity: "Plan" }); if (t.id === "city") S.planReq = null; closeModal(); render(); toast("Plan changed · the shop's registers get it at their next pull"); break; }
+      case "con-paid": { const t = TENANTS.find(x => x.id === el.dataset.v); t.status = "active"; t.paidUntil = "2026-12-19"; t.lockedDays = 0; supportAct(t.id, "Payment recorded · shop unlocked", { entity: "Plan" }); render(); toast(`${t.name} unlocked · registers can open shifts after their next pull`); break; }
+      case "br-new": if (!isOwner()) break; if (S.br.list.length >= planOf().branches) { toast(`Your ${planOf().name} plan allows ${lim(planOf().branches)} branches · see Business › Plan`, { error: true }); break; } openModal({ type: "newbranch", code: "", name: "", address: "" }); focusId("nbcode"); break;
       case "nb-save": { const m = S.modal, code = m.code.trim().toUpperCase(); if (!/^[A-Z]{3}\d{2}$/.test(code) || S.br.list.some(b => b.code === code) || !m.name.trim()) { toast("Check the code and name", { error: true }); break; } S.br.list.push({ code, name: m.name.trim(), address: m.address.trim(), phone: "", manager: "Dilan Wickrama", opened: isoToday(), regs: [] }); BRANCHES.push([code, `${code} · ${m.name.trim()}`, 0]); auditAdd("Settings", code, `Branch ${m.name.trim()} added`); S.br.sel = code; S.br.draft = null; closeModal(); render(); toast(`${code} added · add its first register`); break; }
       case "br-save": { const b = S.br.list.find(x => x.code === S.br.sel), d = S.br.draft; for (const k of ["name", "address", "phone", "manager"]) if (d[k] !== b[k]) { auditAdd("Settings", b.code, `Branch ${k} changed`, { before: b[k], after: d[k] }); b[k] = d[k]; } const bb = BRANCHES.find(x => x[0] === b.code); if (bb) bb[1] = `${b.code} · ${b.name}`; S.br.draft = null; render(); toast(`${b.code} saved`); break; }
       case "br-discard": S.br.draft = null; render(); break;
-      case "reg-new": { if (!isOwner()) break; if (regCount() >= S.br.plan.registers) { toast(`Your plan allows ${S.br.plan.registers} registers`, { error: true }); break; } const b = S.br.list.find(x => x.code === S.br.sel), n = b.regs.reduce((a, r) => Math.max(a, +r.id.slice(1)), 0) + 1, id = "R" + String(n).padStart(2, "0"), exp = new Date(Date.now() + 86400000); b.regs.push({ id, device: "—", kind: "Windows", status: "pending", seen: new Date(), ver: "—", code: enrollCode(), exp }); auditAdd("Settings", `${b.code}-${id}`, "Register added · enrollment code created"); render(); openModal({ type: "enroll", branch: b.code, reg: id }); break; }
+      case "reg-new": { if (!isOwner()) break; const b = S.br.list.find(x => x.code === S.br.sel); if (b.regs.length >= regLimit(b)) { toast(`${b.name} has all ${regLimit(b)} registers your ${planOf().name} plan allows · add one for Rs 990 / month, or ask for Enterprise in Business › Plan`, { error: true, ms: 5200 }); break; } const n = b.regs.reduce((a, r) => Math.max(a, +r.id.slice(1)), 0) + 1, id = "R" + String(n).padStart(2, "0"), exp = new Date(Date.now() + 86400000); b.regs.push({ id, device: "—", kind: "Windows", status: "pending", seen: new Date(), ver: "—", code: enrollCode(), exp }); auditAdd("Settings", `${b.code}-${id}`, "Register added · enrollment code created"); render(); openModal({ type: "enroll", branch: b.code, reg: id }); break; }
       case "reg-code": openModal({ type: "enroll", branch: S.br.sel, reg: el.dataset.v }); break;
       case "reg-del": { const b = S.br.list.find(x => x.code === S.br.sel); b.regs = b.regs.filter(r => r.id !== el.dataset.v); auditAdd("Settings", `${b.code}-${el.dataset.v}`, "Register removed"); render(); toast(`${b.code}-${el.dataset.v} removed`); break; }
       case "reg-lock": { const b = S.br.list.find(x => x.code === S.br.sel), r = b.regs.find(x => x.id === el.dataset.v); if (r.status === "locked") { r.status = r.prev || "offline"; auditAdd("Settings", `${b.code}-${r.id}`, "Register unlocked"); toast(`${b.code}-${r.id} unlocked`); } else { r.prev = r.status; r.status = "locked"; auditAdd("Settings", `${b.code}-${r.id}`, "Register locked (lost or stolen)"); toast(`${b.code}-${r.id} locked · it stops at once`); } render(); break; }
@@ -4774,7 +4849,9 @@ Yesterday 09:15  SYNC-003 Catalog cursor too old · catalog snapshot downloaded<
       case "proto": S.protoOpen = !S.protoOpen; render(); break;
       case "toggle-offline": S.offline = !S.offline; render(); if (!S.offline) { S.history.forEach(s => { if (s.sync === "waiting") s.sync = "synced"; }); toast(`${S.waiting} sales synced`); S.waiting = 0; render(); } break;
       case "toggle-printer": S.printerError = !S.printerError; render(); break;
-      case "toggle-tablet": S.tablet = !S.tablet; S.sheetOpen = false; render(); break;
+      case "toggle-tablet": S.tablet = !S.tablet; S.phone = false; S.phoneNav = false; S.sheetOpen = false; render(); break;
+      case "toggle-phone": S.phone = !S.phone; S.tablet = false; S.phoneNav = false; S.sheetOpen = false; render(); break;
+      case "phone-nav": S.phoneNav = !S.phoneNav; render(); break;
       case "toggle-touch": S.touch = !S.touch; render(); break;
       case "replay-loading": S.loading = true; S.view = "sell"; render(); setTimeout(() => { S.loading = false; render(); }, 1200); break;
       case "reset": try { localStorage.removeItem("retailos-proto-theme"); } catch (x) {} location.reload(); break;
@@ -4826,6 +4903,7 @@ Yesterday 09:15  SYNC-003 Catalog cursor too old · catalog snapshot downloaded<
     }
   });
   document.addEventListener("input", e => {
+    if (e.target.id === "cpreason" && S.modal) { S.modal.reason = e.target.value; return; }
     if (e.target.id === "search") { S.query = e.target.value; S.scanError = null; render(); }
     if (e.target.dataset && e.target.dataset.den) { S[e.target.dataset.scope].counts[e.target.dataset.den] = Math.max(0, parseInt(e.target.value.replace(/\D/g, ""), 10) || 0); render(); }
     if (e.target.hasAttribute && e.target.hasAttribute("data-coins")) { S[e.target.dataset.scope].coins = e.target.value.replace(/[^0-9.]/g, ""); render(); }
@@ -5292,6 +5370,7 @@ Yesterday 09:15  SYNC-003 Catalog cursor too old · catalog snapshot downloaded<
   if (S.theme) document.documentElement.dataset.theme = S.theme;
   const hash = location.hash.replace("#", "");
   if (["sell", "dashboard", "signin", "openshift", "returns", "cash", "orders", "receiving", "pricecheck", "status", "settings", "products", "stock", "expiry", "counts", "import", "exceptions", "suppliers", "customers", "shifts", "tax", "vat", "batch", "pricing", "discounts", "taxrates", "categories", "pricelists", "staff", "reports", "business", "branches", "receipts", "audit", "sales", "returnslist", "grns", "profile", "device", "login", "onboard", "units", "adjustments", "devices", "console"].includes(hash)) S.view = hash;
+  if (hash === "phone") { S.view = "sell"; S.phone = true; }   // Lite plan: the register on an Android phone
   if (hash === "stock" || hash === "expiry" || hash === "counts") S.user = USERS[4]; // Kasun, stock keeper
   if (hash === "import" || hash === "exceptions" || hash === "suppliers" || hash === "customers" || hash === "shifts" || hash === "tax" || hash === "vat" || hash === "batch" || hash === "pricing" || hash === "discounts" || hash === "taxrates" || hash === "categories" || hash === "pricelists" || hash === "staff" || hash === "reports" || hash === "sales" || hash === "returnslist" || hash === "grns" || hash === "profile" || hash === "units" || hash === "adjustments" || hash === "dashboard") S.user = USERS[3];
   if (["business", "branches", "receipts", "audit", "devices"].includes(hash)) S.user = USERS.find(u => u.id === "dw"); // Dilan, owner // Malini, manager

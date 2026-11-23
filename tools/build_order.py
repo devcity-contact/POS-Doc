@@ -398,7 +398,7 @@ STAGES = [
    ("REGX-10", "Receipt printing (D-01)", "ESC/POS receipts in English, Sinhala and Tamil; cash drawer kick.", "tech-stack", None),
    ("REGX-11", "Offline guard rails", "", "offline-sync#offline-rules", None),
    ("REGX-12", "Android printer plugin (Kotlin)", "`retailos-device` plugin: ESC/POS over USB and Bluetooth, cash drawer kick; the same DeviceBridge port as Windows.", "tech-stack", None),
-   ("REGX-13", "Phone-sized checkout", "One-pane Sell screen on a phone: search and camera scan on top, cart below, order panel as a bottom sheet with a sticky Charge bar; payment and batch picker full screen.", "ui-design#layouts", None),
+   ("REGX-13", "Phone-sized checkout", "One-pane Sell screen on a phone: search and camera scan on top, cart below, order panel as a bottom sheet with a sticky Charge bar; payment and batch picker full screen.", "ui-design#layouts proto:sell", None),
   ]),
   ("ADMX", "Admin screens: sales", "P4", "web", "", [
    ("ADMX-01", "Sales history and sale detail (A-50, A-51)", "", "proto:sales", None),
