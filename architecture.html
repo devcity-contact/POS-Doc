@@ -219,9 +219,33 @@ flowchart TB
 ├─ spi/                     ← extension points industry modules implement
 └─ internal/                ← NOT visible to other modules
    ├─ web/                  ← REST controllers, DTOs, mappers
-   ├─ application/          ← use cases (RecordSale, ReturnItems), transactions
+   ├─ application/
+   │  ├─ command/           ← writes: RecordSaleHandler, ReturnItemsHandler
+   │  └─ query/             ← reads: SalesHistoryQuery (SQL → DTO)
    ├─ domain/               ← Sale, SaleLine, policies; no Spring imports
    └─ persistence/          ← JPA entities / JdbcClient repositories</code></pre>
+
+<h3 id="reads-writes">Reads and writes (CQRS-lite)</h3>
+<p>Inside a module, changing data and reading data take different paths, but they use the <strong>same database and the same tables</strong>. This is a light form of CQRS: it keeps the code clean without a second store.</p>
+<table>
+<thead><tr><th></th><th>Commands (writes)</th><th>Queries (reads)</th></tr></thead>
+<tbody>
+<tr><td><strong>Examples</strong></td><td>Record a sale, post a goods receipt, adjust stock, close a shift</td><td>Sales history, stock on hand, dashboard, reports, look-ups for screens</td></tr>
+<tr><td><strong>Path</strong></td><td>Controller → command handler → domain objects → repository</td><td>Controller → query → SQL (<code>JdbcClient</code>) → DTO. Domain objects are not loaded.</td></tr>
+<tr><td><strong>Rules checked</strong></td><td>All of them: totals, tax (<span class="inv">INV-07</span>), stock only through movements (<span class="inv">INV-04</span>), limits, approvals, audit</td><td>None needed: a query never changes data</td></tr>
+<tr><td><strong>Transaction</strong></td><td>Read-write, one per command (one per item for sync push)</td><td><code>@Transactional(readOnly = true)</code>; can later run on the read replica</td></tr>
+<tr><td><strong>Tests</strong></td><td>Domain unit tests plus integration tests of the handler</td><td>Integration test against Testcontainers with realistic data; check the query plan for big tables</td></tr>
+<tr><td><strong>Tenant isolation</strong></td><td colspan="2">The same for both: row-level security on every query (<span class="inv">INV-01</span>), covered by <code>TenantIsolationIT</code>.</td></tr>
+</tbody>
+</table>
+<p><strong>Rules</strong></p>
+<ul>
+<li>A query never writes, and a command never returns a list for a screen. A command returns the id or a small result; the screen then calls a query.</li>
+<li>Simple CRUD modules (categories, suppliers, units) don't need the split. A service with get and save methods is fine.</li>
+<li>Queries stay inside their module. A screen that needs data from several modules uses the reporting module's views, not joins into another module's tables (<span class="inv">INV-08</span>).</li>
+<li>When a read gets slow, go one step at a time: add an index, then a materialized view, then the read replica. A separate read store or event sourcing needs a measured reason and an ADR (principle P8).</li>
+</ul>
+<p><strong>Not used:</strong> full CQRS with a separate read database, or event sourcing. Sales are already stored as facts that are never edited (<span class="inv">INV-02</span>). A second store would add out-of-date reads, keeping two copies in sync, and row-level security set up twice, with no gain at this size.</p>
 
 <h2 id="quality">Quality attribute strategies</h2>
 <table>
