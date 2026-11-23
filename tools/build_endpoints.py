@@ -109,6 +109,9 @@ E("GET", "/api/v1/tenant/settings", "Shop settings: receipts, languages, default
 E("PUT", "/api/v1/tenant/settings", "Change shop settings", "user", perm="tenant.settings",
   req="settings · If-Match", res="settings", err="412",
   notes="Audited. Registers get the change through the settings sync scope.", screens="A-84", task="BIZ-03")
+E("GET", "/api/v1/tenant/plan", "The shop's plan, limits and current usage", "user",
+  res="plan, add-ons, limits (branches, registers, users, products) with current usage, trial or grace end date",
+  notes="The admin app uses it to show upgrade messages before a limit is hit.", screens="A-80", task="BIZ-06")
 E("PUT", "/api/v1/tenant/modules/{key}", "Turn an industry module on or off", "user", perm="tenant.modules",
   req="enabled: true or false", res="module state", notes="Keys: pharmacy, grocery (Release 2). Audited.", screens="A-80", task="BIZ-05")
 E("GET", "/api/v1/onboarding", "Onboarding wizard progress", "user", res="each step, done or not", screens="A-05", task="BIZ-04")
@@ -431,6 +434,9 @@ E("GET", "/api/v1/platform/tenants/{id}", "One shop's health", "support",
   res="devices, sync lag, recent errors; no shop data without approved access", screens="P-02", task="SUPP-03")
 E("POST", "/api/v1/platform/tenants/{id}/suspend", "Suspend a shop", "support", req="reason", res="204", notes="Its users get TEN-001. Audited.", screens="P-02", task="SUPP-05")
 E("POST", "/api/v1/platform/tenants/{id}/reactivate", "Reactivate a shop", "support", req="reason", res="204", notes="Audited.", screens="P-02", task="SUPP-05")
+E("PUT", "/api/v1/platform/tenants/{id}/plan", "Change a shop's plan and add-ons", "support",
+  req="plan, add-ons, effective date, reason", res="the new plan", err="409 over the new plan's limits: shown as a warning, nothing is deleted",
+  notes="Audited. The shop's registers get the change at their next pull.", screens="P-02", task="SUPP-07")
 E("GET", "/api/v1/platform/devices", "Register fleet", "support", req="?tenantId, status, version, cursor", screens="P-03", task="SUPP-03")
 E("POST", "/api/v1/platform/devices/{id}/commands", "Send a command to a register", "support",
   req="type: resync, upload-logs or lock", res="202", notes="Delivered in the next heartbeat response. Audited.", screens="P-04", task="SUPP-04")

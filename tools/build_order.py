@@ -188,6 +188,8 @@ STAGES = [
    ("BIZ-03", "Receipt settings", "Header, footer, logo and languages for receipts.", "", None),
    ("BIZ-04", "Onboarding wizard steps", "Business, branch, tax registration, first register, invite staff; progress saved between visits.", "ui-screens", None),
    ("BIZ-05", "Industry modules", "`PUT /api/v1/tenant/modules/{key}` turns pharmacy or grocery features on or off.", "extensions", None),
+   ("BIZ-06", "Plans and limits", "Plan catalog in code (limits and features per plan) on `tenant.plan`; limit checks when adding a branch, register, user or product; feature checks return 403 `PLAN-001`; the plan reaches registers in the settings sync scope.", "plans#enforcement", None),
+   ("BIZ-07", "Trial and late payment", "30-day trial end date, 14-day grace with a banner, then the admin app is read-only and registers can't open a new shift. A register never stops mid-shift.", "plans#billing", "P6"),
   ]),
   ("OBS", "Errors and traces on staging", "P1", "be", "So testers' problems can be found without guessing.", [
    ("OBS-01", "Error reporting", "Sentry (or GlitchTip) for backend and admin, with personal data removed.", "operations", None),
@@ -486,6 +488,7 @@ STAGES = [
    ("SUPP-04", "Remote commands", "Forced re-sync and log upload, delivered in the heartbeat response.", "security#register-security", None),
    ("SUPP-05", "Tenant lifecycle", "Suspend, reactivate, export data on request, deletion policy.", "security#privacy", None),
    ("SUPP-06", "Runbooks", "One runbook per alert, linked from the alert.", "operations", None),
+   ("SUPP-07", "Change a shop's plan", "Support sets the plan and add-ons from the console, audited. Self-service plan changes and online payment come later.", "plans#enforcement", None),
   ]),
   ("CONS", "Platform console screens", "P6", "web", "DevCity staff only.", [
    ("CONS-01", "Tenants and tenant detail (P-01, P-02)", "", "proto:console", None),
@@ -531,7 +534,7 @@ PAGES = {"dev-guide": "Developer guide", "tech-stack": "Tech stack", "modules": 
          "data-dictionary": "Data dictionary", "offline-sync": "Offline & sync", "roadmap": "Roadmap",
          "flows": "Key flows", "ui-screens": "Screens", "ui-design": "UI design", "extensions": "Extensions",
          "adr": "Decisions", "requirements": "Requirements", "operations": "Operations", "cost": "Cost & scaling",
-         "mvp": "MVP list", "endpoints": "API endpoints"}
+         "mvp": "MVP list", "endpoints": "API endpoints", "plans": "Plans"}
 AREAS = {"st": "1 · Store & staff", "ca": "2 · Catalog", "in": "3 · Inventory", "sa": "4 · Sales"}
 
 esc = html.escape
