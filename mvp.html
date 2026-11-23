@@ -103,7 +103,7 @@
 <h2 id="frontend">Front end</h2>
 
 <h3 id="frontend-register">Register app: 20 screens</h3>
-<p>Windows first: Electron + React + encrypted SQLite.</p>
+<p>Windows (Electron) and Android phones and tablets (Capacitor), both with encrypted SQLite. On a phone the Sell screen uses a one-pane layout with camera scanning (Lite plan).</p>
 <table>
 <thead><tr><th>Group</th><th>Screens</th></tr></thead>
 <tbody>
@@ -168,7 +168,7 @@
 <table>
 <thead><tr><th>Release</th><th>Items</th></tr></thead>
 <tbody>
-<tr><td><span class="badge b-r2">R2</span></td><td>Promotions engine · exchanges as one flow · e-mail receipts · purchase orders · stock transfers · supplier returns · loyalty · best/slow sellers and peak hours · <strong>Android tablet app</strong> · scale connected to the PC · label printer · notifications (SMS/e-mail) · pharmacy and grocery extension modules</td></tr>
+<tr><td><span class="badge b-r2">R2</span></td><td>Promotions engine · exchanges as one flow · e-mail receipts · purchase orders · stock transfers · supplier returns · loyalty · best/slow sellers and peak hours · scale connected to the PC · label printer · notifications (SMS/e-mail) · pharmacy and grocery extension modules</td></tr>
 <tr><td><span class="badge b-r3">R3</span></td><td>Gift cards · SMS/WhatsApp receipts · IRD RAMIS e-invoicing · Secured POS · accounting connectors · integrated card terminal and LankaQR gateway</td></tr>
 <tr><td><span class="badge b-later">Later</span></td><td>AI insights · e-commerce · food delivery · fingerprint login</td></tr>
 </tbody>
@@ -177,24 +177,24 @@
 <h2 id="watch">Points to watch</h2>
 <div class="callout warn"><span class="ct">Read before planning</span>
 <ol>
-<li><strong>The Android tablet app is R2 (F-708).</strong> The plan ships Windows first; the same React UI then goes into the Android shell.</li>
+<li><strong>Android is in the MVP (F-708)</strong> for the mobile Lite plan. The same React UI goes into the Capacitor shell, plus a phone-sized Sell screen, camera scanning and a Bluetooth/USB printer plugin. Test on a short list of reference phones, tablets and Bluetooth printers; device variety is the main risk.</li>
 <li><strong>The prototype shows a few R2 extras</strong> that are not part of the MVP: e-mailing receipts and statements, SMS to buyers during a recall, and loyalty points.</li>
 <li><strong>Pharmacy and grocery modules are R2, but their basics are core MVP:</strong> batches, expiry, FEFO, generic-name search and scale barcodes.</li>
 </ol></div>
 
 <h2 id="build-order">Build order</h2>
 <p><strong>Database first:</strong> create all 56 tables in four migrations (store &amp; staff, catalog, inventory, sales) before the features, as described in <a href="data-model.html#db-build-order">Data model › Build order</a>, with the <a href="data-model.html#db-map">whole-database diagram</a>. Then build the features in the phase order below. Every task (backend, admin and register screens, and a Try it check per stage), in order and with tick boxes to track progress, is in the <a href="build-order.html">build order</a>.</p>
-<p>From the <a href="roadmap.html">roadmap</a>. The phases add up to about 49 weeks: roughly 10–12 months for one engineer, or 7–8 months with a second engineer from phase 4.</p>
+<p>From the <a href="roadmap.html">roadmap</a>. The phases add up to about 54 weeks: roughly 11–13 months for one engineer, or 8–9 months with a second engineer from phase 4.</p>
 <table>
 <thead><tr><th>Phase</th><th>Length</th><th>What it builds</th></tr></thead>
 <tbody>
 <tr><td>P0 Setup</td><td>2 weeks</td><td>Repo, CI, empty modules, admin and register shells</td></tr>
 <tr><td>P1 Foundation</td><td>6 weeks</td><td>Tenancy, users, login and two-step sign-in, row-level security, audit, device enrollment, onboarding</td></tr>
-<tr><td>P2 Catalog &amp; local register</td><td>8 weeks</td><td>Catalog, pricing, tax rates, import, offline register shell with local search and barcode parsing</td></tr>
+<tr><td>P2 Catalog &amp; local register</td><td>10 weeks</td><td>Catalog, pricing, tax rates, import, offline register shells (Windows and Android) with local search, barcode parsing and camera scanning</td></tr>
 <tr><td>P3 Receiving &amp; stock</td><td>5 weeks</td><td>Suppliers, goods receipts, ledger, adjustments, counts, expiry and low-stock alerts</td></tr>
-<tr><td>P4 Checkout &amp; sync</td><td>10 weeks</td><td>Cart, discounts, batch picker, payment, receipt numbers, printing, push sync, FEFO, sale exceptions</td></tr>
+<tr><td>P4 Checkout &amp; sync</td><td>13 weeks</td><td>Cart, discounts, batch picker, payment, receipt numbers, printing (incl. Bluetooth on Android), phone-sized checkout, push sync, FEFO, sale exceptions</td></tr>
 <tr><td>P5 Cash, credit, returns, tax</td><td>7 weeks</td><td>Shifts, customer credit, returns, tax documents, VAT report, core reports</td></tr>
-<tr><td>P6 Pilot</td><td>7 weeks</td><td>Three real shops (general retail, pharmacy, grocery), support console, fixes</td></tr>
+<tr><td>P6 Pilot</td><td>7 weeks</td><td>Four real shops (general retail, pharmacy, grocery, and a small shop on a phone), support console, fixes</td></tr>
 <tr><td>P7 Hardening &amp; launch</td><td>4 weeks</td><td>Load tests, restore drill, external pen test, monitoring and alerts</td></tr>
 </tbody>
 </table>

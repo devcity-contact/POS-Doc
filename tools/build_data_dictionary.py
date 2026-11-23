@@ -65,7 +65,7 @@ DICT = {
         r=["Cash out above Rs 2,000 or any safe drop needs a manager PIN."], s="R-15, A-55"),
     "cash_count": dict(p="The closing count by note and coin, so a manager can see how the total was reached.",
         c=[("cash_session_id", U, "The shift.", "cash_session"), ("denomination", M, "Rs 5,000 … Rs 20, or coins.", None), ("qty", "int", "How many.", None)], r=["Written once at closing; never edited."], s="R-16"),
-    "device": dict(p="A Windows PC or Android tablet that has been enrolled as a register.",
+    "device": dict(p="A Windows PC, Android tablet or Android phone that has been enrolled as a register.",
         c=[("id", U, "Primary key.", None), ("register_id", U, "The register it runs.", "register="), ("platform", T, "WINDOWS or ANDROID.", None), ("app_version", T, "For updates and support.", None),
            ("public_key", T, "Signs the device's requests.", None), ("last_seen_at", TS, "Last heartbeat.", None)],
         r=["A locked device stops selling at its next contact.", "The server supports the current and previous app version (INV-13)."], s="R-01, A-83, P-03, P-04"),

@@ -19,7 +19,7 @@
 
 <div class="callout warn">
 <span class="ct">One engineer: be honest about time</span>
-For one experienced full-stack engineer using AI coding assistants with this documentation as context, the MVP is roughly <strong>10–12 months</strong> of focused work, including a pilot. A second engineer from phase 4 cuts this to about <strong>7–8 months</strong> and removes the single-person risk. These are planning ranges, so re-estimate after phase 1.
+For one experienced full-stack engineer using AI coding assistants with this documentation as context, the MVP is roughly <strong>11–13 months</strong> of focused work, including a pilot. A second engineer from phase 4 cuts this to about <strong>8–9 months</strong> and removes the single-person risk. These are planning ranges, so re-estimate after phase 1.
 </div>
 
 <h2 id="timeline">MVP timeline</h2>
@@ -33,15 +33,15 @@ gantt
   P0 Setup and skeletons           :p0, 2026-12-01, 14d
   P1 Tenancy, IAM, RLS, audit      :p1, after p0, 42d
   section Register core
-  P2 Catalog and local register    :p2, after p1, 56d
+  P2 Catalog and local register    :p2, after p1, 70d
   P3 Receiving and stock           :p3, after p2, 35d
-  P4 Checkout and sale sync        :p4, after p3, 70d
+  P4 Checkout and sale sync        :p4, after p3, 91d
   P5 Cash-up, credit, returns, tax :p5, after p4, 49d
   section Go to market
   P6 Pilot in 3 shops              :p6, after p5, 49d
   P7 Hardening and launch          :p7, after p6, 28d
 </pre>
-<figcaption>Starting 1 Dec 2026, this lands general availability around Q4 2027, in time for the 2027/2028 market and the VAT secured-POS timeline.</figcaption>
+<figcaption>Starting 1 Dec 2026, this lands general availability around the end of 2027, in time for the 2027/2028 market and the VAT secured-POS timeline.</figcaption>
 </figure>
 
 <h2 id="phases">MVP phases and exit tests</h2>
@@ -50,18 +50,17 @@ gantt
 <tbody>
 <tr><td><strong>P0 Setup</strong><br/>~2 weeks</td><td>Monorepo, Gradle + pnpm workspaces, docker compose (Postgres, MinIO, Mailpit), CI pipeline, Spring Modulith skeleton with empty modules, React admin and register shells, i18n wiring, AGENTS.md</td><td>CI is green with a boundary test. <code>docker compose up</code> gives a running stack. Admin login page renders in si/ta/en.</td></tr>
 <tr><td><strong>P1 Foundation</strong><br/>~6 weeks</td><td>Tenant, branch, register, users, roles, permissions, login + MFA, refresh rotation, RLS on all tables, audit log with hash chain, device enrollment, onboarding wizard (basic)</td><td><code>TenantIsolationIT</code> proves one tenant can't read another's data. A device enrolls with a code.</td></tr>
-<tr><td><strong>P2 Catalog & local register</strong><br/>~8 weeks</td><td>Products, variants, units, barcodes, price lists, tax rates, Excel import, Electron shell, encrypted SQLite, snapshot + delta pull, local search (FTS5), GS1 and weight-barcode parsing</td><td>With the network unplugged, a scan finds the right product and price in under 100 ms from 50,000 products.</td></tr>
+<tr><td><strong>P2 Catalog & local register</strong><br/>~10 weeks</td><td>Products, variants, units, barcodes, price lists, tax rates, Excel import, Electron and Android shells, encrypted SQLite (DPAPI / Android Keystore), camera barcode scanning, snapshot + delta pull, local search (FTS5), GS1 and weight-barcode parsing</td><td>With the network unplugged, a scan finds the right product and price in under 100 ms from 50,000 products.</td></tr>
 <tr><td><strong>P3 Receiving & stock</strong><br/>~5 weeks</td><td>Suppliers, goods receipt into batches (GS1 scan), movement ledger, balances, adjustments, stock count, expiry and low-stock alerts, nightly ledger check</td><td>Balances rebuilt from the ledger equal the stored balances after a randomised test of 10,000 operations.</td></tr>
-<tr><td><strong>P4 Checkout & sync</strong><br/>~10 weeks</td><td>Cart engine, discounts with overrides, batch picker, payment types and split payment, receipt numbering, ESC/POS printing (en/si/ta), cash drawer, hold/resume, push sync with idempotency, FEFO allocation, sale exceptions</td><td>A full day of offline sales on 2 registers syncs with no duplicate and no missing receipt, including a forced crash mid-push.</td></tr>
+<tr><td><strong>P4 Checkout & sync</strong><br/>~13 weeks</td><td>Cart engine, discounts with overrides, batch picker, payment types and split payment, receipt numbering, ESC/POS printing (en/si/ta) over USB, LAN and Bluetooth, Android printer plugin, phone-sized checkout, cash drawer, hold/resume, push sync with idempotency, FEFO allocation, sale exceptions</td><td>A full day of offline sales on 2 registers syncs with no duplicate and no missing receipt, including a forced crash mid-push.</td></tr>
 <tr><td><strong>P5 Cash, credit, returns, tax</strong><br/>~7 weeks</td><td>Shift open/close, blind count, Z-report, customer credit + settlement, returns and refunds linked to the original, tax invoice series, credit notes, VAT report, fiscal adapter port (no-op), core reports</td><td>Cash in the drawer reconciles to the Z-report, and an accountant accepts the tax invoice and credit note format.</td></tr>
-<tr><td><strong>P6 Pilot</strong><br/>~7 weeks</td><td>Three real shops: one general retail, one pharmacy, one grocery. Support console, runbooks, fixes.</td><td>Four weeks of trading with no manual database fix and no lost sale.</td></tr>
+<tr><td><strong>P6 Pilot</strong><br/>~7 weeks</td><td>Four real shops: one general retail, one pharmacy, one grocery, and one small shop selling from a phone (Lite). Support console, runbooks, fixes.</td><td>Four weeks of trading with no manual database fix and no lost sale.</td></tr>
 <tr><td><strong>P7 Hardening & launch</strong><br/>~4 weeks</td><td>Load and concurrency tests, restore drill, external pen test, monitoring and alerts, supported hardware list, pricing and contracts, training material</td><td>Backup restore rehearsed within RTO. No open critical or high security findings. Secured-POS spec assessed if published.</td></tr>
 </tbody>
 </table>
 
 <h2 id="r2">Release 2 (about 4–6 months after launch)</h2>
 <ul class="pill-list">
-<li>Android register (Capacitor shell + device plugins)</li>
 <li>Pharmacy module</li>
 <li>Grocery module (PLU, scale, labels)</li>
 <li>Promotions engine</li>
@@ -122,7 +121,8 @@ gantt
 <tbody>
 <tr><td>Single engineer (bus factor 1)</td><td>All knowledge in one head. Illness or departure stops the project.</td><td>This documentation, ADRs, AGENTS.md, tests as specification, a second hire by P4</td></tr>
 <tr><td>Sync bugs duplicate or lose sales</td><td>Shops stop trusting the product within a day</td><td>Idempotency, per-register sequences, automated offline and crash tests from P4, pilot before launch</td></tr>
-<tr><td>Scope creeps back in (three industries, two platforms)</td><td>Late launch into a crowded market</td><td>Android and industry modules are in R2. The MVP core serves all three segments' basics. Hold the line on the "not in MVP" list.</td></tr>
+<tr><td>Scope creeps back in (three industries, two platforms)</td><td>Late launch into a crowded market</td><td>Industry modules are in R2. Android is in the MVP for the Lite plan (ADR-003), using the same React UI and one small Kotlin plugin. The MVP core serves all three segments' basics. Hold the line on the "not in MVP" list.</td></tr>
+<tr><td>Android device variety (low-end phones, Bluetooth printers)</td><td>Crashes or printing problems on some devices</td><td>A supported list of two reference phones or tablets and two Bluetooth printers, tested before each release; Sentry crash reports from every register</td></tr>
 <tr><td>Secured POS spec needs certified hardware or a design we didn't expect</td><td>Rework, or a partnership needed</td><td>Fiscal logic behind an adapter. Follow IRD notices. Talk to hardware vendors early.</td></tr>
 <tr><td>Printer and driver problems in shops</td><td>Engineers pulled into support</td><td>Short supported-hardware list, remote diagnostics, hardware bundles (Q-06)</td></tr>
 <tr><td>Sinhala/Tamil printing quality</td><td>Shops reject receipts</td><td>Prototype raster printing in P2. Test on the supported printers.</td></tr>

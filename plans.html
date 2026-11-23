@@ -34,7 +34,7 @@ The commercial model is still open question <a href="index.html#open-questions">
 <li>Sales, returns, cash and credit (naya)</li>
 <li>Simple stock and daily reports</li>
 </ul>
-<div class="plan-when"><span class="badge b-r2">R2</span> needs the Android app</div>
+<div class="plan-when"><span class="badge b-mvp">MVP</span> at launch, on Android</div>
 </div>
 <div class="plan">
 <div class="plan-name">Starter</div>
@@ -82,8 +82,8 @@ The commercial model is still open question <a href="index.html#open-questions">
 </div>
 <p class="plans-note">Prices in LKR, excluding VAT. Paying for a year up front gets two months free. A 30-day trial of Business is free, with no card needed.</p>
 
-<div class="callout"><span class="ct">The mobile plan arrives with the Android app</span>
-Lite runs only on Android, which is in Release 2 (<a href="requirements.html">F-708</a>, <a href="adr.html#adr-003">ADR-003</a>). It needs three things beyond the MVP: the Android shell with its printer plugin, camera barcode scanning (ML Kit), and a phone-sized layout of the Sell screen, since the register is designed for a 10" tablet. So the MVP launches with Starter, Business and Enterprise, and Lite is added when R2 ships. Bringing Android into the MVP would make Lite available at launch, but it adds weeks to the critical path and goes against the roadmap's warning about two platforms in the MVP.</div>
+<div class="callout tip"><span class="ct">All four plans launch together</span>
+Android phones and tablets are in the MVP (<a href="adr.html#adr-003">ADR-003</a>, changed 24 Nov 2026), so Lite is available at launch. The extra work is a phone-sized Sell screen, camera barcode scanning and the Bluetooth printer plugin, about 5 weeks in the <a href="roadmap.html#phases">roadmap</a> (build order tasks <a href="build-order.html#regc-09">REGC-09</a>, <a href="build-order.html#regx-12">REGX-12</a> and <a href="build-order.html#regx-13">REGX-13</a>). One pilot shop runs Lite on a phone before launch.</div>
 
 <h2 id="principles">What every plan gets</h2>
 <p>These are never used to make someone upgrade. A shop on the cheapest plan is protected just as well as an enterprise.</p>
@@ -153,8 +153,8 @@ Lite runs only on Android, which is in Release 2 (<a href="requirements.html">F-
 
 <tr class="grp"><td colspan="6">Devices and hardware</td></tr>
 <tr><td>Windows register</td><td class="c"><span class="badge b-mvp">MVP</span></td><td class="c">—</td><td class="c">✓</td><td class="c">✓</td><td class="c">✓</td></tr>
-<tr><td>Android tablet or phone register</td><td class="c"><span class="badge b-r2">R2</span></td><td class="c">✓</td><td class="c">✓</td><td class="c">✓</td><td class="c">✓</td></tr>
-<tr><td>Camera barcode scanning (no scanner needed)</td><td class="c"><span class="badge b-r2">R2</span></td><td class="c">✓</td><td class="c">✓</td><td class="c">✓</td><td class="c">✓</td></tr>
+<tr><td>Android tablet or phone register</td><td class="c"><span class="badge b-mvp">MVP</span></td><td class="c">✓</td><td class="c">✓</td><td class="c">✓</td><td class="c">✓</td></tr>
+<tr><td>Camera barcode scanning (no scanner needed)</td><td class="c"><span class="badge b-mvp">MVP</span></td><td class="c">✓</td><td class="c">✓</td><td class="c">✓</td><td class="c">✓</td></tr>
 <tr><td>USB/Bluetooth scanner, thermal printer, cash drawer, label scale</td><td class="c"><span class="badge b-mvp">MVP</span></td><td class="c">printer only</td><td class="c">✓</td><td class="c">✓</td><td class="c">✓</td></tr>
 <tr><td>Scale connected to the PC, barcode label printer</td><td class="c"><span class="badge b-r2">R2</span></td><td class="c">—</td><td class="c">✓</td><td class="c">✓</td><td class="c">✓</td></tr>
 <tr><td>Integrated card terminal and LankaQR gateway</td><td class="c"><span class="badge b-r3">R3</span></td><td class="c">—</td><td class="c">—</td><td class="c">✓</td><td class="c">✓</td></tr>

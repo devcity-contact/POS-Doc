@@ -56,8 +56,9 @@
 
 <h3 id="adr-003">ADR-003 · One React register UI in Electron and Capacitor shells</h3>
 <p><strong>Context.</strong> Counters use Windows PCs and Android tablets. The team is one engineer who knows React and TypeScript.</p>
-<p><strong>Decision.</strong> One React app and one pure-TypeScript domain package. Electron packages it for Windows and Capacitor for Android. Hardware is reached through a <code>DeviceBridge</code> port with an adapter per shell. Windows ships in the MVP and Android in R2.</p>
+<p><strong>Decision.</strong> One React app and one pure-TypeScript domain package. Electron packages it for Windows and Capacitor for Android. Hardware is reached through a <code>DeviceBridge</code> port with an adapter per shell. Both Windows and Android (phones and tablets) ship in the MVP.</p>
 <p><strong>Consequences.</strong> Electron installers are large (~100 MB) and use more RAM, which is acceptable on POS PCs with 4 GB. Two native adapter sets to maintain.</p>
+<p><strong>Change, 24 Nov 2026.</strong> Android moved from R2 into the MVP so the mobile Lite plan (<a href="plans.html">Plans</a>) can launch with the product. It adds a phone-sized Sell screen, camera barcode scanning and the Kotlin printer plugin, about 5 weeks in phases P2 and P4 (<a href="roadmap.html#phases">roadmap</a>). Both shells are tested on a short list of reference devices before each release.</p>
 <p><strong>Rejected.</strong> Tauri 2 for both platforms (smaller, but device plugins need Rust, which adds a second language for a one-person team; worth revisiting later). Native apps per platform (double the UI work). Flutter (new language, weaker reuse with the React admin).</p>
 
 <h3 id="adr-004">ADR-004 · Shared-schema multi-tenancy with row-level security</h3>

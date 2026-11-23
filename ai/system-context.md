@@ -7,14 +7,14 @@ Version 1.0, 19 Nov 2026, DevCity.
 ## Product
 Offline-first, multi-tenant point of sale + back office for Sri Lanka (LKR, Asia/Colombo, English/Sinhala/Tamil).
 Segments: general retail (core), pharmacy and grocery (extension modules, R2). Restaurant and salon later.
-Team: one engineer now. MVP ≈ 10–12 months including a 3-shop pilot.
+Team: one engineer now. MVP ≈ 11–13 months including a 4-shop pilot.
 
 ## Architecture
 - **Backend**: one Spring Boot 4 / Java 25 modular monolith (Spring Modulith). Same image runs `api` and `worker` profiles.
 - **Database**: PostgreSQL 18, shared schema, `tenant_id` + forced row-level security. Fact tables partitioned monthly.
 - **Object storage**: S3-compatible (images, catalog snapshots, exports, backups).
 - **Admin web**: React + TS SPA (static hosting).
-- **Register**: one React + TS app; `register-core` pure TS domain; Electron shell (Windows, MVP) and Capacitor shell (Android, R2); encrypted SQLite (SQLCipher); `DeviceBridge` port for ESC/POS printer, cash drawer, HID scanner, scale.
+- **Register**: one React + TS app; `register-core` pure TS domain; Electron shell (Windows, MVP) and Capacitor shell (Android phones and tablets, MVP); encrypted SQLite (SQLCipher); `DeviceBridge` port for ESC/POS printer, cash drawer, HID scanner, scale.
 - **Hosting**: cloud-agnostic containers. Stage 1 = 1 VM + Postgres (≈ US$30–70/month). No Kubernetes, Kafka or Redis until a trigger metric.
 
 ## Key technologies (full list: Doc/tech-stack.html)
@@ -57,7 +57,7 @@ INV-01 tenant_id + RLS · INV-02 sales are immutable facts · INV-03 decimals on
 
 ## Release plan
 MVP: Windows register, offline, printing/drawer, catalog+import, batches/FEFO/GS1, weight barcodes, discounts, hold, returns, cash/card/LankaQR/credit, shifts/Z-report, tax invoice + credit notes, roles/PINs/audit, en/si/ta, core reports, backups.
-R2: Android, pharmacy & grocery modules, promotions, PO, transfers, loyalty, e-mail receipts, dashboards.
+R2: pharmacy & grocery modules, promotions, PO, transfers, loyalty, e-mail receipts, dashboards.
 R3: RAMIS e-invoicing + secured POS adapters (IRD timing), integrated card/LankaQR, accounting connectors, SMS/WhatsApp, gift cards.
 Later: AI forecasting, e-commerce, delivery apps, self-checkout, restaurant, salon.
 

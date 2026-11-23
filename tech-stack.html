@@ -145,10 +145,10 @@ flowchart TB
 <tr><td><strong>Electron</strong> (current stable line)</td><td>Windows</td><td>Desktop shell for the React register</td><td>Hardened: context isolation, sandbox, typed IPC allowlist (<a href="security.html#register-security">Security</a>). Upgrade every few months to stay on a supported Chromium.</td></tr>
 <tr><td><strong>electron-builder</strong> + <strong>electron-updater</strong></td><td>Windows</td><td>Signed NSIS installer, staged auto-update from bucket/CDN</td><td>Rollout rings and signature verification (<a href="deployment.html#releases">Releases</a>).</td></tr>
 <tr><td><strong>better-sqlite3-multiple-ciphers</strong></td><td>Windows</td><td>Local SQLite database with SQLCipher encryption</td><td>Synchronous and very fast. Runs in the Electron main process, not the renderer.</td></tr>
-<tr><td><strong>Capacitor</strong></td><td>Android</td><td>Native shell for the same React register <span class="badge b-r2">R2</span></td><td>Web code reused as-is. Native plugins for hardware.</td></tr>
+<tr><td><strong>Capacitor</strong></td><td>Android</td><td>Native shell for the same React register (phones and tablets)</td><td>Web code reused as-is. Native plugins for hardware.</td></tr>
 <tr><td><strong>@capacitor-community/sqlite</strong></td><td>Android</td><td>Local SQLite with encryption</td><td>Same schema and SQL as Windows. The key is stored in the Android Keystore.</td></tr>
 <tr><td>Custom Kotlin plugin <code>retailos-device</code></td><td>Android</td><td>USB and Bluetooth printer transport, cash drawer kick, scale read</td><td>A small in-house plugin, so we don't depend on unmaintained community printer plugins.</td></tr>
-<tr><td><strong>@capacitor-mlkit/barcode-scanning</strong></td><td>Android</td><td>Camera scanning (1D and DataMatrix) when no hardware scanner is present <span class="badge b-r2">R2</span></td><td>Google ML Kit runs on the device and works offline.</td></tr>
+<tr><td><strong>@capacitor-mlkit/barcode-scanning</strong></td><td>Android</td><td>Camera scanning (1D and DataMatrix) when no hardware scanner is present, e.g. on a phone</td><td>Google ML Kit runs on the device and works offline.</td></tr>
 <tr><td><strong>@point-of-sale/receipt-printer-encoder</strong></td><td>Both</td><td>Builds ESC/POS byte streams: text, barcodes, QR, raster images, drawer kick</td><td>Pure JavaScript, so it's shared by both shells. Only the transport differs.</td></tr>
 <tr><td><strong>usb</strong> (node-usb), <strong>serialport</strong>, Node <code>net</code></td><td>Windows</td><td>Printer transport over USB, serial or LAN (TCP 9100). Serial scale reading.</td><td>Accessed only from the Electron main process through the DeviceBridge.</td></tr>
 <tr><td>HID keyboard-wedge scanners</td><td>Both</td><td>Barcode input</td><td>No driver or library needed. The register detects fast keystroke bursts that end with Enter.</td></tr>
@@ -190,7 +190,7 @@ flowchart TB
 <tr><td>Local S3 server (MinIO, SeaweedFS or Garage)</td><td>S3-compatible storage in <code>docker compose</code> for development</td><td>Free. Check the current image and licence terms before choosing.</td></tr>
 <tr><td><strong>Mailpit</strong></td><td>Catches e-mails locally</td><td>Free</td></tr>
 <tr><td>Windows code-signing certificate (OV/EV, or a cloud signing service)</td><td>Signs the register installer and updates</td><td>About $200–400 a year</td></tr>
-<tr><td>Google Play Console (managed Google Play for business)</td><td>Distributing the Android register <span class="badge b-r2">R2</span></td><td>One-time $25 developer fee</td></tr>
+<tr><td>Google Play Console (managed Google Play for business)</td><td>Distributing the Android register</td><td>One-time $25 developer fee</td></tr>
 </tbody>
 </table>
 
@@ -255,7 +255,9 @@ flowchart TB
 <thead><tr><th>Device</th><th>Minimum spec / requirement</th></tr></thead>
 <tbody>
 <tr><td>Windows register PC</td><td>Windows 10/11 x64, 4 GB RAM, SSD, 1366×768 or larger (touch optional)</td></tr>
-<tr><td>Android register tablet <span class="badge b-r2">R2</span></td><td>Android 10+, 3 GB RAM, 10" screen, USB-OTG or Bluetooth</td></tr>
+<tr><td>Android register tablet</td><td>Android 10+, 3 GB RAM, 10" screen, USB-OTG or Bluetooth</td></tr>
+<tr><td>Android phone (Lite plan)</td><td>Android 10+, 3 GB RAM, screen at least 5.5", rear camera with autofocus, Bluetooth</td></tr>
+<tr><td>Bluetooth receipt printer (phones)</td><td>58 mm thermal, ESC/POS, raster image support, Bluetooth Classic (SPP)</td></tr>
 <tr><td>Receipt printer</td><td>80 mm or 58 mm thermal, ESC/POS, raster image support, USB/LAN/Bluetooth, drawer-kick port</td></tr>
 <tr><td>Barcode scanner</td><td>2D imager (must read GS1 DataMatrix and QR), USB HID or Bluetooth HID</td></tr>
 <tr><td>Cash drawer</td><td>RJ11/RJ12, opened by the printer</td></tr>

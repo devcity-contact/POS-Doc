@@ -62,6 +62,7 @@ STAGES = [
    ("WEB-05", "Forms pattern", "React Hook Form + Zod; `VAL-001` field errors from the API shown on the right fields.", "api#errors", None),
    ("WEB-06", "Admin shell layout", "Sidebar, top bar, branch switcher, language and theme switch, as in the prototype.", "proto:dashboard ui-screens", None),
    ("WEB-07", "Front-end tests", "Vitest + Testing Library for components; Playwright for end-to-end tests, run in CI.", "tech-stack", None),
+   ("WEB-08", "Android project in CI", "Capacitor project for `apps/register`; every pull request builds a debug APK, so Android never falls behind Windows.", "tech-stack", None),
   ]),
   ("CORE", "Shared building blocks", "P0", "be", "Used by every module. Build them once, before any feature, so the same bug doesn't appear in fifteen places. (Smaller blocks such as rate limiting and file storage are built later, with the first feature that needs them.)", [
    ("CORE-01", "Money and Quantity types", "Value objects on `BigDecimal` (scale 4 and 3) with fixed rounding rules; UUIDv7 id generator (INV-03).", "data-model#conventions", None),
@@ -217,6 +218,8 @@ STAGES = [
    ("REGA-05", "Heartbeat and status screen (R-19)", "", "proto:status", None),
    ("REGA-06", "Device settings (R-20)", "", "proto:settings", None),
    ("REGA-07", "Locked device", "A locked device shows a lock screen and can't be used.", "", None),
+   ("REGA-08", "Android shell", "Capacitor shell for phones and tablets: WebView debugging off in release builds, no cleartext traffic, exported components kept to a minimum.", "security#register-security", None),
+   ("REGA-09", "Encrypted database on Android", "SQLCipher through the community SQLite plugin, key kept in the Android Keystore; the same local schema and migrations as Windows.", "security#register-security", None),
   ]),
   ("T3", "Try it: open a shop", "P1", "try", "On staging, by someone who didn't build it.", [
    ("T3-01", "Sign up a new shop", "Verify the e-mail and finish the onboarding wizard.", "", None),
@@ -226,6 +229,7 @@ STAGES = [
    ("T3-05", "Lock it", "Lock the device from the admin: the register stops. Five wrong PINs lock it for 5 minutes.", "", None),
    ("T3-06", "Check the audit log", "Every step above is there, and the chain is intact.", "", None),
    ("T3-07", "Shops stay apart", "A second shop sees none of it; `TenantIsolationIT` is green. (P1 exit test)", "roadmap#phases", None),
+   ("T3-08", "Enroll an Android phone", "Enroll a phone with the same code flow; the cashier signs in with a PIN on the phone.", "", None),
   ]),
  ]),
  ("catalog", "Stage 4 · Catalog features", "P2", "ca",
@@ -292,6 +296,8 @@ STAGES = [
    ("REGC-06", "Price check (R-18)", "", "proto:pricecheck", None),
    ("REGC-07", "Offline PIN sign-in", "Checked against the synced hash; 5 failures → 5-minute lockout.", "security#authn", None),
    ("REGC-08", "Offline banner and sync status", "", "offline-sync#offline-rules", None),
+   ("REGC-09", "Camera barcode scanning", "ML Kit scanning of 1D codes and GS1 DataMatrix through the phone camera, offline, for devices without a hardware scanner.", "tech-stack", None),
+   ("REGC-10", "Phone layout: look-up and price check", "One-pane portrait layout for R-05 and R-18 on 360–430 dp phones, with a camera-scan button.", "ui-design#layouts", None),
   ]),
   ("T4", "Try it: products on the register", "P2", "try", "", [
    ("T4-01", "Import a catalog", "Import 500 products from the Excel template and fix the rows it rejects.", "", None),
@@ -391,6 +397,8 @@ STAGES = [
    ("REGX-09", "Outbox", "Queue with retry, backoff and jitter; holds at least 10,000 sales.", "offline-sync#outbox-states", None),
    ("REGX-10", "Receipt printing (D-01)", "ESC/POS receipts in English, Sinhala and Tamil; cash drawer kick.", "tech-stack", None),
    ("REGX-11", "Offline guard rails", "", "offline-sync#offline-rules", None),
+   ("REGX-12", "Android printer plugin (Kotlin)", "`retailos-device` plugin: ESC/POS over USB and Bluetooth, cash drawer kick; the same DeviceBridge port as Windows.", "tech-stack", None),
+   ("REGX-13", "Phone-sized checkout", "One-pane Sell screen on a phone: search and camera scan on top, cart below, order panel as a bottom sheet with a sticky Charge bar; payment and batch picker full screen.", "ui-design#layouts", None),
   ]),
   ("ADMX", "Admin screens: sales", "P4", "web", "", [
    ("ADMX-01", "Sales history and sale detail (A-50, A-51)", "", "proto:sales", None),
@@ -402,6 +410,7 @@ STAGES = [
    ("T6-02", "A day offline", "Sell offline for a full day on 2 registers and reconnect: every sale arrives once, with no receipt gaps. (P4 exit test)", "roadmap#phases", None),
    ("T6-03", "A crash mid-push", "Kill the app during a push and restart it: no duplicates. (P4 exit test)", "roadmap#phases", None),
    ("T6-04", "Selling below zero", "The sale is accepted, the exception shows in the queue, and a manager resolves it.", "", None),
+   ("T6-05", "Sell on a phone", "On an Android phone: scan with the camera, take cash, print on a Bluetooth 58 mm printer, go offline and back without losing a sale.", "", None),
   ]),
  ]),
  ("close", "Stage 7 · Sales features, part 2: close the day", "P5", "sa",
@@ -498,6 +507,8 @@ STAGES = [
   ("REGR", "Register app: release", "P6", "reg", "", [
    ("REGR-01", "Signed installer and auto-update", "Authenticode-signed; the updater checks signatures.", "security#register-security", None),
    ("REGR-02", "Staged roll-out", "Release to a few registers first; raise the minimum version only when all are updated.", "deployment", None),
+   ("REGR-03", "Android release", "Signed AAB through managed Google Play, or a signed APK through an MDM; staged roll-out like Windows.", "deployment", None),
+   ("REGR-04", "Supported device list", "Two reference Android phones or tablets and two Bluetooth printers, tested before every release; published for shops.", "roadmap#risks", None),
   ]),
   ("HARD", "Security hardening", "P7", "be", "Most controls are built with the features; this is the final check.", [
    ("HARD-01", "Headers and CORS", "HSTS, strict CORS for the admin app, no Swagger in production.", "security#appsec", None),
@@ -522,7 +533,7 @@ STAGES = [
    ("LOAD-04", "Write down capacity", "Measured limits per server size, in Cost & scaling.", "cost", None),
   ]),
   ("T8", "Try it: launch", "P6", "try", "", [
-   ("T8-01", "Pilot", "Three real shops (retail, pharmacy, grocery) trade for four weeks with no manual database fix and no lost sale. (P6 exit test)", "roadmap#phases", None),
+   ("T8-01", "Pilot", "Four real shops (retail, pharmacy, grocery, and a small shop on a phone) trade for four weeks with no manual database fix and no lost sale. (P6 exit test)", "roadmap#phases", None),
    ("T8-02", "Restore drill", "Restore production from backup within the RTO. (P7 exit test)", "roadmap#phases", "P7"),
    ("T8-03", "Security sign-off", "No open critical or high findings. (P7 exit test)", "roadmap#phases", "P7"),
   ]),
@@ -827,7 +838,7 @@ def build():
 {chr(10).join(body)}
 
 <h2 id="not-here">Not on this page</h2>
-<p>Release 2 and 3 work (promotions, purchase orders, transfers, loyalty, the Android register, pharmacy and grocery tables, fiscal submission to the IRD) is in the <a href="roadmap.html">roadmap</a> and will be added here when it is planned.</p>
+<p>Release 2 and 3 work (promotions, purchase orders, transfers, loyalty, pharmacy and grocery tables, fiscal submission to the IRD) is in the <a href="roadmap.html">roadmap</a> and will be added here when it is planned.</p>
 
 </article></main>
 <aside id="toc"></aside>

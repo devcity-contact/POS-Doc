@@ -63,10 +63,10 @@ The MVP covers what a cashier needs every day and what a tax auditor will check.
 <li>Roles, permissions, staff PINs, audit log</li>
 <li>English, Sinhala and Tamil</li>
 <li>Core reports; multi-branch data model</li>
+<li>Registers on Windows and on Android phones and tablets</li>
 </ul></div>
 <div class="card"><h4><span class="badge b-later">Not in MVP</span></h4>
 <ul>
-<li>Android register <span class="badge b-r2">R2</span></li>
 <li>Pharmacy and grocery extension modules <span class="badge b-r2">R2</span></li>
 <li>Purchase orders, stock transfers <span class="badge b-r2">R2</span></li>
 <li>Loyalty, SMS/WhatsApp receipts, marketing <span class="badge b-r2">R2</span>/<span class="badge b-r3">R3</span></li>
@@ -185,7 +185,7 @@ The MVP covers what a cashier needs every day and what a tax auditor will check.
 <tr><td>F-705</td><td>Scale connected directly to the PC</td><td><span class="badge b-r2">R2</span></td><td>Serial/USB, Windows only at first.</td></tr>
 <tr><td>F-706</td><td>Barcode label printer</td><td><span class="badge b-r2">R2</span></td><td>ZPL/TSPL templates.</td></tr>
 <tr><td>F-707</td><td>Customer-facing display</td><td><span class="badge b-r3">R3</span></td><td>A second screen running a web view.</td></tr>
-<tr><td>F-708</td><td>Android tablet / mobile POS</td><td><span class="badge b-r2">R2</span></td><td>Same React UI in a Capacitor shell.</td></tr>
+<tr><td>F-708</td><td>Android tablet / mobile POS</td><td><span class="badge b-mvp">MVP</span></td><td>Same React UI in a Capacitor shell, with a phone-sized Sell screen and camera scanning. Moved from R2 for the Lite plan (ADR-003).</td></tr>
 <tr><td>F-709</td><td>Integrated card terminal</td><td><span class="badge b-r3">R3</span></td><td>Semi-integrated: the terminal handles card data, and we receive only the approval result.</td></tr>
 <tr><td>F-710</td><td>Fingerprint login</td><td><span class="badge b-later">Later</span></td><td>Needs extra hardware. PINs are enough to start.</td></tr>
 </tbody>
@@ -353,7 +353,7 @@ Then the invoice uses the tax invoice number series, shows the supplier and buye
 <tr><td>NFR-09</td><td>Isolation</td><td>An automated test in CI proves one tenant can't read another tenant's data.</td></tr>
 <tr><td>NFR-10</td><td>Maintainability</td><td>Module boundaries verified in CI. Core domain test coverage at least 80%.</td></tr>
 <tr><td>NFR-11</td><td>Localisation</td><td>Every UI string in en/si/ta, with no hard-coded text.</td></tr>
-<tr><td>NFR-12</td><td>Compatibility</td><td>Windows 10/11 (x64) with 4 GB RAM. Android 10+ tablets with 3 GB RAM.</td></tr>
+<tr><td>NFR-12</td><td>Compatibility</td><td>Windows 10/11 (x64) with 4 GB RAM. Android 10+ phones and tablets with 3 GB RAM; phones with a screen of at least 5.5".</td></tr>
 <tr><td>NFR-13</td><td>Upgrades</td><td>The server supports the current and previous register version (N-1). Upgrades don't stop billing.</td></tr>
 <tr><td>NFR-14</td><td>Data retention</td><td>Sales and tax records kept for the statutory period (to be confirmed with an accountant, at least 6 years by default), then archived.</td></tr>
 </tbody>
