@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>MVP build list · RetailOS</title>
-<meta name="description" content="The exact list of what to build for the RetailOS MVP: 15 backend modules, about 45 API endpoints, business rules, infrastructure, 20 register screens, 38 admin screens, the DevCity console, printed documents, hardware, and what is out of scope.">
+<meta name="description" content="The exact list of what to build for the RetailOS MVP: 15 backend modules, about 160 API endpoints, business rules, infrastructure, 20 register screens, 38 admin screens, the DevCity console, printed documents, hardware, and what is out of scope.">
 <link rel="stylesheet" href="assets/site.css">
 <script>try{var t=localStorage.getItem("retailos-theme");if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
 </head>
@@ -24,7 +24,7 @@
 <thead><tr><th>Part</th><th>Count</th><th>Where it runs</th></tr></thead>
 <tbody>
 <tr><td>Backend modules</td><td>15 + platform support</td><td>Spring Boot 4 modular monolith, PostgreSQL 18 with row-level security</td></tr>
-<tr><td>API endpoints</td><td>About 45</td><td>REST under <code>/api/v1</code>, sync under <code>/sync/v1</code></td></tr>
+<tr><td>API endpoints</td><td><a href="endpoints.html">163</a></td><td>REST under <code>/api/v1</code>, sync under <code>/sync/v1</code>. Full list with details: <a href="endpoints.html">API endpoints</a></td></tr>
 <tr><td>Register screens</td><td>20 (R-01 to R-20)</td><td>Windows, Electron + React + encrypted SQLite</td></tr>
 <tr><td>Admin web screens</td><td>38</td><td>React in the browser</td></tr>
 <tr><td>Platform console</td><td>5 (P-01 to P-05)</td><td>Admin web, DevCity staff only</td></tr>
@@ -58,6 +58,7 @@
 <p><strong>Platform support</strong> (behind P-01 to P-05): support-access grants with owner consent (at most 4 hours, logged in the shop), the register fleet view, requeue of outbox items, and two-person approval for a receipt-sequence reset.</p>
 
 <h3 id="backend-api">API</h3>
+<p>A summary by area. Every endpoint with its details and build status is on the <a href="endpoints.html">API endpoints</a> page.</p>
 <table>
 <thead><tr><th>Area</th><th>Endpoints</th></tr></thead>
 <tbody>

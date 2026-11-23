@@ -20,6 +20,10 @@ import html
 import pathlib
 import re
 
+import build_endpoints                     # the endpoint list (tools/build_endpoints.py); tasks link to their endpoints
+
+EP_BY_TASK = build_endpoints.by_task()
+
 DOC = pathlib.Path(__file__).resolve().parent.parent
 
 # Finished tasks recorded in the repository (shared with everyone). Example: DONE = {"SET-01", "SET-02"}
@@ -74,6 +78,7 @@ STAGES = [
    ("CORE-12", "Domain events with outbox", "Spring Modulith event publication registry, idempotent listener pattern, incomplete events retried on start (ADR-007).", "modules#events", None),
    ("CORE-13", "Scheduled jobs", "Scheduler with ShedLock and a tenant-aware job runner that sets the tenant before touching data.", "tech-stack", None),
    ("CORE-14", "Health checks", "Liveness and readiness with database and storage checks; Actuator not public.", "operations", None),
+   ("CORE-15", "Endpoint list check", "CI compares the generated `openapi.json` with `tools/build_endpoints.py` and fails when an endpoint is in one but not the other, so the endpoints page stays true.", "endpoints", "P1"),
   ]),
   ("DEPL", "Staging from day one", "P0", "be", "A shared place to try every feature as soon as it merges.", [
    ("DEPL-01", "Staging environment", "VM with Docker Compose and Caddy (automatic HTTPS).", "deployment", None),
@@ -138,51 +143,51 @@ STAGES = [
    ("AUTN-04", "Access tokens", "10-minute JWT with `sub`, `tid`, `bid`, `did`, `roles`, `ver`.", "security#tokens", None),
    ("AUTN-05", "Resource server", "Nimbus JWT validation, claims → current user, `AUTH-001` for a missing or expired token.", "security#tokens", None),
    ("AUTN-06", "Rate limiting", "Bucket4j: login, PIN, enroll and refresh 10 per minute then lockout; admin 300 per minute per user; 429 with `Retry-After`. Sync limits are added in later stages.", "api#rate-limits", None),
-   ("AUTN-07", "Login endpoint", "`POST /api/v1/auth/login`: e-mail + password (+ TOTP). Same error for a wrong e-mail or password; failures locked out and audited.", "api#ep-auth", None),
+   ("AUTN-07", "Login endpoint", "`POST /api/v1/auth/login`: e-mail + password (+ TOTP). Same error for a wrong e-mail or password; failures locked out and audited.", "", None),
    ("AUTN-08", "TOTP two-step sign-in", "Set up with a QR code and a confirm code, recovery codes, required for OWNER and ADMIN.", "security#authn", None),
    ("AUTN-09", "Refresh token rotation", "Opaque, stored hashed, 30-day sliding life, rotated on every use; reuse revokes the family. `POST /auth/refresh`.", "security#tokens dd:refresh_token", None),
    ("AUTN-10", "Admin web cookie", "Refresh token in an `HttpOnly; Secure; SameSite=Strict` cookie scoped to `/api/v1/auth`.", "security#tokens", None),
-   ("AUTN-11", "Logout", "`POST /auth/logout` revokes the refresh-token family.", "api#ep-auth", None),
+   ("AUTN-11", "Logout", "`POST /auth/logout` revokes the refresh-token family.", "", None),
    ("AUTN-12", "Token version check", "A permission change or deactivation increments `ver`; older tokens are rejected.", "security#tokens", None),
    ("AUTN-13", "E-mail sending", "Mail port: Mailpit locally, a provider in production; templates in en/si/ta.", "tech-stack", None),
    ("AUTN-14", "Password reset", "Single-use, short-lived e-mail link; signs out all sessions.", "security#authn", None),
    ("AUTN-15", "Invite a user", "E-mail invitation → set password → set up two-step if the role needs it.", "security#authn", None),
-   ("AUTN-16", "Staff PIN", "Set and reset a 4–6 digit PIN; `POST /api/v1/auth/pin` on an enrolled device; 5 failures → 5-minute lockout on that device, audited.", "security#authn api#ep-auth", None),
+   ("AUTN-16", "Staff PIN", "Set and reset a 4–6 digit PIN; `POST /api/v1/auth/pin` on an enrolled device; 5 failures → 5-minute lockout on that device, audited.", "security#authn", None),
    ("AUTN-17", "Authentication tests", "Login, two-step, refresh rotation and reuse detection, lockouts, expired and tampered tokens.", "dev-guide#testing", None),
   ]),
   ("AUTZ", "Authorization (roles and permissions)", "P1", "be", "Every request is checked on the server against fine-grained permissions.", [
    ("AUTZ-01", "Permission catalog in code", "All permissions (`sale.create` … `audit.view`) defined once, seeded, and exported for the apps.", "security#rbac", None),
-   ("AUTZ-02", "Roles", "System roles plus custom tenant roles from the same permissions. `GET/POST /api/v1/roles`.", "api#ep-admin dd:role", None),
+   ("AUTZ-02", "Roles", "System roles plus custom tenant roles from the same permissions. `GET/POST /api/v1/roles`.", "dd:role", None),
    ("AUTZ-03", "User roles with branch scope", "Assign roles per user, optionally limited to one branch.", "dd:user_role", None),
    ("AUTZ-04", "Method security", "`@PreAuthorize` with a permission evaluator that also checks the branch; `AUTH-003` names the missing permission.", "security#rbac", None),
    ("AUTZ-05", "Limits per role", "Discount, refund and stock-adjustment limits stored per role, used by later stages.", "security#rbac", None),
    ("AUTZ-06", "Manager approval", "Actions record `approver_id`; approvals given by PIN on a register are checked when the fact syncs.", "security#audit", None),
-   ("AUTZ-07", "Users API", "`GET/POST /api/v1/users`, deactivate (bumps `ver`), assign roles; managers manage only their branch.", "api#ep-admin", None),
+   ("AUTZ-07", "Users API", "`GET/POST /api/v1/users`, deactivate (bumps `ver`), assign roles; managers manage only their branch.", "", None),
    ("AUTZ-08", "Permission matrix test", "A table-driven test checks every role × permission against the security page.", "security#rbac", None),
   ]),
   ("AUDT", "Audit log", "P1", "be", "Who did what, when, from which device, and who approved it. Tamper-evident.", [
    ("AUDT-01", "Audit writer", "Public API: actor, approver, device, action, entity, before/after, reason.", "security#audit dd:audit_log", None),
    ("AUDT-02", "Hash chain", "Per-tenant `seq`, `prev_hash`, SHA-256 over the defined fields; safe under concurrent writes (INV-09).", "security#audit", None),
    ("AUDT-03", "Audit this stage's actions", "Logins and failures, PIN lockouts, role and permission changes, device enrollment and lock, settings changes. Later stages add their own.", "security#audit", None),
-   ("AUDT-04", "Audit search API", "`GET /api/v1/audit?entity=&from=` with cursor paging; needs `audit.view`.", "api#ep-admin", None),
+   ("AUDT-04", "Audit search API", "`GET /api/v1/audit?entity=&from=` with cursor paging; needs `audit.view`.", "", None),
    ("AUDT-05", "Nightly chain check", "Job verifies the chain per tenant and alerts on a break.", "security#audit", None),
   ]),
   ("DEVC", "Branches, registers and devices", "P1", "be", "Registers are enrolled devices with their own credential.", [
-   ("DEVC-01", "Branches and registers", "`GET/POST /api/v1/branches`, `/branches/{id}/registers`; branch and register codes feed the receipt number.", "api#ep-admin", None),
+   ("DEVC-01", "Branches and registers", "`GET/POST /api/v1/branches`, `/branches/{id}/registers`; branch and register codes feed the receipt number.", "", None),
    ("DEVC-02", "Enrollment codes", "One-time, short-lived code for a register (`device.manage`).", "offline-sync#bootstrap", None),
-   ("DEVC-03", "Enroll endpoint", "`POST /api/v1/devices/enroll`: code + device public key → device and device credential; the code is used up.", "api#ep-auth dd:device_enrollment", None),
+   ("DEVC-03", "Enroll endpoint", "`POST /api/v1/devices/enroll`: code + device public key → device and device credential; the code is used up.", "dd:device_enrollment", None),
    ("DEVC-04", "Device authentication", "Device credential → device token bound to `did`; `X-Device-Id` must match.", "security#register-security", None),
    ("DEVC-05", "Minimum app version", "Registers below the minimum supported version get 426 `DEV-004`.", "api#headers", None),
-   ("DEVC-06", "Remote lock and unlock", "`POST /devices/{id}/lock` revokes device tokens; a locked device gets `DEV-002`.", "api#ep-auth", None),
-   ("DEVC-07", "Heartbeat", "`POST /sync/v1/heartbeat`: version, queue depth, printer status, disk space.", "api#ep-auth dd:device_heartbeat", None),
+   ("DEVC-06", "Remote lock and unlock", "`POST /devices/{id}/lock` revokes device tokens; a locked device gets `DEV-002`.", "", None),
+   ("DEVC-07", "Heartbeat", "`POST /sync/v1/heartbeat`: version, queue depth, printer status, disk space.", "dd:device_heartbeat", None),
    ("DEVC-08", "Device list API", "Status, version, last sync, queue depth and last heartbeat per device.", "ui-screens", None),
   ]),
   ("BIZ", "Business setup and onboarding", "P1", "be", "A new shop can sign up and get to its first register without help.", [
    ("BIZ-01", "Sign-up", "Create tenant, owner and first branch in one transaction; verify the e-mail.", "flows", None),
-   ("BIZ-02", "Business profile and settings", "`GET/PUT /api/v1/tenant`, `/tenant/settings`: business details, VAT number.", "api#ep-admin", None),
-   ("BIZ-03", "Receipt settings", "Header, footer, logo and languages for receipts.", "api#ep-admin", None),
+   ("BIZ-02", "Business profile and settings", "`GET/PUT /api/v1/tenant`, `/tenant/settings`: business details, VAT number.", "", None),
+   ("BIZ-03", "Receipt settings", "Header, footer, logo and languages for receipts.", "", None),
    ("BIZ-04", "Onboarding wizard steps", "Business, branch, tax registration, first register, invite staff; progress saved between visits.", "ui-screens", None),
-   ("BIZ-05", "Industry modules", "`PUT /api/v1/tenant/modules/{key}` turns pharmacy or grocery features on or off.", "api#ep-admin extensions", None),
+   ("BIZ-05", "Industry modules", "`PUT /api/v1/tenant/modules/{key}` turns pharmacy or grocery features on or off.", "extensions", None),
   ]),
   ("OBS", "Errors and traces on staging", "P1", "be", "So testers' problems can be found without guessing.", [
    ("OBS-01", "Error reporting", "Sentry (or GlitchTip) for backend and admin, with personal data removed.", "operations", None),
@@ -227,7 +232,7 @@ STAGES = [
   ("CATL", "Catalog", "P2", "be", "Products, variants, units and barcodes.", [
    ("CATL-01", "Categories and brands", "Category tree and brand list: create, edit, reorder, archive.", "dd:category dd:brand", None),
    ("CATL-02", "Units and conversions", "Units (piece, kg, box) and conversions such as box of 10.", "dd:unit dd:unit_conversion", None),
-   ("CATL-03", "Products API", "`GET/POST /api/v1/products`, `GET/PUT /{id}` with `If-Match`; search and filters; archive instead of delete.", "api#ep-catalog dd:product", None),
+   ("CATL-03", "Products API", "`GET/POST /api/v1/products`, `GET/PUT /{id}` with `If-Match`; search and filters; archive instead of delete.", "dd:product", None),
    ("CATL-04", "SKUs (variants)", "`POST /products/{id}/skus`; batch and expiry tracking and sold-by-weight flags.", "dd:sku", None),
    ("CATL-05", "Barcodes", "Several per SKU, unique per tenant, check digits validated; `GET /api/v1/barcodes/{code}`.", "dd:barcode", None),
    ("CATL-06", "GS1 and weight barcode parser (Java)", "AIs 01, 10, 17, 21 and weight-embedded barcodes, with test vectors shared with the register (ADR-012).", "tech-stack adr", None),
@@ -237,7 +242,7 @@ STAGES = [
    ("CATL-10", "Search at 50,000 products", "Indexes for name search and barcode look-up, tested with 50,000 products.", "roadmap#phases", None),
   ]),
   ("PRCE", "Pricing and discounts", "P2", "be", "Prices per branch and date, and discounts within role limits.", [
-   ("PRCE-01", "Price lists", "Default list per branch, prices with `validFrom`; `GET/PUT /api/v1/price-lists/{id}/items`.", "api#ep-catalog dd:price_list_item", None),
+   ("PRCE-01", "Price lists", "Default list per branch, prices with `validFrom`; `GET/PUT /api/v1/price-lists/{id}/items`.", "dd:price_list_item", None),
    ("PRCE-02", "Price resolution", "One rule for SKU + branch + date + unit → price, with test vectors shared with the register.", "dd:price_list", None),
    ("PRCE-03", "Bulk price change", "Percentage change with preview; round up for increases, down for decreases.", "ui-screens", None),
    ("PRCE-04", "Discount rules", "Line or bill, percent or amount, role limits (`PRC-001`), override with approval.", "dd:discount_rule", None),
@@ -249,7 +254,7 @@ STAGES = [
    ("TAXR-03", "Future-dated rate changes", "A new rate with a start date reaches registers before it applies.", "offline-sync#pull", None),
   ]),
   ("IMPT", "Product import", "P2", "be", "Shops start from an Excel sheet. Big files must not hurt the server.", [
-   ("IMPT-01", "Upload an import file", "`POST /api/v1/imports/products`: Excel (streaming) or CSV, macros ignored, size limit.", "api#ep-catalog", None),
+   ("IMPT-01", "Upload an import file", "`POST /api/v1/imports/products`: Excel (streaming) or CSV, macros ignored, size limit.", "", None),
    ("IMPT-02", "Dry run and preview", "Column mapping, row-by-row errors, counts of creates and updates; nothing saved yet.", "ui-screens", None),
    ("IMPT-03", "Commit an import", "`POST /imports/{jobId}/commit`: batches, safe to retry, progress; at most 5 jobs per tenant.", "api#rate-limits", None),
    ("IMPT-04", "Import template", "Downloadable template with headers in en/si/ta.", "ui-screens", None),
@@ -258,8 +263,8 @@ STAGES = [
    ("PULL-01", "Change log", "Every master-data change writes a `sync_change_log` row in the same transaction.", "offline-sync#pull dd:sync_change_log", None),
    ("PULL-02", "Sync scopes", "catalog, prices, tax, users, settings; filtered by branch and register.", "offline-sync#authority", None),
    ("PULL-03", "Catalog snapshot builder", "Job writes a compressed snapshot per tenant and branch to object storage, with its cursor.", "offline-sync#bootstrap dd:catalog_snapshot", None),
-   ("PULL-04", "Snapshot endpoint", "`GET /sync/v1/snapshot?scope=catalog` returns a signed URL and the cursor.", "api#ep-sync", None),
-   ("PULL-05", "Change feed endpoint", "`GET /sync/v1/changes?scopes=…&cursor=…` with paging; an expired cursor returns `SYNC-003`; 120 pulls per minute per device.", "api#ep-sync dd:sync_cursor", None),
+   ("PULL-04", "Snapshot endpoint", "`GET /sync/v1/snapshot?scope=catalog` returns a signed URL and the cursor.", "", None),
+   ("PULL-05", "Change feed endpoint", "`GET /sync/v1/changes?scopes=…&cursor=…` with paging; an expired cursor returns `SYNC-003`; 120 pulls per minute per device.", "dd:sync_cursor", None),
    ("PULL-06", "Staff PINs for offline sign-in", "The users scope carries PIN hashes and roles, so staff can sign in offline.", "security#authn", None),
    ("PULL-07", "Settings scope", "Business and receipt settings reach registers.", "offline-sync#authority", None),
    ("PULL-08", "Change log clean-up", "Job removes old rows once every device is past them or retention ends.", "offline-sync#pull", None),
@@ -300,10 +305,10 @@ STAGES = [
    ("STCK-01", "Stock locations", "Locations per branch (shop floor, store room).", "dd:stock_location", None),
    ("STCK-02", "Movement ledger", "The only way stock changes (INV-04): receipt, sale, return, adjustment, count. Append-only.", "dd:stock_movement", None),
    ("STCK-03", "Balances and locking", "`stock_balance` per SKU, location and batch updated in the same transaction; rows locked in a fixed order.", "dd:stock_balance", None),
-   ("STCK-04", "Batches and recalls", "Batch number, expiry, cost; `POST /api/v1/batches/{id}/block` and unblock, audited.", "dd:batch api#ep-catalog", None),
-   ("STCK-05", "Stock balance API", "`GET /api/v1/stock?locationId=…&skuId=…` by batch.", "api#ep-catalog", None),
+   ("STCK-04", "Batches and recalls", "Batch number, expiry, cost; `POST /api/v1/batches/{id}/block` and unblock, audited.", "dd:batch", None),
+   ("STCK-05", "Stock balance API", "`GET /api/v1/stock?locationId=…&skuId=…` by batch.", "", None),
    ("STCK-06", "Idempotency-Key for REST", "REST `POST`s that create stock or money records store the key and response; a retry returns the same response.", "api#conventions", None),
-   ("STCK-07", "Adjustments", "`POST /api/v1/stock/adjustments` with reason codes, role limit, approval, audit.", "api#ep-catalog", None),
+   ("STCK-07", "Adjustments", "`POST /api/v1/stock/adjustments` with reason codes, role limit, approval, audit.", "", None),
    ("STCK-08", "Stock counts", "Create, enter lines (blind), post → adjustment movements.", "dd:stock_count dd:stock_count_line", None),
    ("STCK-09", "FEFO allocation", "Earliest expiry first; skip blocked and expired batches (INV-14). Used when sales sync.", "data-model", None),
    ("STCK-10", "Low-stock and near-expiry alerts", "Daily job publishes `StockLow` and `BatchNearExpiry`.", "modules#events", None),
@@ -360,9 +365,9 @@ STAGES = [
    ("SELL-03", "Receipt registry", "Unique (register, seq) with a gap check; same number with a different sale → `RECEIPT_COLLISION`, register locked (INV-06).", "offline-sync#receipts dd:receipt_registry", None),
    ("SELL-04", "Server-side checks", "Totals add up, tax recomputed by the tax calculator, price compared with the price list → `PRICE_MISMATCH`. The sale is still accepted.", "modules#events", None),
    ("SELL-05", "Stock allocation on sale", "FEFO into `sale_line_allocation` and movements; negative stock allowed but raises `NEGATIVE_STOCK`; expired batch raises `EXPIRED_BATCH_SOLD`.", "dd:sale_line_allocation", None),
-   ("SELL-06", "Sale exception queue", "`GET /api/v1/sale-exceptions?status=OPEN`, `POST /{id}/resolve` with a note, audited.", "api#ep-sales", None),
+   ("SELL-06", "Sale exception queue", "`GET /api/v1/sale-exceptions?status=OPEN`, `POST /{id}/resolve` with a note, audited.", "", None),
    ("SELL-07", "SaleCompleted event", "Published for cash, customers and reporting.", "modules#events", None),
-   ("SELL-08", "Sales history API", "`GET /api/v1/sales`, `/sales/{id}`, `/sales/by-receipt/{receiptNo}`.", "api#ep-sales", None),
+   ("SELL-08", "Sales history API", "`GET /api/v1/sales`, `/sales/{id}`, `/sales/by-receipt/{receiptNo}`.", "", None),
    ("SELL-09", "Voids and overrides in the audit log", "Voided open sales, discounts above limit and price overrides audited with reason and approver.", "security#audit", None),
    ("SELL-10", "Held bills", "Accept held bills for recovery and expire old ones.", "dd:held_bill", None),
    ("SELL-11", "Concurrent selling test", "Many registers selling the same batch at once: correct balances, no deadlocks.", "dev-guide#testing", None),
@@ -404,14 +409,14 @@ STAGES = [
    ("CASH-01", "Cash movements", "Pay-in, pay-out, safe drop and no-sale drawer opens (audited).", "dd:cash_movement", None),
    ("CASH-02", "Close and blind count", "Count by note and coin; expected vs counted; variance.", "dd:cash_count", None),
    ("CASH-03", "X and Z reports (D-04)", "Z-report per closed shift (data and print), X-report mid-shift.", "flows", None),
-   ("CASH-04", "Shift review", "`GET /api/v1/cash-sessions`, `POST /{id}/review` approves the variance; publishes `ShiftClosed`.", "api#ep-sales", None),
+   ("CASH-04", "Shift review", "`GET /api/v1/cash-sessions`, `POST /{id}/review` approves the variance; publishes `ShiftClosed`.", "", None),
    ("CASH-05", "Drawer reconciliation test", "Cash in the drawer equals the Z-report.", "roadmap#phases", None),
   ]),
   ("CUST", "Customers and credit", "P5", "be", "Credit sales and settlements on an append-only ledger.", [
    ("CUST-01", "Customers API", "`GET/POST /api/v1/customers`, phone unique per tenant, search; masked in logs and exports.", "dd:customer", None),
    ("CUST-02", "Customers from registers", "Customers created on a register arrive by push; duplicates can be merged.", "offline-sync#push", None),
    ("CUST-03", "Credit accounts", "Credit limit and status; credit sales post to `credit_ledger`.", "dd:credit_account dd:credit_ledger", None),
-   ("CUST-04", "Credit settlement", "`POST /api/v1/customers/{id}/credit-payments`; balance and statement.", "api#ep-sales", None),
+   ("CUST-04", "Credit settlement", "`POST /api/v1/customers/{id}/credit-payments`; balance and statement.", "", None),
    ("CUST-05", "Offline credit limit", "Limits reach registers through sync; going over needs approval.", "offline-sync#offline-rules", None),
    ("CUST-06", "Customer statement (D-05)", "PDF statement for a period.", "mvp#frontend-documents", None),
   ]),
@@ -420,19 +425,19 @@ STAGES = [
    ("RTRN-02", "Refunds and limits", "Above the role limit needs approval.", "dd:refund_payment", None),
    ("RTRN-03", "Stock back in", "Return movement to the original batch, or to quarantine if damaged.", "dd:stock_movement", None),
    ("RTRN-04", "SaleReturned event", "For cash, customers (credit reversal) and tax (credit note).", "modules#events", None),
-   ("RTRN-05", "Online receipt look-up", "Find the original sale from another register or branch.", "api#ep-sales", None),
+   ("RTRN-05", "Online receipt look-up", "Find the original sale from another register or branch.", "", None),
   ]),
   ("TAXD", "Tax documents", "P5", "be", "Tax invoices, credit notes and the VAT report.", [
    ("TAXD-01", "Tax invoice series", "Own gap-free series per register; buyer VAT number checked (`TAX-002`).", "offline-sync#receipts dd:tax_document", None),
    ("TAXD-02", "Credit and debit notes", "Linked to the original tax invoice.", "dd:tax_document", None),
    ("TAXD-03", "Tax document PDF (D-02, D-03)", "A4 layout an accountant accepts; return slip.", "mvp#frontend-documents", None),
-   ("TAXD-04", "Tax documents API", "`GET /api/v1/tax-documents?type=&from=`.", "api#ep-sales", None),
+   ("TAXD-04", "Tax documents API", "`GET /api/v1/tax-documents?type=&from=`.", "", None),
    ("TAXD-05", "Fiscal adapter port", "No-op adapter in the MVP; `fiscal_submission` rows and a retry worker.", "dd:fiscal_submission", None),
-   ("TAXD-06", "VAT report", "Output tax by rate for a period.", "api#ep-sales", None),
+   ("TAXD-06", "VAT report", "Output tax by rate for a period.", "", None),
   ]),
   ("REPT", "Reports", "P5", "be", "Read-only reports on the reporting role.", [
-   ("REPT-01", "Report framework", "`GET /api/v1/reports/{reportKey}` with parameter checks and permissions.", "api#ep-sales", None),
-   ("REPT-02", "Exports", "`POST /api/v1/exports`: background CSV/XLSX → signed download URL; audited; personal data masked without permission.", "api#ep-sales", None),
+   ("REPT-01", "Report framework", "`GET /api/v1/reports/{reportKey}` with parameter checks and permissions.", "", None),
+   ("REPT-02", "Exports", "`POST /api/v1/exports`: background CSV/XLSX → signed download URL; audited; personal data masked without permission.", "", None),
    ("REPT-03", "Daily sales", "By branch, register, cashier and payment type.", "requirements", None),
    ("REPT-04", "Stock valuation", "Stock on hand at cost.", "requirements", None),
    ("REPT-05", "Expiry", "Near-expiry and expired stock by batch.", "requirements", None),
@@ -526,7 +531,7 @@ PAGES = {"dev-guide": "Developer guide", "tech-stack": "Tech stack", "modules": 
          "data-dictionary": "Data dictionary", "offline-sync": "Offline & sync", "roadmap": "Roadmap",
          "flows": "Key flows", "ui-screens": "Screens", "ui-design": "UI design", "extensions": "Extensions",
          "adr": "Decisions", "requirements": "Requirements", "operations": "Operations", "cost": "Cost & scaling",
-         "mvp": "MVP list"}
+         "mvp": "MVP list", "endpoints": "API endpoints"}
 AREAS = {"st": "1 · Store & staff", "ca": "2 · Catalog", "in": "3 · Inventory", "sa": "4 · Sales"}
 
 esc = html.escape
@@ -635,7 +640,13 @@ def build():
                         + (f'<p class="bp-intro">{fmt(cintro)}</p>\n' if cintro else "") + '<ol class="bp-list">')
             for tid, title, detail, refs, phase in tasks:
                 p = phase or cph.split("–")[0]
-                links = " · ".join(ref_link(r) for r in refs.split()) if refs else ""
+                link_list = [ref_link(r) for r in refs.split()] if refs else []
+                eps = EP_BY_TASK.get(tid, [])
+                if 1 <= len(eps) <= 2:
+                    link_list += [f'<a href="endpoints.html#{build_endpoints.ep_id(e)}"><code>{e["method"]} {esc(e["path"])}</code></a>' for e in eps]
+                elif eps:
+                    link_list.append(f'<a href="endpoints.html#{build_endpoints.ep_id(eps[0])}">API: {len(eps)} endpoints</a>')
+                links = " · ".join(link_list)
                 rec = ' data-recorded="1"' if tid in DONE else ""
                 extra = fmt(detail) + (f' <span class="bp-refs">→ {links}</span>' if links else "")
                 body.append(f'<li class="bp-task" id="{tid.lower()}" data-id="{tid}" data-phase="{p}" data-kind="{kind}"{rec}>'

@@ -22,6 +22,7 @@ System design for RetailOS, DevCity's offline-first POS for retail, pharmacy and
 | `build-order.html` | Generated: every MVP task (backend, admin web, register app, Try it checks) in build order with progress tick boxes. Edit `tools/build_order.py` (tasks, and the `DONE` set for shared progress) and run it |
 | `assets/module-map.svg`, `assets/module-layers.svg` | Module map and inside-a-module diagrams (also inline in `modules.html#map` and `architecture.html`). Regenerate after a module, API, table or event change: `python tools/build_module_map.py` |
 | `assets/request-flow.svg` | Request pipeline (filter chain) diagram, also inline in `security.html#request-pipeline`. Regenerate after a filter change: `python tools/build_request_flow.py` |
+| `endpoints.html` | Generated: every API endpoint by module with details and build status. Edit `tools/build_endpoints.py` when an endpoint is added, changed or built, then run it (it also refreshes `build-order.html`) |
 | `tools/` | Doc maintenance scripts |
 
 ## Editing rules

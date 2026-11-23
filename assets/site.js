@@ -31,7 +31,8 @@
       ["data-dictionary.html", "Data dictionary"],
       ["offline-sync.html", "Offline & sync"],
       ["flows.html", "Key flows"],
-      ["api.html", "API design"]
+      ["api.html", "API design"],
+      ["endpoints.html", "API endpoints"]
     ]},
     { group: "Security", items: [
       ["security.html", "Security architecture"]
