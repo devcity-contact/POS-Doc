@@ -33,7 +33,7 @@ Start with ai/AGENTS.md (rules and invariants) and ai/system-context.md (condens
 - [API design](api.html): conventions, headers, Problem Details errors, endpoint catalog, rate limits, OpenAPI
 
 ## Security
-- [Security architecture](security.html): STRIDE threat model, authentication, tokens, permission matrix, tenant isolation, device security, encryption, audit, PCI scope, SDLC, PDPA, incident response
+- [Security architecture](security.html): request pipeline: every filter a request passes through in order, with where it stops and the error it returns, the SecurityFilterChain setup and the request context (#request-pipeline, diagram by tools/build_request_flow.py), STRIDE threat model, authentication, tokens, permission matrix, tenant isolation, device security, encryption, audit, PCI scope, SDLC, PDPA, incident response
 
 ## Operations
 - [Deployment & CI/CD](deployment.html): environments, pipeline, topology by stage, container, zero-downtime deploys, migrations, register releases, backups and DR
