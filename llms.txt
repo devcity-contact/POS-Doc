@@ -42,5 +42,5 @@ Start with ai/AGENTS.md (rules and invariants) and ai/system-context.md (condens
 
 ## Engineering
 - [Developer guide](dev-guide.html): setup, Java/TS conventions, testing strategy, Git workflow, definition of done, feature walkthrough, debugging, review checklist
-- [Decision records](adr.html): ADR-001..ADR-014
+- [Decision records](adr.html): ADR-001..ADR-015
 - [Guide for AI agents](ai-guide.html): canonical invariants INV-01..INV-15, file map, rules, prompt recipes, verification commands

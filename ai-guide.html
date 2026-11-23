@@ -51,7 +51,7 @@ Copy <code>Doc/ai/AGENTS.md</code> to the repository root as <code>AGENTS.md</co
 <tbody>
 <tr><td>Checkout, cart, discounts on the register</td><td><code>packages/register-core/src/cart</code>, <code>apps/register/src/screens/checkout</code></td><td><a href="flows.html#sale-states">Sale lifecycle</a>, BR-01..BR-04</td></tr>
 <tr><td>Tax calculation</td><td><code>backend/…/tax</code>, <code>packages/register-core/src/tax</code>, <code>shared/test-vectors/tax</code></td><td><a href="adr.html#adr-012">ADR-012</a></td></tr>
-<tr><td>Recording a synced sale</td><td><code>backend/…/sales/internal/application/RecordSale*</code></td><td><a href="flows.html#record-sale">Record sale flow</a></td></tr>
+<tr><td>Recording a synced sale</td><td><code>backend/…/sales/internal/service/SaleService*</code></td><td><a href="flows.html#record-sale">Record sale flow</a></td></tr>
 <tr><td>Stock and batches</td><td><code>backend/…/inventory</code></td><td><a href="flows.html#fefo">FEFO</a>, <a href="data-model.html#erd-inventory">Inventory ERD</a></td></tr>
 <tr><td>Sync protocol</td><td><code>backend/…/sync</code>, <code>packages/register-core/src/sync</code></td><td><a href="offline-sync.html">Offline & sync</a></td></tr>
 <tr><td>Printer, drawer, scanner, scale</td><td><code>packages/register-core/src/ports/DeviceBridge.ts</code>, shell adapters</td><td><a href="architecture.html#register">Register internals</a></td></tr>

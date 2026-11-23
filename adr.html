@@ -35,6 +35,7 @@
 <tr><td><a href="#adr-012">012</a></td><td>Shared test vectors for logic duplicated in Java and TypeScript</td><td><span class="badge b-mvp">Accepted</span></td></tr>
 <tr><td><a href="#adr-013">013</a></td><td>Sinhala and Tamil receipts printed as raster images</td><td><span class="badge b-mvp">Accepted</span></td></tr>
 <tr><td><a href="#adr-014">014</a></td><td>JPA for CRUD, explicit SQL for stock and reports</td><td><span class="badge b-mvp">Accepted</span></td></tr>
+<tr><td><a href="#adr-015">015</a></td><td>Layered modules: controller, service, repository</td><td><span class="badge b-mvp">Accepted</span></td></tr>
 </tbody>
 </table>
 
@@ -109,6 +110,13 @@
 <h3 id="adr-014">ADR-014 · JPA for CRUD, explicit SQL for stock and reports</h3>
 <p><strong>Decision.</strong> Spring Data JPA for master data and admin CRUD. <code>JdbcClient</code> with hand-written SQL for allocation, row locking, ledger checks and reports, where you need to see the exact query.</p>
 <p><strong>Consequences.</strong> Two data-access styles, kept apart by module and use case.</p>
+
+<h3 id="adr-015">ADR-015 · Layered modules: controller, service, repository</h3>
+<p><strong>Context.</strong> Each module needs one agreed way to organise its code. An earlier draft used a light hexagonal layout (domain, application, ports) for complex modules, with a split between command handlers and read queries (CQRS-lite).</p>
+<p><strong>Decision.</strong> Every module uses the same layers: controller (<code>web/</code>) → service (<code>service/</code>) → repository (<code>repository/</code>), with JPA entities and value objects in <code>model/</code>. Business rules and transactions live in services. Modules still talk only through public APIs and events (ADR-001). See <a href="architecture.html#layers">Layers inside a module</a>.</p>
+<p><strong>Consequences.</strong> One pattern for every module, familiar to every Spring developer and to AI assistants, with less mapping code (no separate domain and persistence classes). The risk is services growing too big, so services are split by job, and pure logic (tax, rounding, FEFO, GS1) lives in small plain classes with unit tests and shared test vectors (ADR-012).</p>
+<p><strong>Rejected.</strong> Hexagonal (ports and adapters) per module: two models and mapping code for every entity, and more to learn. CQRS, light or full: separate command and query paths add structure the team doesn't need, and a separate read store would add out-of-date reads and row-level security set up twice.</p>
+<p><strong>Revisit when.</strong> A module's services stay hard to change or test even after splitting them by job.</p>
 
 <h2 id="template">ADR template</h2>
 <pre><code>### ADR-0NN · Title

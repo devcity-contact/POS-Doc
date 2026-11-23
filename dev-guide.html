@@ -40,11 +40,11 @@ pnpm seed                                    # demo tenants: "Lanka Retail" and 
 <h2 id="java">Java conventions (backend)</h2>
 <ul>
 <li>Package by module: <code>com.devcity.retailos.&lt;module&gt;</code>. Only the module root, <code>events</code> and <code>spi</code> packages are public. Everything else lives in <code>internal</code>.</li>
-<li>Domain classes have no Spring or JPA annotations in rich modules. Map to persistence entities in <code>persistence/</code>.</li>
+<li>Layers in every module: controller (<code>web/</code>) → service (<code>service/</code>) → repository (<code>repository/</code>), with entities in <code>model/</code> (<a href="adr.html#adr-015">ADR-015</a>, <a href="architecture.html#layers">Layers inside a module</a>). Business rules live in services, never in controllers.</li>
 <li>Use <code>BigDecimal</code> for money with the shared <code>Money</code> type (scale 4, <code>RoundingMode.HALF_UP</code>). <code>double</code>/<code>float</code> for money fail the ArchUnit test (<span class="inv">INV-03</span>).</li>
 <li>Use records for DTOs, commands and events. Events are immutable and versioned (<code>SaleCompletedV1</code> when the shape must change).</li>
-<li>One transaction per use case, opened in the application service. Never call a remote service inside a transaction.</li>
-<li>Validate at the edge (Bean Validation on DTOs), and enforce business rules in the domain.</li>
+<li>One transaction per public service method (<code>@Transactional</code>); read methods use <code>readOnly = true</code>. Never call a remote service inside a transaction.</li>
+<li>Validate at the edge (Bean Validation on DTOs), and enforce business rules in the service.</li>
 <li>Errors: throw a <code>DomainException</code> with an error code from the catalog. A global handler maps it to a Problem Details response.</li>
 <li>Formatting: Spotless (google-java-format). Null-safety with JSpecify annotations.</li>
 </ul>
@@ -113,7 +113,7 @@ flowchart TB
 <ol class="steps">
 <li><strong>Spec:</strong> add acceptance criteria to the requirement (or ticket). Decide which module owns it: inventory (expiry) + pricing (suggestion).</li>
 <li><strong>Schema:</strong> <code>V2027_02_10_1__near_expiry_rule.sql</code> adds a <code>near_expiry_rule</code> table with <code>tenant_id</code>, RLS policy and indexes. Add it to <code>TenantIsolationIT</code>.</li>
-<li><strong>Domain:</strong> <code>NearExpiryPolicy</code> in <code>pricing/internal/domain</code>, with unit tests and test vectors.</li>
+<li><strong>Service:</strong> <code>NearExpiryPolicy</code>, a plain class used by <code>PriceService</code> in <code>pricing/internal/service</code>, with unit tests and test vectors. The repository and entity go in <code>repository/</code> and <code>model/</code>.</li>
 <li><strong>API:</strong> <code>GET/PUT /api/v1/pricing/near-expiry-rules</code> with permission <code>price.edit</code>. Regenerate the OpenAPI client.</li>
 <li><strong>Sync:</strong> add the rule to the <code>prices</code> scope in <code>sync_change_log</code> writes, and the local SQLite table + migration in register-core.</li>
 <li><strong>Register:</strong> the cart engine applies the suggestion. The UI shows a badge. i18n keys go in all three languages.</li>

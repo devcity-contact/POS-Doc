@@ -212,40 +212,34 @@ flowchart TB
 </figure>
 
 <h3 id="layers">Layers inside a module</h3>
-<p>Complex modules (sales, inventory, pricing, tax, sync) use a light hexagonal layout. Simple CRUD modules use controller → service → repository. Don't force four layers on a categories table.</p>
+<p>Every module uses the same three layers: <strong>controller → service → repository</strong>, plus the model (entities) they work on. One pattern for every module, simple or complex, so anyone on the team, or an AI assistant, can find their way around (<a href="adr.html#adr-015">ADR-015</a>).</p>
 <pre><code>sales/
-├─ SalesApi.java            ← public interface other modules may call
-├─ events/                  ← public events (SaleCompleted, SaleReturned)
-├─ spi/                     ← extension points industry modules implement
-└─ internal/                ← NOT visible to other modules
-   ├─ web/                  ← REST controllers, DTOs, mappers
-   ├─ application/
-   │  ├─ command/           ← writes: RecordSaleHandler, ReturnItemsHandler
-   │  └─ query/             ← reads: SalesHistoryQuery (SQL → DTO)
-   ├─ domain/               ← Sale, SaleLine, policies; no Spring imports
-   └─ persistence/          ← JPA entities / JdbcClient repositories</code></pre>
-
-<h3 id="reads-writes">Reads and writes (CQRS-lite)</h3>
-<p>Inside a module, changing data and reading data take different paths, but they use the <strong>same database and the same tables</strong>. This is a light form of CQRS: it keeps the code clean without a second store.</p>
+├─ SalesApi.java          ← public interface other modules may call
+├─ events/                ← public events (SaleCompleted, SaleReturned)
+├─ spi/                   ← extension points industry modules implement
+└─ internal/              ← NOT visible to other modules
+   ├─ web/                ← controllers, request/response DTOs, mappers
+   ├─ service/            ← SaleService, SaleReturnService: rules, transactions
+   ├─ repository/         ← Spring Data JPA and JdbcClient repositories
+   └─ model/              ← entities (Sale, SaleLine) and value objects</code></pre>
 <table>
-<thead><tr><th></th><th>Commands (writes)</th><th>Queries (reads)</th></tr></thead>
+<thead><tr><th>Layer</th><th>Does</th><th>Never</th></tr></thead>
 <tbody>
-<tr><td><strong>Examples</strong></td><td>Record a sale, post a goods receipt, adjust stock, close a shift</td><td>Sales history, stock on hand, dashboard, reports, look-ups for screens</td></tr>
-<tr><td><strong>Path</strong></td><td>Controller → command handler → domain objects → repository</td><td>Controller → query → SQL (<code>JdbcClient</code>) → DTO. Domain objects are not loaded.</td></tr>
-<tr><td><strong>Rules checked</strong></td><td>All of them: totals, tax (<span class="inv">INV-07</span>), stock only through movements (<span class="inv">INV-04</span>), limits, approvals, audit</td><td>None needed: a query never changes data</td></tr>
-<tr><td><strong>Transaction</strong></td><td>Read-write, one per command (one per item for sync push)</td><td><code>@Transactional(readOnly = true)</code>; can later run on the read replica</td></tr>
-<tr><td><strong>Tests</strong></td><td>Domain unit tests plus integration tests of the handler</td><td>Integration test against Testcontainers with realistic data; check the query plan for big tables</td></tr>
-<tr><td><strong>Tenant isolation</strong></td><td colspan="2">The same for both: row-level security on every query (<span class="inv">INV-01</span>), covered by <code>TenantIsolationIT</code>.</td></tr>
+<tr><td><strong>Controller</strong><br><code>web/</code></td><td>HTTP in and out: validates the request DTO, checks the permission (<code>@PreAuthorize</code>), calls one service method, maps the result to a response DTO.</td><td>Business rules, repository calls, transactions.</td></tr>
+<tr><td><strong>Service</strong><br><code>service/</code></td><td>All business rules: totals, tax through the Tax module (<span class="inv">INV-07</span>), stock only through movements (<span class="inv">INV-04</span>), limits, approvals, audit, events. One transaction per public method; read methods use <code>@Transactional(readOnly = true)</code>.</td><td>HTTP types (requests, responses, status codes), SQL.</td></tr>
+<tr><td><strong>Repository</strong><br><code>repository/</code></td><td>Reads and writes the database: Spring Data JPA for master data, <code>JdbcClient</code> for allocation, locking, ledger checks and reports (<a href="adr.html#adr-014">ADR-014</a>). List and report methods may return a DTO straight from SQL instead of loading entities.</td><td>Business rules, calling services.</td></tr>
+<tr><td><strong>Model</strong><br><code>model/</code></td><td>JPA entities and value objects (<code>Money</code>, <code>Quantity</code>). Simple calculations that need no database, such as a line total, can be methods here.</td><td>Calling repositories or services.</td></tr>
 </tbody>
 </table>
 <p><strong>Rules</strong></p>
 <ul>
-<li>A query never writes, and a command never returns a list for a screen. A command returns the id or a small result; the screen then calls a query.</li>
-<li>Simple CRUD modules (categories, suppliers, units) don't need the split. A service with get and save methods is fine.</li>
-<li>Queries stay inside their module. A screen that needs data from several modules uses the reporting module's views, not joins into another module's tables (<span class="inv">INV-08</span>).</li>
-<li>When a read gets slow, go one step at a time: add an index, then a materialized view, then the read replica. A separate read store or event sourcing needs a measured reason and an ADR (principle P8).</li>
+<li>Calls go one way: controller → service → repository. A controller never skips the service.</li>
+<li>Another module is called only through its public <code>…Api</code> interface or its events, from a service (<span class="inv">INV-08</span>). Never inject another module's service or repository; the boundary test fails if you do.</li>
+<li>Split big services by job, not into more layers. Sales has <code>SaleService</code> (record and look up), <code>SaleReturnService</code> and <code>SaleExceptionService</code>, not one huge class.</li>
+<li>Logic that must match the register (tax, rounding, price resolution, FEFO choice, GS1 parsing) goes in small plain classes in <code>service/</code>, such as <code>TaxCalculator</code>, with unit tests driven by the shared test vectors (<a href="adr.html#adr-012">ADR-012</a>).</li>
+<li>Simple modules (categories, suppliers, units) have the same folders, just smaller.</li>
+<li>When a read gets slow, go one step at a time: an index, then a materialized view, then the read replica. No separate read store (principle P8).</li>
 </ul>
-<p><strong>Not used:</strong> full CQRS with a separate read database, or event sourcing. Sales are already stored as facts that are never edited (<span class="inv">INV-02</span>). A second store would add out-of-date reads, keeping two copies in sync, and row-level security set up twice, with no gain at this size.</p>
 
 <h2 id="quality">Quality attribute strategies</h2>
 <table>
