@@ -117,7 +117,7 @@ X-Register-Id: 0190f3c2-...       X-App-Version: 1.4.2
 <ul>
 <li>The register applies each page in <strong>one local transaction</strong> and stores the new cursor in the same transaction, so a crash in the middle is safe.</li>
 <li>Changes are filtered on the server by tenant, by branch (when <code>branch_id</code> is set) and by enabled modules.</li>
-<li><code>staff</code> and <code>settings</code> scopes are pulled first and more often (every 60 s while online), so a blocked user or a recalled batch takes effect quickly.</li>
+<li><code>staff</code> and <code>settings</code> scopes are pulled first and more often (every 60 s while online), so a blocked user or a recalled batch takes effect quickly. The <code>settings</code> scope also carries the shop's plan features and status, so an offline register hides what the plan doesn't include and, once the shop is locked for late payment, won't open a new shift (<a href="plans.html#billing">Plans</a>).</li>
 <li>If the cursor is older than the compaction window (30 days), the server returns <code>409 SYNC-003</code> and the register downloads a fresh snapshot.</li>
 <li>Responses are gzip-compressed. A typical delta is a few KB. This keeps mobile-data and cloud egress costs low.</li>
 </ul>

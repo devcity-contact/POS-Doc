@@ -94,7 +94,7 @@ MODULES = {
     "tenancy": ("pl", 0, 4, "Tenancy", [
         ("API", ["TenancyApi"]),
         ("OWNS", ["tenant", "tenant_module", "branch", "register"]),
-        ("NOTE", ["sets app.tenant_id (RLS)"])], False),
+        ("NOTE", ["sets app.tenant_id (RLS)", "plans and limits (PLAN-001)"])], False),
     "iam": ("pl", 1, 4, "Identity & access", [
         ("API", ["IamApi"]),
         ("OWNS", ["app_user", "role", "role_permission", "user_role", "refresh_token"]),

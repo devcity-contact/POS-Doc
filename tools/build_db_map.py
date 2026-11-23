@@ -18,7 +18,7 @@ CATS = {"st": "1 · Store & staff", "ca": "2 · Catalog", "in": "3 · Inventory"
 # name: (category, column, row, [fields]); a field ending in "@xx" points to a table in category xx (drawn as a coloured dot)
 TABLES = {
     # 1 Store & staff (columns 5-6)
-    "tenant": ("st", 5, 0, ["id PK", "name, vat_number", "status, plan", "timezone"]),
+    "tenant": ("st", 5, 0, ["id PK", "name, vat_number", "status, plan, paid_until", "timezone"]),
     "tenant_module": ("st", 6, 0, ["tenant_id FK", "module_key", "enabled"]),
     "branch": ("st", 5, 1, ["id PK", "code (CMB01), name", "address"]),
     "app_user": ("st", 6, 1, ["id PK", "email, password_hash", "pin_hash", "mfa_enabled"]),

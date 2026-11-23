@@ -146,7 +146,7 @@ export type SlotName =
 <h3 id="enablement">Enablement and licensing</h3>
 <pre><code>tenant_module (tenant_id, module_key, enabled, plan, enabled_at, settings jsonb)
 -- e.g. ('t1', 'pharmacy', true, 'PRO', ..., '{"requireRxForScheduleB": true}')</code></pre>
-<p>This table doubles as the billing entitlement: industry modules can be sold as paid add-ons on top of the core subscription.</p>
+<p>This table doubles as the billing entitlement: industry modules are sold as paid add-ons on top of the plan, and are included in Enterprise (<a href="plans.html#addons">Plans › Add-ons</a>).</p>
 
 <h2 id="pharmacy">Pharmacy module <span class="badge b-r2">R2</span></h2>
 <table>

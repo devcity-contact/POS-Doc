@@ -38,7 +38,7 @@
 <table>
 <thead><tr><th>#</th><th>Module</th><th>What it must do in the MVP</th><th>Main tables</th></tr></thead>
 <tbody>
-<tr><td>1</td><td>Tenancy</td><td>Tenant → branch → register model, settings, enabled modules</td><td>tenant, branch, register, tenant_module, settings</td></tr>
+<tr><td>1</td><td>Tenancy</td><td>Tenant → branch → register model, settings, enabled modules, plans and limits</td><td>tenant, branch, register, tenant_module, settings</td></tr>
 <tr><td>2</td><td>Identity &amp; access</td><td>E-mail + password login, two-step sign-in (TOTP), refresh-token rotation, staff PINs, roles and permissions, manager override</td><td>app_user (with the staff PIN hash), role, role_permission, user_role, refresh_token</td></tr>
 <tr><td>3</td><td>Devices</td><td>One-time enrollment codes, device keys, heartbeat, remote lock</td><td>device, device_enrollment, device_heartbeat</td></tr>
 <tr><td>4</td><td>Audit</td><td>Append-only, hash-chained log of every money, stock, price, staff and settings action (INV-09)</td><td>audit_log</td></tr>
@@ -158,6 +158,7 @@
 <thead><tr><th>Device</th><th>MVP support</th></tr></thead>
 <tbody>
 <tr><td>Barcode scanner</td><td>1D/2D scanner working as a keyboard (HID). Must read GS1 DataMatrix (F-701).</td></tr>
+<tr><td>Phone or tablet camera</td><td>Scans 1D codes and GS1 DataMatrix on Android when there is no scanner, for the Lite plan (F-708).</td></tr>
 <tr><td>Receipt printer</td><td>ESC/POS thermal, 80 or 58 mm, over USB, LAN or Bluetooth (F-702).</td></tr>
 <tr><td>Cash drawer</td><td>Opened by the printer's drawer-kick command (F-703).</td></tr>
 <tr><td>Scale</td><td>Label-printing scale; its barcodes carry the weight or price (F-704).</td></tr>
@@ -177,6 +178,7 @@
 <h2 id="watch">Points to watch</h2>
 <div class="callout warn"><span class="ct">Read before planning</span>
 <ol>
+<li><strong>Plans are enforced from the start</strong> (F-1104, BIZ-06), so pilot shops already run on a plan. The prices are a proposal to test in the pilot (<a href="plans.html">Plans</a>).</li>
 <li><strong>Android is in the MVP (F-708)</strong> for the mobile Lite plan. The same React UI goes into the Capacitor shell, plus a phone-sized Sell screen, camera scanning and a Bluetooth/USB printer plugin. Test on a short list of reference phones, tablets and Bluetooth printers; device variety is the main risk.</li>
 <li><strong>The prototype shows a few R2 extras</strong> that are not part of the MVP: e-mailing receipts and statements, SMS to buyers during a recall, and loyalty points.</li>
 <li><strong>Pharmacy and grocery modules are R2, but their basics are core MVP:</strong> batches, expiry, FEFO, generic-name search and scale barcodes.</li>

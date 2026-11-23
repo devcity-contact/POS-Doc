@@ -63,3 +63,5 @@ Later: AI forecasting, e-commerce, delivery apps, self-checkout, restaurant, sal
 
 ## Open questions
 Q-01 secured POS spec; Q-02 RAMIS API; Q-03 NMRA pharmacy records; Q-04 supported hardware list; Q-05 pricing model; Q-06 hardware bundles/support; Q-07 payment partners.
+
+Commercial: four plans, Lite (one Android phone or tablet), Starter, Business, Enterprise (Doc/plans.html). Limits and features come from a plan catalog in code on tenant.plan; a missing feature or a hit limit returns 403 PLAN-001. Late payment: 14-day grace, then read-only admin and no new shifts; a register never stops mid-shift.
