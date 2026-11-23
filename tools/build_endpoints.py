@@ -292,10 +292,10 @@ E("GET", "/api/v1/tax-documents", "List tax invoices, credit and debit notes", "
 E("GET", "/api/v1/tax-documents/{id}", "One tax document", "user", perm="tax.documents.view", screens="A-65", task="TAXD-04")
 E("GET", "/api/v1/tax-documents/{id}/pdf", "Tax document as an A4 PDF", "user", perm="tax.documents.view",
   res="application/pdf", screens="A-65 A-51", task="TAXD-03")
-E("POST", "/api/v1/sales/{id}/tax-invoice", "Issue a tax invoice for an earlier sale", "user", perm="tax.documents.issue (new)",
+E("POST", "/api/v1/sales/{id}/tax-invoice", "Issue a tax invoice for an earlier sale", "user", perm="tax.documents.issue",
   req="buyer name, buyer VAT number", res="201 · tax document", err="422 TAX-002 VAT number not valid · 409 already issued",
   notes="Uses the register's tax invoice series. Audited.", screens="A-51", task="TAXD-01")
-E("POST", "/api/v1/tax-documents/{id}/debit-notes", "Issue a debit note", "user", perm="tax.documents.issue (new)",
+E("POST", "/api/v1/tax-documents/{id}/debit-notes", "Issue a debit note", "user", perm="tax.documents.issue",
   req="lines, reason", res="201 · debit note", notes="Credit notes are issued automatically from returns. Audited.", screens="A-65", task="TAXD-02")
 
 module("sync")
@@ -342,7 +342,7 @@ E("POST", "/api/v1/stock-counts/{id}/lines", "Enter counted quantities", "user",
 E("POST", "/api/v1/stock-counts/{id}/post", "Post a count", "user", perm="stock.adjust",
   req="Idempotency-Key", res="differences and the adjustment movements", err="409 already posted", notes="Audited.", screens="A-44", task="STCK-08")
 E("GET", "/api/v1/stock-exceptions", "Receiving and stock exceptions", "user", req="?status=OPEN, cursor", screens="A-53", task="RECV-05")
-E("POST", "/api/v1/stock-exceptions/{id}/resolve", "Resolve a stock exception with a note", "user", perm="exception.resolve (new)",
+E("POST", "/api/v1/stock-exceptions/{id}/resolve", "Resolve a stock exception with a note", "user", perm="exception.resolve",
   req="note", res="204", notes="Audited.", screens="A-53", task="RECV-05")
 
 module("purchasing")
@@ -372,10 +372,10 @@ E("GET", "/api/v1/sales/{id}", "Sale detail", "user",
   res="lines with their snapshots, batch allocations, payments, tax documents, exceptions", screens="A-51", task="SELL-08")
 E("GET", "/api/v1/sales/by-receipt/{receiptNo}", "Find a sale by its receipt number", "user",
   res="sale with what can still be returned", err="404 unknown receipt", notes="For returns at another register or branch.", screens="R-13 A-52", task="RTRN-05")
-E("GET", "/api/v1/sale-exceptions", "Sale exception queue", "user", perm="exception.resolve (new)",
+E("GET", "/api/v1/sale-exceptions", "Sale exception queue", "user", perm="exception.resolve",
   req="?status=OPEN, type, branchId, cursor", res="NEGATIVE_STOCK, PRICE_MISMATCH, EXPIRED_BATCH_SOLD, CLOCK_SKEW, RECEIPT_COLLISION",
   screens="A-53", task="SELL-06")
-E("POST", "/api/v1/sale-exceptions/{id}/resolve", "Resolve a sale exception with a note", "user", perm="exception.resolve (new)",
+E("POST", "/api/v1/sale-exceptions/{id}/resolve", "Resolve a sale exception with a note", "user", perm="exception.resolve",
   req="note", res="204", notes="The sale itself never changes (INV-02). Audited.", screens="A-53", task="SELL-06")
 E("GET", "/api/v1/returns", "List returns", "user", req="?branchId, from, to, cursor", screens="A-52", task="RTRN-01")
 E("GET", "/api/v1/returns/{id}", "Return detail with its refund and credit note", "user", screens="A-52", task="RTRN-01")
@@ -397,11 +397,11 @@ E("POST", "/api/v1/cash-sessions/{id}/review", "Approve a shift's variance", "us
 
 module("customers")
 E("GET", "/api/v1/customers", "Find customers", "user", req="?q (name or phone), cursor", res="customers with credit balance", screens="A-60 R-09", task="CUST-01")
-E("POST", "/api/v1/customers", "Add a customer", "user", perm="customer.edit (new)",
+E("POST", "/api/v1/customers", "Add a customer", "user", perm="customer.edit",
   req="name, phone, email?", res="201 · customer", err="409 phone already used", screens="A-60", task="CUST-01")
 E("GET", "/api/v1/customers/{id}", "One customer", "user", res="profile and credit summary · ETag", screens="A-61", task="CUST-01")
-E("PUT", "/api/v1/customers/{id}", "Update a customer", "user", perm="customer.edit (new)", req="customer fields · If-Match", err="412", screens="A-61", task="CUST-01")
-E("POST", "/api/v1/customers/merge", "Merge two customer records", "user", perm="customer.edit (new)",
+E("PUT", "/api/v1/customers/{id}", "Update a customer", "user", perm="customer.edit", req="customer fields · If-Match", err="412", screens="A-61", task="CUST-01")
+E("POST", "/api/v1/customers/merge", "Merge two customer records", "user", perm="customer.edit",
   req="keepId, mergeId", res="the kept customer", notes="Moves sales and credit to the kept record. Audited.", screens="A-61", task="CUST-02")
 E("GET", "/api/v1/customers/{id}/credit", "Credit account and ledger", "user", perm="customer.credit.manage",
   req="?from, to, cursor", res="limit, balance, ledger entries", screens="A-61", task="CUST-03")
@@ -414,15 +414,15 @@ E("GET", "/api/v1/customers/{id}/statement", "Customer statement PDF (D-05)", "u
   req="?from, to", res="application/pdf", screens="A-61", task="CUST-06")
 
 module("reporting")
-E("GET", "/api/v1/dashboard", "Dashboard figures", "user", perm="report.view (new)",
+E("GET", "/api/v1/dashboard", "Dashboard figures", "user", perm="report.view",
   req="?branchId, date", res="sales today, top products, low stock, open exceptions, shift variances", screens="A-10", task="REPT-08")
-E("GET", "/api/v1/reports/{reportKey}", "Run a report", "user", perm="report.view (new)",
+E("GET", "/api/v1/reports/{reportKey}", "Run a report", "user", perm="report.view",
   req="key: daily-sales, stock-valuation, expiry, vat, credit-ageing, profit · branchId, from, to", res="rows and totals",
   err="403 AUTH-003: profit needs report.view_profit, vat needs tax.documents.view", screens="A-70 A-67", task="REPT-01")
-E("POST", "/api/v1/exports", "Start a CSV or Excel export", "user", perm="report.view (new)",
+E("POST", "/api/v1/exports", "Start a CSV or Excel export", "user", perm="report.view",
   req="type, format, parameters", res="202 · exportId", err="429 too many jobs (5 per shop)",
   notes="Audited. Phone numbers and e-mails are masked without permission.", screens="A-70", task="REPT-02")
-E("GET", "/api/v1/exports/{id}", "Export progress and download link", "user", perm="report.view (new)",
+E("GET", "/api/v1/exports/{id}", "Export progress and download link", "user", perm="report.view",
   res="status; a signed download URL (5 minutes) when ready", screens="A-70", task="REPT-02")
 
 module("platform")

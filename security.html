@@ -96,14 +96,18 @@ flowchart LR
 <tr><td><code>cash.drawer.no_sale</code></td><td class="c">✓</td><td class="c">✓</td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td></tr>
 <tr><td><code>shift.open_close</code></td><td class="c">✓</td><td class="c">✓</td><td class="c">✓</td><td class="c"></td><td class="c">✓</td><td class="c"></td></tr>
 <tr><td><code>shift.review_variance</code></td><td class="c">✓</td><td class="c">✓</td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td></tr>
+<tr><td><code>exception.resolve</code></td><td class="c">✓</td><td class="c">✓</td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td></tr>
 <tr><td><code>stock.receive</code></td><td class="c">✓</td><td class="c">✓</td><td class="c"></td><td class="c">✓</td><td class="c">✓</td><td class="c"></td></tr>
 <tr><td><code>stock.adjust</code></td><td class="c">✓</td><td class="c">✓</td><td class="c"></td><td class="c">✓ (limit)</td><td class="c"></td><td class="c"></td></tr>
 <tr><td><code>batch.block</code></td><td class="c">✓</td><td class="c">✓</td><td class="c"></td><td class="c"></td><td class="c">✓</td><td class="c"></td></tr>
 <tr><td><code>catalog.edit</code></td><td class="c">✓</td><td class="c">✓</td><td class="c"></td><td class="c">✓</td><td class="c"></td><td class="c"></td></tr>
 <tr><td><code>price.edit</code></td><td class="c">✓</td><td class="c">✓</td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td></tr>
+<tr><td><code>customer.edit</code></td><td class="c">✓</td><td class="c">✓</td><td class="c">✓</td><td class="c"></td><td class="c">✓</td><td class="c"></td></tr>
 <tr><td><code>customer.credit.manage</code></td><td class="c">✓</td><td class="c">✓</td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c">✓</td></tr>
+<tr><td><code>report.view</code></td><td class="c">✓</td><td class="c">✓</td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c">✓</td></tr>
 <tr><td><code>report.view_profit</code></td><td class="c">✓</td><td class="c">✓</td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c">✓</td></tr>
 <tr><td><code>tax.documents.view</code></td><td class="c">✓</td><td class="c">✓</td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c">✓</td></tr>
+<tr><td><code>tax.documents.issue</code></td><td class="c">✓</td><td class="c">✓</td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c">✓</td></tr>
 <tr><td><code>user.manage</code></td><td class="c">✓</td><td class="c">branch only</td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td></tr>
 <tr><td><code>device.manage</code></td><td class="c">✓</td><td class="c">✓</td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td></tr>
 <tr><td><code>tenant.settings</code>, <code>tenant.modules</code></td><td class="c">✓</td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td></tr>
@@ -111,6 +115,12 @@ flowchart LR
 </tbody>
 </table>
 <p>Users can be scoped to branches (<code>user_role.branch_id</code>). A manager of branch A can't approve anything in branch B.</p>
+<ul>
+<li><code>customer.edit</code> lets cashiers add a customer at the till; credit limits still need <code>customer.credit.manage</code>.</li>
+<li><code>exception.resolve</code> covers the sale exception queue and stock exceptions from receiving.</li>
+<li><code>report.view</code> opens the dashboard, reports and exports. The profit report also needs <code>report.view_profit</code>, and the VAT report needs <code>tax.documents.view</code>. Stock keepers and pharmacists see stock and expiry on their own screens, which don't need it.</li>
+<li><code>tax.documents.issue</code> is for issuing a tax invoice for an earlier sale, or a debit note, from the admin app. A tax invoice printed at the till during the sale only needs <code>sale.create</code>.</li>
+</ul>
 
 <h2 id="tenant-isolation">Tenant isolation</h2>
 <ol class="steps">
