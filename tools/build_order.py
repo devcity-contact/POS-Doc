@@ -43,7 +43,7 @@ STAGES = [
    ("SET-02", "Gradle build (Kotlin DSL)", "Java 25 toolchain, version catalog `libs.versions.toml`, dependency locking, build cache.", "tech-stack", None),
    ("SET-03", "Spring Boot 4 application skeleton", "One application, virtual threads on, starts against an empty database.", "tech-stack", None),
    ("SET-04", "Create the 15 empty modules", "tenancy, iam, devices, audit, catalog, pricing, inventory, purchasing, sales, payments, cash, customers, tax, sync, reporting, plus `platform` (shared kernel). Each has its public `*Api` in the module root package, `events/` and `spi/` named interfaces where needed, and an `internal` package with `web/`, `service/`, `repository/` and `model/` (ADR-015).", "modules#map", None),
-   ("SET-05", "Module boundary test", "`ApplicationModules.verify()` runs in CI and fails on a forbidden dependency (INV-08). Generate the Modulith module docs.", "modules#dependencies", None),
+   ("SET-05", "Module boundary test", "`ApplicationModules.verify()` runs in CI and fails on a forbidden dependency (INV-08). Generate the Modulith module docs.", "module-boundaries modules#dependencies", None),
    ("SET-06", "ArchUnit rules", "No `double`/`float` for money or quantities (INV-03), no imports of another module's `internal` package, naming rules, constructor injection only.", "dev-guide#java", None),
    ("SET-07", "Configuration and profiles", "`local`, `test`, `staging`, `prod` profiles. Typed `@ConfigurationProperties`. Secrets come only from environment variables.", "security#data-protection", None),
    ("SET-08", "Local stack with docker compose", "PostgreSQL 18, S3-compatible storage and Mailpit. `docker compose up` gives a running stack.", "deployment", None),
@@ -546,7 +546,7 @@ PAGES = {"dev-guide": "Developer guide", "tech-stack": "Tech stack", "modules": 
          "data-dictionary": "Data dictionary", "offline-sync": "Offline & sync", "roadmap": "Roadmap",
          "flows": "Key flows", "ui-screens": "Screens", "ui-design": "UI design", "extensions": "Extensions",
          "adr": "Decisions", "requirements": "Requirements", "operations": "Operations", "cost": "Cost & scaling",
-         "mvp": "MVP list", "endpoints": "API endpoints", "plans": "Plans", "repository": "Repository & GitHub", "branches": "Branches & naming"}
+         "mvp": "MVP list", "endpoints": "API endpoints", "plans": "Plans", "repository": "Repository & GitHub", "branches": "Branches & naming", "module-boundaries": "Module boundaries"}
 AREAS = {"st": "1 · Store & staff", "ca": "2 · Catalog", "in": "3 · Inventory", "sa": "4 · Sales"}
 
 esc = html.escape

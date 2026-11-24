@@ -27,6 +27,7 @@
       ["architecture.html", "System architecture"],
       ["tech-stack.html", "Technology stack"],
       ["modules.html", "Backend modules"],
+      ["module-boundaries.html", "Module boundaries"],
       ["extensions.html", "Industry extensions"],
       ["data-model.html", "Data model"],
       ["data-dictionary.html", "Data dictionary"],

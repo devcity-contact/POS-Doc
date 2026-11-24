@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg class="rpo" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1180 420" width="1180" height="420" role="img" aria-labelledby="bcrs-title"><title id="bcrs-title">Crossing a module boundary: call another module&#x27;s Api when the answer is needed in the same transaction; publish an event for work that can happen after commit.</title><style>
+.rpo{--be:#2F68D8;--be-bg:#EAF1FD;--pk:#D2612B;--pk-bg:#FDEEE5;--ap:#7A4FD0;--ap-bg:#F2ECFC;--sh:#16855A;--sh-bg:#E4F5EC;
+ --in:#4A5568;--in-bg:#EEF0F4;--out:#0E7C86;--out-bg:#E2F4F5;--me:#4A5568;--me-bg:#EEF0F4;--gh:#2F68D8;--gh-bg:#EAF1FD;--ci:#7A4FD0;--ci-bg:#F2ECFC;
+ --st:#16855A;--st-bg:#E4F5EC;--rl:#C2410C;--rl-bg:#FDEDE3;--ln:#5E6779;--gen:#B5418C;--frame:#2E3A5A;--bgc:#fff;
+ --tx:var(--text,#272932);--tx2:var(--text-3,#6F7889);font-family:Inter,"Segoe UI",system-ui,sans-serif}
+.rpo .b rect{stroke-width:1.6}
+.rpo .b.be rect{fill:var(--be-bg);stroke:var(--be)} .rpo .b.pk rect{fill:var(--pk-bg);stroke:var(--pk)} .rpo .b.ap rect{fill:var(--ap-bg);stroke:var(--ap)}
+.rpo .b.sh rect{fill:var(--sh-bg);stroke:var(--sh)} .rpo .b.in rect{fill:var(--in-bg);stroke:var(--in)} .rpo .b.out rect{fill:var(--out-bg);stroke:var(--out);stroke-dasharray:5 3}
+.rpo .b.me rect{fill:var(--me-bg);stroke:var(--me)} .rpo .b.gh rect{fill:var(--gh-bg);stroke:var(--gh)} .rpo .b.ci rect{fill:var(--ci-bg);stroke:var(--ci)}
+.rpo .b.st rect{fill:var(--st-bg);stroke:var(--st)} .rpo .b.rl rect{fill:var(--rl-bg);stroke:var(--rl)}
+.rpo .b.be{color:var(--be)} .rpo .b.pk{color:var(--pk)} .rpo .b.ap{color:var(--ap)} .rpo .b.sh{color:var(--sh)} .rpo .b.in{color:var(--in)} .rpo .b.out{color:var(--out)}
+.rpo .b.me{color:var(--me)} .rpo .b.gh{color:var(--gh)} .rpo .b.ci{color:var(--ci)} .rpo .b.st{color:var(--st)} .rpo .b.rl{color:var(--rl)}
+.rpo .t{font-size:13px;font-weight:800;fill:currentColor;font-family:Consolas,"Cascadia Code",monospace}
+.rpo .t.plain{font-family:Inter,"Segoe UI",system-ui,sans-serif;letter-spacing:.04em}
+.rpo .x{font-size:12px;fill:var(--tx)} .rpo .x.code{font-family:Consolas,"Cascadia Code",monospace;font-size:11.5px}
+.rpo .sep{stroke:currentColor;opacity:.3}
+.rpo .frame{fill:none;stroke:var(--frame);stroke-width:2;stroke-dasharray:8 5} .rpo .ft{font-size:13px;font-weight:800;letter-spacing:.06em;fill:var(--frame)}
+.rpo .lane{font-size:12px;font-weight:800;letter-spacing:.08em;fill:var(--tx2)}
+.rpo .e{fill:none;stroke-width:1.6} .rpo .e.use{stroke:var(--ln)} .rpo .e.gen{stroke:var(--gen);stroke-dasharray:6 4} .rpo .e.back{stroke:var(--rl);stroke-dasharray:6 4}
+.rpo .ah.use{fill:var(--ln)} .rpo .ah.gen{fill:var(--gen)} .rpo .ah.back{fill:var(--rl)}
+.rpo .el{font-size:11.5px;font-weight:600;paint-order:stroke;stroke:var(--bgc);stroke-width:5px;stroke-linejoin:round;fill:var(--tx)} .rpo .el.gen{fill:var(--gen)} .rpo .el.back{fill:var(--rl)}
+.rpo .lg{font-size:12.5px;fill:var(--tx);font-weight:600} .rpo .lg2{font-size:12.5px;fill:var(--tx2)}
+.rpo{--fx:#C2412D} :root[data-theme="dark"] .rpo{--fx:#FF8A7A}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .rpo{--fx:#FF8A7A}}
+.rpo .br{fill:none;stroke-width:3;stroke-linecap:round} .rpo .br.main{stroke:var(--frame)} .rpo .br.feat{stroke:var(--ap)} .rpo .br.fix{stroke:var(--fx)} .rpo .br.rel{stroke:var(--rl)}
+.rpo .cm{fill:var(--bgc);stroke-width:3} .rpo .cm.main{stroke:var(--frame)} .rpo .cm.feat{stroke:var(--ap)} .rpo .cm.fix{stroke:var(--fx)} .rpo .cm.rel{stroke:var(--rl)}
+.rpo .bl{font-size:12.5px;font-weight:800;letter-spacing:.06em} .rpo .bl.main{fill:var(--frame)} .rpo .bl.feat{fill:var(--ap)} .rpo .bl.fix{fill:var(--fx)} .rpo .bl.rel{fill:var(--rl)}
+.rpo .bn{font-size:12px;font-family:Consolas,"Cascadia Code",monospace;font-weight:700} .rpo .bn.feat{fill:var(--ap)} .rpo .bn.fix{fill:var(--fx)} .rpo .bn.rel{fill:var(--rl)}
+.rpo .tag rect{fill:var(--rl-bg);stroke:var(--rl);stroke-width:1.4} .rpo .tag text{font-size:11.5px;font-weight:700;fill:var(--rl);font-family:Consolas,"Cascadia Code",monospace}
+.rpo .stg rect{fill:var(--st-bg);stroke:var(--st);stroke-width:1.2} .rpo .stg text{font-size:11px;font-weight:700;fill:var(--st)}
+.rpo .b.fx rect{fill:var(--bgc);stroke:var(--fx)} .rpo .b.mn rect{fill:var(--bgc);stroke:var(--frame)}
+.rpo .e.cp{stroke:var(--fx);stroke-dasharray:6 4} .rpo .ah.cp{fill:var(--fx)} .rpo .el.cp{fill:var(--fx)}
+:root[data-theme="dark"] .rpo{--be:#7FA8FF;--be-bg:#1B2840;--pk:#FF9D6B;--pk-bg:#382218;--ap:#B99BFF;--ap-bg:#251C3A;--sh:#5BD49A;--sh-bg:#142D24;
+ --in:#A3ABBB;--in-bg:#2A2D37;--out:#4FC9D2;--out-bg:#12292C;--me:#A3ABBB;--me-bg:#2A2D37;--gh:#7FA8FF;--gh-bg:#1B2840;--ci:#B99BFF;--ci-bg:#251C3A;
+ --st:#5BD49A;--st-bg:#142D24;--rl:#FF9D6B;--rl-bg:#382218;--ln:#A3ABBB;--gen:#F28AC8;--frame:#B4C0DE;--bgc:#272932}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .rpo{--be:#7FA8FF;--be-bg:#1B2840;--pk:#FF9D6B;--pk-bg:#382218;--ap:#B99BFF;--ap-bg:#251C3A;--sh:#5BD49A;--sh-bg:#142D24;
+ --in:#A3ABBB;--in-bg:#2A2D37;--out:#4FC9D2;--out-bg:#12292C;--me:#A3ABBB;--me-bg:#2A2D37;--gh:#7FA8FF;--gh-bg:#1B2840;--ci:#B99BFF;--ci-bg:#251C3A;
+ --st:#5BD49A;--st-bg:#142D24;--rl:#FF9D6B;--rl-bg:#382218;--ln:#A3ABBB;--gen:#F28AC8;--frame:#B4C0DE;--bgc:#272932}}
+
+.rpo .e.ok{stroke:var(--st);stroke-width:2} .rpo .ah.ok{fill:var(--st)} .rpo .el.ok{fill:var(--st)}
+.rpo .e.no{stroke:var(--fx);stroke-width:2;stroke-dasharray:7 5} .rpo .ah.no{fill:var(--fx)} .rpo .el.no{fill:var(--fx)}
+.rpo .e.ev{stroke:var(--ap);stroke-width:2;stroke-dasharray:6 4} .rpo .ah.ev{fill:var(--ap)} .rpo .el.ev{fill:var(--ap)}
+.rpo .pv{fill:none;stroke:var(--in);stroke-width:1.4;stroke-dasharray:5 4} .rpo .pvt{font-size:12px;font-weight:800;letter-spacing:.05em;fill:var(--in)}
+.rpo .pkg{font-size:12px;fill:var(--tx2);font-family:Consolas,"Cascadia Code",monospace}
+.rpo .b.fail rect{fill:var(--bgc);stroke:var(--fx);stroke-width:2} .rpo .b.fail{color:var(--fx)}
+.rpo .b.pass rect{fill:var(--st-bg);stroke:var(--st);stroke-width:2} .rpo .b.pass{color:var(--st)}
+
+.rpo .bg{fill:#FDFFFC}
+@media (prefers-color-scheme:dark){.rpo{--be:#7FA8FF;--be-bg:#1B2840;--pk:#FF9D6B;--pk-bg:#382218;--ap:#B99BFF;--ap-bg:#251C3A;--sh:#5BD49A;--sh-bg:#142D24;
+ --in:#A3ABBB;--in-bg:#2A2D37;--out:#4FC9D2;--out-bg:#12292C;--me:#A3ABBB;--me-bg:#2A2D37;--gh:#7FA8FF;--gh-bg:#1B2840;--ci:#B99BFF;--ci-bg:#251C3A;
+ --st:#5BD49A;--st-bg:#142D24;--rl:#FF9D6B;--rl-bg:#382218;--ln:#A3ABBB;--gen:#F28AC8;--frame:#B4C0DE;--bgc:#1E2028;--tx:#E6E9EF;--tx2:#9AA3B5}.rpo .bg{fill:#1E2028}}
+</style><defs><marker id="bcrs-use" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah use" d="M0,0 L10,5 L0,10 z"/></marker><marker id="bcrs-ok" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah ok" d="M0,0 L10,5 L0,10 z"/></marker><marker id="bcrs-no" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah no" d="M0,0 L10,5 L0,10 z"/></marker><marker id="bcrs-ev" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah ev" d="M0,0 L10,5 L0,10 z"/></marker></defs><rect class="bg" width="1180" height="420"/><g class="b be"><rect x="30" y="19" width="14" height="14" rx="3"/></g><text class="lg" x="51" y="30" text-anchor="start">Code inside a module</text><g class="b st"><rect x="219.0" y="19" width="14" height="14" rx="3"/></g><text class="lg" x="240.0" y="30" text-anchor="start">Another module&#x27;s Api: same transaction</text><g class="b ap"><rect x="537.6" y="19" width="14" height="14" rx="3"/></g><text class="lg" x="558.6" y="30" text-anchor="start">An event: handled after commit</text><text class="lg2" x="30" y="56" text-anchor="start">Arrows show the flow of a call or an event. Both paths only touch public parts.</text><g class="b be"><rect x="30" y="110" width="260" height="118" rx="10"/><text class="t" x="42" y="131">sales · SaleService</text><line class="sep" x1="30" y1="141" x2="290" y2="141"/><text class="x" x="42" y="158">recordSale(…)</text><text class="x" x="42" y="174">@Transactional:</text><text class="x" x="42" y="190">one database transaction</text><text class="x" x="42" y="206">for stock, tax and the sale</text></g><g class="b st"><rect x="470" y="76" width="330" height="62" rx="10"/><text class="t" x="482" y="97">inventory · InventoryApi</text><line class="sep" x1="470" y1="107" x2="800" y2="107"/><text class="x" x="482" y="124">allocateAndDeduct(…): stock leaves now</text></g><g class="b st"><rect x="470" y="150" width="330" height="62" rx="10"/><text class="t" x="482" y="171">tax · TaxApi</text><line class="sep" x1="470" y1="181" x2="800" y2="181"/><text class="x" x="482" y="198">issueDocument(…): tax invoice number now</text></g><path class="e ok" d="M290,140 L380,140 L380,107 L464,107" marker-end="url(#bcrs-ok)"/><path class="e ok" d="M290,181 L464,181" marker-end="url(#bcrs-ok)"/><text class="el ok" x="300" y="172" text-anchor="start">needs the answer now</text><g class="b ap"><rect x="470" y="262" width="330" height="62" rx="10"/><text class="t" x="482" y="283">sales/events · SaleCompleted</text><line class="sep" x1="470" y1="293" x2="800" y2="293"/><text class="x" x="482" y="310">published inside the transaction</text></g><path class="e ev" d="M160,228 L160,293 L464,293" marker-end="url(#bcrs-ev)"/><text class="el ev" x="172" y="282" text-anchor="start">publishes</text><g class="b be"><rect x="900" y="206" width="260" height="78" rx="10"/><text class="t" x="912" y="227">customers · listener</text><line class="sep" x1="900" y1="237" x2="1160" y2="237"/><text class="x" x="912" y="254">@ApplicationModuleListener</text><text class="x" x="912" y="270">updates visit stats</text></g><g class="b be"><rect x="900" y="300" width="260" height="78" rx="10"/><text class="t" x="912" y="321">reporting · listener</text><line class="sep" x1="900" y1="331" x2="1160" y2="331"/><text class="x" x="912" y="348">@ApplicationModuleListener</text><text class="x" x="912" y="364">updates daily totals</text></g><path class="e ev" d="M800,293 L840,293 L840,245 L894,245" marker-end="url(#bcrs-ev)"/><path class="e ev" d="M840,293 L840,339 L894,339" marker-end="url(#bcrs-ev)"/><text class="el ev" x="845" y="404" text-anchor="middle">after commit; retried until handled (outbox)</text></svg>

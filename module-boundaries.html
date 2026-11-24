@@ -1,0 +1,420 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Module boundaries · RetailOS</title>
+<meta name="description" content="How RetailOS keeps its backend modules apart: every top-level package is a module, only its root package, events and spi are public, internal is private, platform is open; ApplicationModules.verify() checks every dependency in tests, modulithVerify and CI, with examples, failure output and limits.">
+<link rel="stylesheet" href="assets/site.css">
+<script>try{var t=localStorage.getItem("retailos-theme");if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
+</head>
+<body>
+<header id="topbar"></header>
+<div class="layout">
+<nav id="sidebar"></nav>
+<main class="content"><article>
+
+<h1>Module boundaries</h1>
+<p class="lead">The backend is one application split into 15 business modules plus <code>platform</code>. A module may use only the <strong>public parts</strong> of another module: its <code>*Api</code>, its <code>events</code> and its <code>spi</code>. Everything in a module's <code>internal</code> package is private. A test reads the compiled code on every build and <strong>fails the build</strong> when a rule is broken (<span class="inv">INV-08</span>).</p>
+
+<div class="callout tip"><span class="ct">In one sentence</span>
+The package structure decides what a module is, two annotations decide what is public, and <code>ApplicationModules.verify()</code> checks every dependency. Built in <a href="build-order.html#set-04">SET-04</a> (the modules) and <a href="build-order.html#set-05">SET-05</a> (the check).</div>
+
+<h2 id="picture">The picture</h2>
+<figure class="db-map-fig">
+<div class="db-tools"><button type="button" class="icon-btn" data-fit-toggle="bmap-scroll">Fit to width</button><a class="icon-btn" href="assets/boundary-map.svg" target="_blank" rel="noopener">Open full size ↗</a></div>
+<div class="db-scroll" id="bmap-scroll"><!-- boundary-map:start -->
+<svg class="rpo" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1180 620" width="1180" height="620" role="img" aria-labelledby="bmap-title"><title id="bmap-title">What one module can see of another: the public root package, events and spi; never another module&#x27;s internal package. platform is open to all.</title><style>
+.rpo{--be:#2F68D8;--be-bg:#EAF1FD;--pk:#D2612B;--pk-bg:#FDEEE5;--ap:#7A4FD0;--ap-bg:#F2ECFC;--sh:#16855A;--sh-bg:#E4F5EC;
+ --in:#4A5568;--in-bg:#EEF0F4;--out:#0E7C86;--out-bg:#E2F4F5;--me:#4A5568;--me-bg:#EEF0F4;--gh:#2F68D8;--gh-bg:#EAF1FD;--ci:#7A4FD0;--ci-bg:#F2ECFC;
+ --st:#16855A;--st-bg:#E4F5EC;--rl:#C2410C;--rl-bg:#FDEDE3;--ln:#5E6779;--gen:#B5418C;--frame:#2E3A5A;--bgc:#fff;
+ --tx:var(--text,#272932);--tx2:var(--text-3,#6F7889);font-family:Inter,"Segoe UI",system-ui,sans-serif}
+.rpo .b rect{stroke-width:1.6}
+.rpo .b.be rect{fill:var(--be-bg);stroke:var(--be)} .rpo .b.pk rect{fill:var(--pk-bg);stroke:var(--pk)} .rpo .b.ap rect{fill:var(--ap-bg);stroke:var(--ap)}
+.rpo .b.sh rect{fill:var(--sh-bg);stroke:var(--sh)} .rpo .b.in rect{fill:var(--in-bg);stroke:var(--in)} .rpo .b.out rect{fill:var(--out-bg);stroke:var(--out);stroke-dasharray:5 3}
+.rpo .b.me rect{fill:var(--me-bg);stroke:var(--me)} .rpo .b.gh rect{fill:var(--gh-bg);stroke:var(--gh)} .rpo .b.ci rect{fill:var(--ci-bg);stroke:var(--ci)}
+.rpo .b.st rect{fill:var(--st-bg);stroke:var(--st)} .rpo .b.rl rect{fill:var(--rl-bg);stroke:var(--rl)}
+.rpo .b.be{color:var(--be)} .rpo .b.pk{color:var(--pk)} .rpo .b.ap{color:var(--ap)} .rpo .b.sh{color:var(--sh)} .rpo .b.in{color:var(--in)} .rpo .b.out{color:var(--out)}
+.rpo .b.me{color:var(--me)} .rpo .b.gh{color:var(--gh)} .rpo .b.ci{color:var(--ci)} .rpo .b.st{color:var(--st)} .rpo .b.rl{color:var(--rl)}
+.rpo .t{font-size:13px;font-weight:800;fill:currentColor;font-family:Consolas,"Cascadia Code",monospace}
+.rpo .t.plain{font-family:Inter,"Segoe UI",system-ui,sans-serif;letter-spacing:.04em}
+.rpo .x{font-size:12px;fill:var(--tx)} .rpo .x.code{font-family:Consolas,"Cascadia Code",monospace;font-size:11.5px}
+.rpo .sep{stroke:currentColor;opacity:.3}
+.rpo .frame{fill:none;stroke:var(--frame);stroke-width:2;stroke-dasharray:8 5} .rpo .ft{font-size:13px;font-weight:800;letter-spacing:.06em;fill:var(--frame)}
+.rpo .lane{font-size:12px;font-weight:800;letter-spacing:.08em;fill:var(--tx2)}
+.rpo .e{fill:none;stroke-width:1.6} .rpo .e.use{stroke:var(--ln)} .rpo .e.gen{stroke:var(--gen);stroke-dasharray:6 4} .rpo .e.back{stroke:var(--rl);stroke-dasharray:6 4}
+.rpo .ah.use{fill:var(--ln)} .rpo .ah.gen{fill:var(--gen)} .rpo .ah.back{fill:var(--rl)}
+.rpo .el{font-size:11.5px;font-weight:600;paint-order:stroke;stroke:var(--bgc);stroke-width:5px;stroke-linejoin:round;fill:var(--tx)} .rpo .el.gen{fill:var(--gen)} .rpo .el.back{fill:var(--rl)}
+.rpo .lg{font-size:12.5px;fill:var(--tx);font-weight:600} .rpo .lg2{font-size:12.5px;fill:var(--tx2)}
+.rpo{--fx:#C2412D} :root[data-theme="dark"] .rpo{--fx:#FF8A7A}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .rpo{--fx:#FF8A7A}}
+.rpo .br{fill:none;stroke-width:3;stroke-linecap:round} .rpo .br.main{stroke:var(--frame)} .rpo .br.feat{stroke:var(--ap)} .rpo .br.fix{stroke:var(--fx)} .rpo .br.rel{stroke:var(--rl)}
+.rpo .cm{fill:var(--bgc);stroke-width:3} .rpo .cm.main{stroke:var(--frame)} .rpo .cm.feat{stroke:var(--ap)} .rpo .cm.fix{stroke:var(--fx)} .rpo .cm.rel{stroke:var(--rl)}
+.rpo .bl{font-size:12.5px;font-weight:800;letter-spacing:.06em} .rpo .bl.main{fill:var(--frame)} .rpo .bl.feat{fill:var(--ap)} .rpo .bl.fix{fill:var(--fx)} .rpo .bl.rel{fill:var(--rl)}
+.rpo .bn{font-size:12px;font-family:Consolas,"Cascadia Code",monospace;font-weight:700} .rpo .bn.feat{fill:var(--ap)} .rpo .bn.fix{fill:var(--fx)} .rpo .bn.rel{fill:var(--rl)}
+.rpo .tag rect{fill:var(--rl-bg);stroke:var(--rl);stroke-width:1.4} .rpo .tag text{font-size:11.5px;font-weight:700;fill:var(--rl);font-family:Consolas,"Cascadia Code",monospace}
+.rpo .stg rect{fill:var(--st-bg);stroke:var(--st);stroke-width:1.2} .rpo .stg text{font-size:11px;font-weight:700;fill:var(--st)}
+.rpo .b.fx rect{fill:var(--bgc);stroke:var(--fx)} .rpo .b.mn rect{fill:var(--bgc);stroke:var(--frame)}
+.rpo .e.cp{stroke:var(--fx);stroke-dasharray:6 4} .rpo .ah.cp{fill:var(--fx)} .rpo .el.cp{fill:var(--fx)}
+:root[data-theme="dark"] .rpo{--be:#7FA8FF;--be-bg:#1B2840;--pk:#FF9D6B;--pk-bg:#382218;--ap:#B99BFF;--ap-bg:#251C3A;--sh:#5BD49A;--sh-bg:#142D24;
+ --in:#A3ABBB;--in-bg:#2A2D37;--out:#4FC9D2;--out-bg:#12292C;--me:#A3ABBB;--me-bg:#2A2D37;--gh:#7FA8FF;--gh-bg:#1B2840;--ci:#B99BFF;--ci-bg:#251C3A;
+ --st:#5BD49A;--st-bg:#142D24;--rl:#FF9D6B;--rl-bg:#382218;--ln:#A3ABBB;--gen:#F28AC8;--frame:#B4C0DE;--bgc:#272932}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .rpo{--be:#7FA8FF;--be-bg:#1B2840;--pk:#FF9D6B;--pk-bg:#382218;--ap:#B99BFF;--ap-bg:#251C3A;--sh:#5BD49A;--sh-bg:#142D24;
+ --in:#A3ABBB;--in-bg:#2A2D37;--out:#4FC9D2;--out-bg:#12292C;--me:#A3ABBB;--me-bg:#2A2D37;--gh:#7FA8FF;--gh-bg:#1B2840;--ci:#B99BFF;--ci-bg:#251C3A;
+ --st:#5BD49A;--st-bg:#142D24;--rl:#FF9D6B;--rl-bg:#382218;--ln:#A3ABBB;--gen:#F28AC8;--frame:#B4C0DE;--bgc:#272932}}
+
+.rpo .e.ok{stroke:var(--st);stroke-width:2} .rpo .ah.ok{fill:var(--st)} .rpo .el.ok{fill:var(--st)}
+.rpo .e.no{stroke:var(--fx);stroke-width:2;stroke-dasharray:7 5} .rpo .ah.no{fill:var(--fx)} .rpo .el.no{fill:var(--fx)}
+.rpo .e.ev{stroke:var(--ap);stroke-width:2;stroke-dasharray:6 4} .rpo .ah.ev{fill:var(--ap)} .rpo .el.ev{fill:var(--ap)}
+.rpo .pv{fill:none;stroke:var(--in);stroke-width:1.4;stroke-dasharray:5 4} .rpo .pvt{font-size:12px;font-weight:800;letter-spacing:.05em;fill:var(--in)}
+.rpo .pkg{font-size:12px;fill:var(--tx2);font-family:Consolas,"Cascadia Code",monospace}
+.rpo .b.fail rect{fill:var(--bgc);stroke:var(--fx);stroke-width:2} .rpo .b.fail{color:var(--fx)}
+.rpo .b.pass rect{fill:var(--st-bg);stroke:var(--st);stroke-width:2} .rpo .b.pass{color:var(--st)}
+</style><defs><marker id="bmap-use" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah use" d="M0,0 L10,5 L0,10 z"/></marker><marker id="bmap-ok" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah ok" d="M0,0 L10,5 L0,10 z"/></marker><marker id="bmap-no" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah no" d="M0,0 L10,5 L0,10 z"/></marker><marker id="bmap-ev" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah ev" d="M0,0 L10,5 L0,10 z"/></marker></defs><g class="b st"><rect x="30" y="19" width="14" height="14" rx="3"/></g><text class="lg" x="51" y="30" text-anchor="start">Public: other modules may use</text><g class="b in"><rect x="283.8" y="19" width="14" height="14" rx="3"/></g><text class="lg" x="304.8" y="30" text-anchor="start">Private: internal/</text><g class="b pk"><rect x="458.4" y="19" width="14" height="14" rx="3"/></g><text class="lg" x="479.4" y="30" text-anchor="start">platform: open to every module</text><text class="lg2" x="30" y="56" text-anchor="start">Arrows point from the code that uses to the code it uses. Green: allowed. Red dashed: the boundary check fails the build.</text><rect class="frame" x="30" y="76" width="400" height="400" rx="16"/><text class="ft" x="46" y="100" text-anchor="start">MODULE · sales</text><text class="pkg" x="46" y="118" text-anchor="start">com.devcity.retailos.sales</text><g class="b st"><rect x="46" y="132" width="116" height="62" rx="10"/><text class="t" x="58" y="153">SalesApi</text><line class="sep" x1="46" y1="163" x2="162" y2="163"/><text class="x" x="58" y="180">root package</text></g><g class="b st"><rect x="172" y="132" width="116" height="62" rx="10"/><text class="t" x="184" y="153">events/</text><line class="sep" x1="172" y1="163" x2="288" y2="163"/><text class="x" x="184" y="180">SaleCompleted</text></g><g class="b st"><rect x="298" y="132" width="116" height="62" rx="10"/><text class="t" x="310" y="153">spi/</text><line class="sep" x1="298" y1="163" x2="414" y2="163"/><text class="x" x="310" y="180">validators</text></g><rect class="pv" x="46" y="210" width="368" height="250" rx="12"/><text class="pvt" x="60" y="232" text-anchor="start">internal/  ·  private to sales</text><g class="b in"><rect x="60" y="246" width="163" height="90" rx="10"/><text class="t" x="72" y="267">web/</text><line class="sep" x1="60" y1="277" x2="223" y2="277"/><text class="x" x="72" y="294">controllers</text><text class="x" x="72" y="310">REST /api/v1/sales</text></g><g class="b in"><rect x="237" y="246" width="163" height="90" rx="10"/><text class="t" x="249" y="267">service/</text><line class="sep" x1="237" y1="277" x2="400" y2="277"/><text class="x" x="249" y="294">SaleService</text><text class="x" x="249" y="310">business rules</text></g><g class="b in"><rect x="60" y="352" width="163" height="90" rx="10"/><text class="t" x="72" y="373">repository/</text><line class="sep" x1="60" y1="383" x2="223" y2="383"/><text class="x" x="72" y="400">JPA, JdbcClient</text></g><g class="b in"><rect x="237" y="352" width="163" height="90" rx="10"/><text class="t" x="249" y="373">model/</text><line class="sep" x1="237" y1="383" x2="400" y2="383"/><text class="x" x="249" y="400">entities</text></g><rect class="frame" x="750" y="76" width="400" height="400" rx="16"/><text class="ft" x="766" y="100" text-anchor="start">MODULE · inventory</text><text class="pkg" x="766" y="118" text-anchor="start">com.devcity.retailos.inventory</text><g class="b st"><rect x="766" y="132" width="180" height="62" rx="10"/><text class="t" x="778" y="153">InventoryApi</text><line class="sep" x1="766" y1="163" x2="946" y2="163"/><text class="x" x="778" y="180">root package</text></g><g class="b st"><rect x="956" y="132" width="178" height="62" rx="10"/><text class="t" x="968" y="153">events/</text><line class="sep" x1="956" y1="163" x2="1134" y2="163"/><text class="x" x="968" y="180">StockLow, BatchNearExpiry</text></g><rect class="pv" x="766" y="210" width="368" height="250" rx="12"/><text class="pvt" x="780" y="232" text-anchor="start">internal/  ·  private to inventory</text><g class="b in"><rect x="780" y="246" width="163" height="90" rx="10"/><text class="t" x="792" y="267">service/</text><line class="sep" x1="780" y1="277" x2="943" y2="277"/><text class="x" x="792" y="294">StockService</text><text class="x" x="792" y="310">FEFO allocation</text></g><g class="b in"><rect x="957" y="246" width="163" height="90" rx="10"/><text class="t" x="969" y="267">web/</text><line class="sep" x1="957" y1="277" x2="1120" y2="277"/><text class="x" x="969" y="294">controllers</text></g><g class="b in"><rect x="780" y="352" width="163" height="90" rx="10"/><text class="t" x="792" y="373">model/</text><line class="sep" x1="780" y1="383" x2="943" y2="383"/><text class="x" x="792" y="400">entities</text></g><g class="b in"><rect x="957" y="352" width="163" height="90" rx="10"/><text class="t" x="969" y="373">repository/</text><line class="sep" x1="957" y1="383" x2="1120" y2="383"/><text class="x" x="969" y="400">JPA, JdbcClient</text></g><path class="e ok" d="M400,272 L575,272 L575,163 L762,163" marker-end="url(#bmap-ok)"/><text class="el ok" x="668" y="152" text-anchor="middle">✓ calls InventoryApi</text><path class="e no" d="M400,318 L774,318" marker-end="url(#bmap-no)"/><text class="el no" x="587" y="306" text-anchor="middle">✗ sales → inventory.internal: build fails</text><g class="b pk"><rect x="30" y="520" width="1120" height="74" rx="10"/><text class="t" x="42" y="541">platform  ·  open module (shared kernel)</text><line class="sep" x1="30" y1="551" x2="1150" y2="551"/><text class="x" x="42" y="568">Money and quantity types, ids, clock and business date, JSON settings, error responses, request context, tenant-aware transactions: every module may use all of it.</text></g><path class="e ok" d="M230,476 L230,514" marker-end="url(#bmap-ok)"/><text class="el ok" x="242" y="500" text-anchor="start">✓ every module may use platform</text><path class="e ok" d="M950,476 L950,514" marker-end="url(#bmap-ok)"/><path class="e no" d="M590,520 L590,440 L436,440" marker-end="url(#bmap-no)"/><text class="el no" x="600" y="500" text-anchor="start">✗ platform → a business module</text></svg>
+<!-- boundary-map:end --></div>
+<figcaption>Sales may call <code>InventoryApi</code> in inventory's root package, but not <code>StockService</code> in <code>inventory/internal</code>. Every module may use <code>platform</code>; <code>platform</code> may use no business module. Generated by <code>tools/build_boundary_diagrams.py</code>.</figcaption>
+</figure>
+
+<h2 id="what-is-a-module">1 · Every top-level package is a module</h2>
+<p>Spring Modulith starts from the package of the main class, <code>com.devcity.retailos</code> (where <code>RetailOsApplication</code> lives). <strong>Every package directly below it is one module.</strong> There is no list to keep up to date: a new top-level package is a new module on the next build.</p>
+<pre><code>com.devcity.retailos
+├── RetailOsApplication.java
+├── tenancy/  iam/  devices/  audit/                    store &amp; staff
+├── catalog/  pricing/  tax/                            catalog &amp; pricing
+├── inventory/  purchasing/                             inventory
+├── sales/  payments/  cash/  customers/                sales &amp; money
+├── sync/  reporting/                                   edge
+└── platform/                                           shared kernel (open)</code></pre>
+<p>What each module owns and offers is on <a href="modules.html#map">Backend modules</a>. A test (<code>ModuleLayoutTest</code>) checks that Spring Modulith finds exactly these 16 modules, so a package added at the wrong level is caught.</p>
+
+<h2 id="public-private">2 · What is public and what is private</h2>
+<p>Spring Modulith's rule: <strong>a module's root package is public; every sub-package is private</strong> unless it is marked as a <em>named interface</em>. RetailOS uses the same layout in every module (<a href="adr.html#adr-015">ADR-015</a>):</p>
+<pre><code>com.devcity.retailos.sales/
+├── package-info.java   @ApplicationModule          root package: PUBLIC  (SalesApi lives here)
+├── events/             @NamedInterface("events")   PUBLIC: SaleCompleted, SaleReturned, SaleException
+├── spi/                @NamedInterface("spi")      PUBLIC: SaleLineValidator
+└── internal/           (no annotation)             PRIVATE to sales
+    ├── web/            controllers
+    ├── service/        SaleService: business rules, implements SalesApi
+    ├── repository/     JPA repositories, JdbcClient queries
+    └── model/          entities</code></pre>
+<table>
+<thead><tr><th>Package</th><th>Marked with</th><th>Visible to other modules?</th><th>What goes in it</th></tr></thead>
+<tbody>
+<tr><td>Module root, e.g. <code>sales</code></td><td><code>@ApplicationModule</code> in <code>package-info.java</code></td><td>Yes</td><td>The <code>*Api</code> interface and the records it takes and returns. Nothing else.</td></tr>
+<tr><td><code>events/</code></td><td><code>@NamedInterface("events")</code></td><td>Yes</td><td>Event records the module publishes, e.g. <code>SaleCompleted</code>. Only in modules that publish events.</td></tr>
+<tr><td><code>spi/</code></td><td><code>@NamedInterface("spi")</code></td><td>Yes</td><td>Interfaces other code implements to plug in, e.g. <code>SaleLineValidator</code> for <a href="extensions.html">industry extensions</a>. Only in <code>sales</code> and <code>pricing</code> today.</td></tr>
+<tr><td><code>internal/</code> and everything below</td><td>nothing</td><td><strong>No</strong></td><td>Controllers, services, repositories, entities, helpers. Free to change without breaking another module.</td></tr>
+</tbody>
+</table>
+<p>The root <code>package-info.java</code> of <code>sales</code> as it is in the code:</p>
+<pre><code>/**
+ * Sales module.
+ *
+ * &lt;p&gt;A completed sale is a fact: never rejected, updated or deleted (INV-02).
+ * &lt;p&gt;Owns tables: sale, sale_line, sale_line_allocation, sale_return, …
+ * &lt;p&gt;Other modules use it only through SalesApi in this package, its events and its spi (INV-08).
+ */
+@ApplicationModule(displayName = "Sales")
+package com.devcity.retailos.sales;
+
+import org.springframework.modulith.ApplicationModule;</code></pre>
+<p>And <code>sales/events/package-info.java</code>:</p>
+<pre><code>@NamedInterface("events")
+package com.devcity.retailos.sales.events;
+
+import org.springframework.modulith.NamedInterface;</code></pre>
+<div class="callout"><span class="ct">Why the Api is an interface</span>
+<code>SalesApi</code> is an interface in the public root package; <code>SaleService</code> in <code>internal/service</code> implements it. Other modules only ever see the interface and the records it uses, so <code>sales</code> can rename, split or rewrite its services and entities without touching any other module. Never return an entity from an Api: return a record.</div>
+
+<h2 id="platform">3 · platform is open to everyone</h2>
+<p><code>platform</code> is the shared kernel: money and quantity types, ids, the clock and business date, JSON settings, error responses, request context and the tenant-aware transaction set-up (<a href="build-order.html#core-01">CORE-01</a> to <a href="build-order.html#core-14">CORE-14</a>). Every module needs these, so <code>platform</code> is an <strong>open</strong> module: all of its packages are public.</p>
+<pre><code>@ApplicationModule(displayName = "Platform (shared kernel)", type = ApplicationModule.Type.OPEN)
+package com.devcity.retailos.platform;</code></pre>
+<p>It works in one direction only: <code>extensions → core modules → platform</code> (<a href="modules.html#dependencies">dependency rules</a>). <code>platform</code> has no business rules and no tables, and it may not use any business module. A separate test checks this, because "open" would otherwise let it slip through.</p>
+
+<h2 id="the-check">4 · The check</h2>
+<figure class="db-map-fig">
+<div class="db-tools"><button type="button" class="icon-btn" data-fit-toggle="bchk-scroll">Fit to width</button><a class="icon-btn" href="assets/boundary-check.svg" target="_blank" rel="noopener">Open full size ↗</a></div>
+<div class="db-scroll" id="bchk-scroll"><!-- boundary-check:start -->
+<svg class="rpo" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1180 232" width="1180" height="232" role="img" aria-labelledby="bchk-title"><title id="bchk-title">How the module boundary check runs: on every test run, on modulithVerify and in CI; it reads the compiled code and fails with the module, class and line.</title><style>
+.rpo{--be:#2F68D8;--be-bg:#EAF1FD;--pk:#D2612B;--pk-bg:#FDEEE5;--ap:#7A4FD0;--ap-bg:#F2ECFC;--sh:#16855A;--sh-bg:#E4F5EC;
+ --in:#4A5568;--in-bg:#EEF0F4;--out:#0E7C86;--out-bg:#E2F4F5;--me:#4A5568;--me-bg:#EEF0F4;--gh:#2F68D8;--gh-bg:#EAF1FD;--ci:#7A4FD0;--ci-bg:#F2ECFC;
+ --st:#16855A;--st-bg:#E4F5EC;--rl:#C2410C;--rl-bg:#FDEDE3;--ln:#5E6779;--gen:#B5418C;--frame:#2E3A5A;--bgc:#fff;
+ --tx:var(--text,#272932);--tx2:var(--text-3,#6F7889);font-family:Inter,"Segoe UI",system-ui,sans-serif}
+.rpo .b rect{stroke-width:1.6}
+.rpo .b.be rect{fill:var(--be-bg);stroke:var(--be)} .rpo .b.pk rect{fill:var(--pk-bg);stroke:var(--pk)} .rpo .b.ap rect{fill:var(--ap-bg);stroke:var(--ap)}
+.rpo .b.sh rect{fill:var(--sh-bg);stroke:var(--sh)} .rpo .b.in rect{fill:var(--in-bg);stroke:var(--in)} .rpo .b.out rect{fill:var(--out-bg);stroke:var(--out);stroke-dasharray:5 3}
+.rpo .b.me rect{fill:var(--me-bg);stroke:var(--me)} .rpo .b.gh rect{fill:var(--gh-bg);stroke:var(--gh)} .rpo .b.ci rect{fill:var(--ci-bg);stroke:var(--ci)}
+.rpo .b.st rect{fill:var(--st-bg);stroke:var(--st)} .rpo .b.rl rect{fill:var(--rl-bg);stroke:var(--rl)}
+.rpo .b.be{color:var(--be)} .rpo .b.pk{color:var(--pk)} .rpo .b.ap{color:var(--ap)} .rpo .b.sh{color:var(--sh)} .rpo .b.in{color:var(--in)} .rpo .b.out{color:var(--out)}
+.rpo .b.me{color:var(--me)} .rpo .b.gh{color:var(--gh)} .rpo .b.ci{color:var(--ci)} .rpo .b.st{color:var(--st)} .rpo .b.rl{color:var(--rl)}
+.rpo .t{font-size:13px;font-weight:800;fill:currentColor;font-family:Consolas,"Cascadia Code",monospace}
+.rpo .t.plain{font-family:Inter,"Segoe UI",system-ui,sans-serif;letter-spacing:.04em}
+.rpo .x{font-size:12px;fill:var(--tx)} .rpo .x.code{font-family:Consolas,"Cascadia Code",monospace;font-size:11.5px}
+.rpo .sep{stroke:currentColor;opacity:.3}
+.rpo .frame{fill:none;stroke:var(--frame);stroke-width:2;stroke-dasharray:8 5} .rpo .ft{font-size:13px;font-weight:800;letter-spacing:.06em;fill:var(--frame)}
+.rpo .lane{font-size:12px;font-weight:800;letter-spacing:.08em;fill:var(--tx2)}
+.rpo .e{fill:none;stroke-width:1.6} .rpo .e.use{stroke:var(--ln)} .rpo .e.gen{stroke:var(--gen);stroke-dasharray:6 4} .rpo .e.back{stroke:var(--rl);stroke-dasharray:6 4}
+.rpo .ah.use{fill:var(--ln)} .rpo .ah.gen{fill:var(--gen)} .rpo .ah.back{fill:var(--rl)}
+.rpo .el{font-size:11.5px;font-weight:600;paint-order:stroke;stroke:var(--bgc);stroke-width:5px;stroke-linejoin:round;fill:var(--tx)} .rpo .el.gen{fill:var(--gen)} .rpo .el.back{fill:var(--rl)}
+.rpo .lg{font-size:12.5px;fill:var(--tx);font-weight:600} .rpo .lg2{font-size:12.5px;fill:var(--tx2)}
+.rpo{--fx:#C2412D} :root[data-theme="dark"] .rpo{--fx:#FF8A7A}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .rpo{--fx:#FF8A7A}}
+.rpo .br{fill:none;stroke-width:3;stroke-linecap:round} .rpo .br.main{stroke:var(--frame)} .rpo .br.feat{stroke:var(--ap)} .rpo .br.fix{stroke:var(--fx)} .rpo .br.rel{stroke:var(--rl)}
+.rpo .cm{fill:var(--bgc);stroke-width:3} .rpo .cm.main{stroke:var(--frame)} .rpo .cm.feat{stroke:var(--ap)} .rpo .cm.fix{stroke:var(--fx)} .rpo .cm.rel{stroke:var(--rl)}
+.rpo .bl{font-size:12.5px;font-weight:800;letter-spacing:.06em} .rpo .bl.main{fill:var(--frame)} .rpo .bl.feat{fill:var(--ap)} .rpo .bl.fix{fill:var(--fx)} .rpo .bl.rel{fill:var(--rl)}
+.rpo .bn{font-size:12px;font-family:Consolas,"Cascadia Code",monospace;font-weight:700} .rpo .bn.feat{fill:var(--ap)} .rpo .bn.fix{fill:var(--fx)} .rpo .bn.rel{fill:var(--rl)}
+.rpo .tag rect{fill:var(--rl-bg);stroke:var(--rl);stroke-width:1.4} .rpo .tag text{font-size:11.5px;font-weight:700;fill:var(--rl);font-family:Consolas,"Cascadia Code",monospace}
+.rpo .stg rect{fill:var(--st-bg);stroke:var(--st);stroke-width:1.2} .rpo .stg text{font-size:11px;font-weight:700;fill:var(--st)}
+.rpo .b.fx rect{fill:var(--bgc);stroke:var(--fx)} .rpo .b.mn rect{fill:var(--bgc);stroke:var(--frame)}
+.rpo .e.cp{stroke:var(--fx);stroke-dasharray:6 4} .rpo .ah.cp{fill:var(--fx)} .rpo .el.cp{fill:var(--fx)}
+:root[data-theme="dark"] .rpo{--be:#7FA8FF;--be-bg:#1B2840;--pk:#FF9D6B;--pk-bg:#382218;--ap:#B99BFF;--ap-bg:#251C3A;--sh:#5BD49A;--sh-bg:#142D24;
+ --in:#A3ABBB;--in-bg:#2A2D37;--out:#4FC9D2;--out-bg:#12292C;--me:#A3ABBB;--me-bg:#2A2D37;--gh:#7FA8FF;--gh-bg:#1B2840;--ci:#B99BFF;--ci-bg:#251C3A;
+ --st:#5BD49A;--st-bg:#142D24;--rl:#FF9D6B;--rl-bg:#382218;--ln:#A3ABBB;--gen:#F28AC8;--frame:#B4C0DE;--bgc:#272932}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .rpo{--be:#7FA8FF;--be-bg:#1B2840;--pk:#FF9D6B;--pk-bg:#382218;--ap:#B99BFF;--ap-bg:#251C3A;--sh:#5BD49A;--sh-bg:#142D24;
+ --in:#A3ABBB;--in-bg:#2A2D37;--out:#4FC9D2;--out-bg:#12292C;--me:#A3ABBB;--me-bg:#2A2D37;--gh:#7FA8FF;--gh-bg:#1B2840;--ci:#B99BFF;--ci-bg:#251C3A;
+ --st:#5BD49A;--st-bg:#142D24;--rl:#FF9D6B;--rl-bg:#382218;--ln:#A3ABBB;--gen:#F28AC8;--frame:#B4C0DE;--bgc:#272932}}
+
+.rpo .e.ok{stroke:var(--st);stroke-width:2} .rpo .ah.ok{fill:var(--st)} .rpo .el.ok{fill:var(--st)}
+.rpo .e.no{stroke:var(--fx);stroke-width:2;stroke-dasharray:7 5} .rpo .ah.no{fill:var(--fx)} .rpo .el.no{fill:var(--fx)}
+.rpo .e.ev{stroke:var(--ap);stroke-width:2;stroke-dasharray:6 4} .rpo .ah.ev{fill:var(--ap)} .rpo .el.ev{fill:var(--ap)}
+.rpo .pv{fill:none;stroke:var(--in);stroke-width:1.4;stroke-dasharray:5 4} .rpo .pvt{font-size:12px;font-weight:800;letter-spacing:.05em;fill:var(--in)}
+.rpo .pkg{font-size:12px;fill:var(--tx2);font-family:Consolas,"Cascadia Code",monospace}
+.rpo .b.fail rect{fill:var(--bgc);stroke:var(--fx);stroke-width:2} .rpo .b.fail{color:var(--fx)}
+.rpo .b.pass rect{fill:var(--st-bg);stroke:var(--st);stroke-width:2} .rpo .b.pass{color:var(--st)}
+</style><defs><marker id="bchk-use" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah use" d="M0,0 L10,5 L0,10 z"/></marker><marker id="bchk-ok" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah ok" d="M0,0 L10,5 L0,10 z"/></marker><marker id="bchk-no" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah no" d="M0,0 L10,5 L0,10 z"/></marker><marker id="bchk-ev" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah ev" d="M0,0 L10,5 L0,10 z"/></marker></defs><g class="b me"><rect x="30" y="19" width="14" height="14" rx="3"/></g><text class="lg" x="51" y="30" text-anchor="start">Your change</text><g class="b ci"><rect x="154.2" y="19" width="14" height="14" rx="3"/></g><text class="lg" x="175.2" y="30" text-anchor="start">Where it runs</text><g class="b be"><rect x="292.8" y="19" width="14" height="14" rx="3"/></g><text class="lg" x="313.8" y="30" text-anchor="start">What the check does</text><g class="b st"><rect x="474.6" y="19" width="14" height="14" rx="3"/></g><text class="lg" x="495.6" y="30" text-anchor="start">Result</text><g class="b me"><rect x="30" y="80" width="220" height="112" rx="10"/><text class="t plain" x="42" y="101">1 · A CHANGE</text><line class="sep" x1="30" y1="111" x2="250" y2="111"/><text class="x" x="42" y="128">a class in sales/internal</text><text class="x" x="42" y="144">imports something from</text><text class="x" x="42" y="160">inventory/internal</text></g><g class="b ci"><rect x="272" y="80" width="220" height="112" rx="10"/><text class="t plain" x="284" y="101">2 · RUNS IN</text><line class="sep" x1="272" y1="111" x2="492" y2="111"/><text class="x code" x="284" y="128">./gradlew test</text><text class="x code" x="284" y="144">./gradlew modulithVerify</text><text class="x" x="284" y="160">CI on every PR (SET-10)</text></g><g class="b be"><rect x="514" y="80" width="220" height="112" rx="10"/><text class="t plain" x="526" y="101">3 · READS THE CODE</text><line class="sep" x1="514" y1="111" x2="734" y2="111"/><text class="x code" x="526" y="128">ApplicationModules.of(</text><text class="x code" x="526" y="144">  RetailOsApplication.class)</text><text class="x" x="526" y="160">16 modules, every dependency</text></g><g class="b be"><rect x="756" y="80" width="220" height="112" rx="10"/><text class="t plain" x="768" y="101">4 · verify()</text><line class="sep" x1="756" y1="111" x2="976" y2="111"/><text class="x" x="768" y="128">another module&#x27;s internal?</text><text class="x" x="768" y="144">a cycle between modules?</text><text class="x" x="768" y="160">platform → business module?</text></g><path class="e use" d="M250,136 L266,136" marker-end="url(#bchk-use)"/><path class="e use" d="M492,136 L508,136" marker-end="url(#bchk-use)"/><path class="e use" d="M734,136 L750,136" marker-end="url(#bchk-use)"/><g class="b pass"><rect x="1000" y="72" width="160" height="54" rx="10"/><text class="t plain" x="1012" y="93">PASSES</text><line class="sep" x1="1000" y1="103" x2="1160" y2="103"/><text class="x" x="1012" y="120">the build goes on</text></g><g class="b fail"><rect x="1000" y="142" width="160" height="70" rx="10"/><text class="t plain" x="1012" y="163">FAILS</text><line class="sep" x1="1000" y1="173" x2="1160" y2="173"/><text class="x" x="1012" y="190">names module, class</text><text class="x" x="1012" y="206">and line</text></g><path class="e ok" d="M976,110 L994,100" marker-end="url(#bchk-ok)"/><path class="e no" d="M976,162 L994,172" marker-end="url(#bchk-no)"/></svg>
+<!-- boundary-check:end --></div>
+<figcaption>The same check runs in the normal tests, on its own with <code>modulithVerify</code>, and in CI. Generated by <code>tools/build_boundary_diagrams.py</code>.</figcaption>
+</figure>
+<p><code>ModularityTests</code> (in <code>backend/src/test/java/com/devcity/retailos/</code>) loads the modules from the compiled classes and checks them:</p>
+<pre><code>class ModularityTests {
+
+    static final ApplicationModules modules = ApplicationModules.of(RetailOsApplication.class);
+
+    @Test
+    void modulesOnlyUseEachOthersPublicParts() {
+        modules.verify();                                     // INV-08
+    }
+
+    @Test
+    void platformDependsOnNoBusinessModule() {
+        var platform = modules.getModuleByName("platform").orElseThrow();
+        assertThat(platform.getDirectDependencies(modules).uniqueModules()).isEmpty();
+    }
+
+    @Test
+    void writesTheModuleDocumentation() {
+        new Documenter(modules).writeDocumentation();         // build/spring-modulith-docs
+    }
+}</code></pre>
+<h3 id="rules">The rules it applies</h3>
+<table>
+<thead><tr><th>Rule</th><th>Fails on, for example</th><th>Checked by</th></tr></thead>
+<tbody>
+<tr><td>Use only another module's public parts</td><td>a class in <code>sales</code> uses <code>inventory.internal.service.StockService</code></td><td><code>verify()</code></td></tr>
+<tr><td>No cycles between modules</td><td><code>sales</code> uses <code>InventoryApi</code> and <code>inventory</code> uses <code>SalesApi</code></td><td><code>verify()</code></td></tr>
+<tr><td><code>platform</code> uses no business module</td><td><code>platform</code> imports anything from <code>sales</code></td><td><code>platformDependsOnNoBusinessModule</code></td></tr>
+</tbody>
+</table>
+<h3 id="what-counts">What counts as "using" another class</h3>
+<p>The check reads the bytecode with ArchUnit, so it sees every real dependency, not only <code>import</code> lines:</p>
+<ul>
+<li>calling a method or a constructor, reading a field</li>
+<li>a field, parameter, return or local variable of that type</li>
+<li>extending a class or implementing an interface</li>
+<li>an annotation, a generic type argument (<code>List&lt;StockService&gt;</code>), an exception that is thrown or caught</li>
+</ul>
+<p>It does <strong>not</strong> see classes reached by name at run time (reflection, <code>Class.forName</code>), or tables read with SQL. See <a href="#limits">what it doesn't cover</a>.</p>
+
+<h2 id="failure">5 · What a failure looks like</h2>
+<p>While building SET-05, a temporary class in <code>sales/internal/service</code> called a class in <code>inventory/internal/service</code>. The build failed with:</p>
+<pre><code>ModularityTests &gt; modulesOnlyUseEachOthersPublicParts() FAILED
+
+org.springframework.modulith.core.Violations:
+- Module 'sales' depends on non-exposed type
+  com.devcity.retailos.inventory.internal.service.TempStockService within module 'inventory'!
+  Method &lt;com.devcity.retailos.sales.internal.service.TempSaleService.x()&gt; calls method
+  &lt;com.devcity.retailos.inventory.internal.service.TempStockService.onHand()&gt; in (TempSaleService.java:3)</code></pre>
+<p>It names the module that broke the rule, the private class it reached, and the file and line. Once the class was removed, the check passed again.</p>
+<h3 id="fix">How to fix one</h3>
+<table>
+<thead><tr><th>You need…</th><th>Do this</th></tr></thead>
+<tbody>
+<tr><td>an answer from the other module now, in the same transaction</td><td>Add a method to its <code>*Api</code> interface (taking and returning records), implement it in its <code>internal/service</code>, and call the Api.</td></tr>
+<tr><td>to react to something that happened in the other module</td><td>Listen to its event in <code>events/</code> with <code>@ApplicationModuleListener</code>. If the event doesn't exist yet, the owning module adds it.</td></tr>
+<tr><td>a small shared type (Money, an id, a date helper)</td><td>Put it in <code>platform</code>, if it holds no business rules.</td></tr>
+<tr><td>the other module's entity</td><td>Don't. Ask its Api for a record with the fields you need.</td></tr>
+</tbody>
+</table>
+<div class="callout warn"><span class="ct">Never "fix" it by making a package public</span>
+Adding <code>@NamedInterface</code> to <code>internal</code> or one of its sub-packages makes the error go away and the boundary disappear. A new named interface is a design change: discuss it in the pull request.</div>
+
+<h2 id="crossing">6 · Crossing a boundary the right way</h2>
+<figure class="db-map-fig">
+<div class="db-tools"><button type="button" class="icon-btn" data-fit-toggle="bcr-scroll">Fit to width</button><a class="icon-btn" href="assets/boundary-cross.svg" target="_blank" rel="noopener">Open full size ↗</a></div>
+<div class="db-scroll" id="bcr-scroll"><!-- boundary-cross:start -->
+<svg class="rpo" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1180 420" width="1180" height="420" role="img" aria-labelledby="bcr-title"><title id="bcr-title">Crossing a module boundary: call another module&#x27;s Api when the answer is needed in the same transaction; publish an event for work that can happen after commit.</title><style>
+.rpo{--be:#2F68D8;--be-bg:#EAF1FD;--pk:#D2612B;--pk-bg:#FDEEE5;--ap:#7A4FD0;--ap-bg:#F2ECFC;--sh:#16855A;--sh-bg:#E4F5EC;
+ --in:#4A5568;--in-bg:#EEF0F4;--out:#0E7C86;--out-bg:#E2F4F5;--me:#4A5568;--me-bg:#EEF0F4;--gh:#2F68D8;--gh-bg:#EAF1FD;--ci:#7A4FD0;--ci-bg:#F2ECFC;
+ --st:#16855A;--st-bg:#E4F5EC;--rl:#C2410C;--rl-bg:#FDEDE3;--ln:#5E6779;--gen:#B5418C;--frame:#2E3A5A;--bgc:#fff;
+ --tx:var(--text,#272932);--tx2:var(--text-3,#6F7889);font-family:Inter,"Segoe UI",system-ui,sans-serif}
+.rpo .b rect{stroke-width:1.6}
+.rpo .b.be rect{fill:var(--be-bg);stroke:var(--be)} .rpo .b.pk rect{fill:var(--pk-bg);stroke:var(--pk)} .rpo .b.ap rect{fill:var(--ap-bg);stroke:var(--ap)}
+.rpo .b.sh rect{fill:var(--sh-bg);stroke:var(--sh)} .rpo .b.in rect{fill:var(--in-bg);stroke:var(--in)} .rpo .b.out rect{fill:var(--out-bg);stroke:var(--out);stroke-dasharray:5 3}
+.rpo .b.me rect{fill:var(--me-bg);stroke:var(--me)} .rpo .b.gh rect{fill:var(--gh-bg);stroke:var(--gh)} .rpo .b.ci rect{fill:var(--ci-bg);stroke:var(--ci)}
+.rpo .b.st rect{fill:var(--st-bg);stroke:var(--st)} .rpo .b.rl rect{fill:var(--rl-bg);stroke:var(--rl)}
+.rpo .b.be{color:var(--be)} .rpo .b.pk{color:var(--pk)} .rpo .b.ap{color:var(--ap)} .rpo .b.sh{color:var(--sh)} .rpo .b.in{color:var(--in)} .rpo .b.out{color:var(--out)}
+.rpo .b.me{color:var(--me)} .rpo .b.gh{color:var(--gh)} .rpo .b.ci{color:var(--ci)} .rpo .b.st{color:var(--st)} .rpo .b.rl{color:var(--rl)}
+.rpo .t{font-size:13px;font-weight:800;fill:currentColor;font-family:Consolas,"Cascadia Code",monospace}
+.rpo .t.plain{font-family:Inter,"Segoe UI",system-ui,sans-serif;letter-spacing:.04em}
+.rpo .x{font-size:12px;fill:var(--tx)} .rpo .x.code{font-family:Consolas,"Cascadia Code",monospace;font-size:11.5px}
+.rpo .sep{stroke:currentColor;opacity:.3}
+.rpo .frame{fill:none;stroke:var(--frame);stroke-width:2;stroke-dasharray:8 5} .rpo .ft{font-size:13px;font-weight:800;letter-spacing:.06em;fill:var(--frame)}
+.rpo .lane{font-size:12px;font-weight:800;letter-spacing:.08em;fill:var(--tx2)}
+.rpo .e{fill:none;stroke-width:1.6} .rpo .e.use{stroke:var(--ln)} .rpo .e.gen{stroke:var(--gen);stroke-dasharray:6 4} .rpo .e.back{stroke:var(--rl);stroke-dasharray:6 4}
+.rpo .ah.use{fill:var(--ln)} .rpo .ah.gen{fill:var(--gen)} .rpo .ah.back{fill:var(--rl)}
+.rpo .el{font-size:11.5px;font-weight:600;paint-order:stroke;stroke:var(--bgc);stroke-width:5px;stroke-linejoin:round;fill:var(--tx)} .rpo .el.gen{fill:var(--gen)} .rpo .el.back{fill:var(--rl)}
+.rpo .lg{font-size:12.5px;fill:var(--tx);font-weight:600} .rpo .lg2{font-size:12.5px;fill:var(--tx2)}
+.rpo{--fx:#C2412D} :root[data-theme="dark"] .rpo{--fx:#FF8A7A}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .rpo{--fx:#FF8A7A}}
+.rpo .br{fill:none;stroke-width:3;stroke-linecap:round} .rpo .br.main{stroke:var(--frame)} .rpo .br.feat{stroke:var(--ap)} .rpo .br.fix{stroke:var(--fx)} .rpo .br.rel{stroke:var(--rl)}
+.rpo .cm{fill:var(--bgc);stroke-width:3} .rpo .cm.main{stroke:var(--frame)} .rpo .cm.feat{stroke:var(--ap)} .rpo .cm.fix{stroke:var(--fx)} .rpo .cm.rel{stroke:var(--rl)}
+.rpo .bl{font-size:12.5px;font-weight:800;letter-spacing:.06em} .rpo .bl.main{fill:var(--frame)} .rpo .bl.feat{fill:var(--ap)} .rpo .bl.fix{fill:var(--fx)} .rpo .bl.rel{fill:var(--rl)}
+.rpo .bn{font-size:12px;font-family:Consolas,"Cascadia Code",monospace;font-weight:700} .rpo .bn.feat{fill:var(--ap)} .rpo .bn.fix{fill:var(--fx)} .rpo .bn.rel{fill:var(--rl)}
+.rpo .tag rect{fill:var(--rl-bg);stroke:var(--rl);stroke-width:1.4} .rpo .tag text{font-size:11.5px;font-weight:700;fill:var(--rl);font-family:Consolas,"Cascadia Code",monospace}
+.rpo .stg rect{fill:var(--st-bg);stroke:var(--st);stroke-width:1.2} .rpo .stg text{font-size:11px;font-weight:700;fill:var(--st)}
+.rpo .b.fx rect{fill:var(--bgc);stroke:var(--fx)} .rpo .b.mn rect{fill:var(--bgc);stroke:var(--frame)}
+.rpo .e.cp{stroke:var(--fx);stroke-dasharray:6 4} .rpo .ah.cp{fill:var(--fx)} .rpo .el.cp{fill:var(--fx)}
+:root[data-theme="dark"] .rpo{--be:#7FA8FF;--be-bg:#1B2840;--pk:#FF9D6B;--pk-bg:#382218;--ap:#B99BFF;--ap-bg:#251C3A;--sh:#5BD49A;--sh-bg:#142D24;
+ --in:#A3ABBB;--in-bg:#2A2D37;--out:#4FC9D2;--out-bg:#12292C;--me:#A3ABBB;--me-bg:#2A2D37;--gh:#7FA8FF;--gh-bg:#1B2840;--ci:#B99BFF;--ci-bg:#251C3A;
+ --st:#5BD49A;--st-bg:#142D24;--rl:#FF9D6B;--rl-bg:#382218;--ln:#A3ABBB;--gen:#F28AC8;--frame:#B4C0DE;--bgc:#272932}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .rpo{--be:#7FA8FF;--be-bg:#1B2840;--pk:#FF9D6B;--pk-bg:#382218;--ap:#B99BFF;--ap-bg:#251C3A;--sh:#5BD49A;--sh-bg:#142D24;
+ --in:#A3ABBB;--in-bg:#2A2D37;--out:#4FC9D2;--out-bg:#12292C;--me:#A3ABBB;--me-bg:#2A2D37;--gh:#7FA8FF;--gh-bg:#1B2840;--ci:#B99BFF;--ci-bg:#251C3A;
+ --st:#5BD49A;--st-bg:#142D24;--rl:#FF9D6B;--rl-bg:#382218;--ln:#A3ABBB;--gen:#F28AC8;--frame:#B4C0DE;--bgc:#272932}}
+
+.rpo .e.ok{stroke:var(--st);stroke-width:2} .rpo .ah.ok{fill:var(--st)} .rpo .el.ok{fill:var(--st)}
+.rpo .e.no{stroke:var(--fx);stroke-width:2;stroke-dasharray:7 5} .rpo .ah.no{fill:var(--fx)} .rpo .el.no{fill:var(--fx)}
+.rpo .e.ev{stroke:var(--ap);stroke-width:2;stroke-dasharray:6 4} .rpo .ah.ev{fill:var(--ap)} .rpo .el.ev{fill:var(--ap)}
+.rpo .pv{fill:none;stroke:var(--in);stroke-width:1.4;stroke-dasharray:5 4} .rpo .pvt{font-size:12px;font-weight:800;letter-spacing:.05em;fill:var(--in)}
+.rpo .pkg{font-size:12px;fill:var(--tx2);font-family:Consolas,"Cascadia Code",monospace}
+.rpo .b.fail rect{fill:var(--bgc);stroke:var(--fx);stroke-width:2} .rpo .b.fail{color:var(--fx)}
+.rpo .b.pass rect{fill:var(--st-bg);stroke:var(--st);stroke-width:2} .rpo .b.pass{color:var(--st)}
+</style><defs><marker id="bcr-use" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah use" d="M0,0 L10,5 L0,10 z"/></marker><marker id="bcr-ok" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah ok" d="M0,0 L10,5 L0,10 z"/></marker><marker id="bcr-no" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah no" d="M0,0 L10,5 L0,10 z"/></marker><marker id="bcr-ev" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah ev" d="M0,0 L10,5 L0,10 z"/></marker></defs><g class="b be"><rect x="30" y="19" width="14" height="14" rx="3"/></g><text class="lg" x="51" y="30" text-anchor="start">Code inside a module</text><g class="b st"><rect x="219.0" y="19" width="14" height="14" rx="3"/></g><text class="lg" x="240.0" y="30" text-anchor="start">Another module&#x27;s Api: same transaction</text><g class="b ap"><rect x="537.6" y="19" width="14" height="14" rx="3"/></g><text class="lg" x="558.6" y="30" text-anchor="start">An event: handled after commit</text><text class="lg2" x="30" y="56" text-anchor="start">Arrows show the flow of a call or an event. Both paths only touch public parts.</text><g class="b be"><rect x="30" y="110" width="260" height="118" rx="10"/><text class="t" x="42" y="131">sales · SaleService</text><line class="sep" x1="30" y1="141" x2="290" y2="141"/><text class="x" x="42" y="158">recordSale(…)</text><text class="x" x="42" y="174">@Transactional:</text><text class="x" x="42" y="190">one database transaction</text><text class="x" x="42" y="206">for stock, tax and the sale</text></g><g class="b st"><rect x="470" y="76" width="330" height="62" rx="10"/><text class="t" x="482" y="97">inventory · InventoryApi</text><line class="sep" x1="470" y1="107" x2="800" y2="107"/><text class="x" x="482" y="124">allocateAndDeduct(…): stock leaves now</text></g><g class="b st"><rect x="470" y="150" width="330" height="62" rx="10"/><text class="t" x="482" y="171">tax · TaxApi</text><line class="sep" x1="470" y1="181" x2="800" y2="181"/><text class="x" x="482" y="198">issueDocument(…): tax invoice number now</text></g><path class="e ok" d="M290,140 L380,140 L380,107 L464,107" marker-end="url(#bcr-ok)"/><path class="e ok" d="M290,181 L464,181" marker-end="url(#bcr-ok)"/><text class="el ok" x="300" y="172" text-anchor="start">needs the answer now</text><g class="b ap"><rect x="470" y="262" width="330" height="62" rx="10"/><text class="t" x="482" y="283">sales/events · SaleCompleted</text><line class="sep" x1="470" y1="293" x2="800" y2="293"/><text class="x" x="482" y="310">published inside the transaction</text></g><path class="e ev" d="M160,228 L160,293 L464,293" marker-end="url(#bcr-ev)"/><text class="el ev" x="172" y="282" text-anchor="start">publishes</text><g class="b be"><rect x="900" y="206" width="260" height="78" rx="10"/><text class="t" x="912" y="227">customers · listener</text><line class="sep" x1="900" y1="237" x2="1160" y2="237"/><text class="x" x="912" y="254">@ApplicationModuleListener</text><text class="x" x="912" y="270">updates visit stats</text></g><g class="b be"><rect x="900" y="300" width="260" height="78" rx="10"/><text class="t" x="912" y="321">reporting · listener</text><line class="sep" x1="900" y1="331" x2="1160" y2="331"/><text class="x" x="912" y="348">@ApplicationModuleListener</text><text class="x" x="912" y="364">updates daily totals</text></g><path class="e ev" d="M800,293 L840,293 L840,245 L894,245" marker-end="url(#bcr-ev)"/><path class="e ev" d="M840,293 L840,339 L894,339" marker-end="url(#bcr-ev)"/><text class="el ev" x="845" y="404" text-anchor="middle">after commit; retried until handled (outbox)</text></svg>
+<!-- boundary-cross:end --></div>
+<figcaption>Recording a sale: stock and the tax invoice must change in the same transaction as the sale, so Sales calls their Apis. Customer stats and reports can follow later, so they listen to <code>SaleCompleted</code>. Generated by <code>tools/build_boundary_diagrams.py</code>.</figcaption>
+</figure>
+<p>Both paths only touch public parts. Which one to use (<a href="modules.html#dependencies">dependency rules</a>, <a href="modules.html#events">events</a>):</p>
+<table>
+<thead><tr><th></th><th>Call the <code>*Api</code></th><th>Publish and listen to an event</th></tr></thead>
+<tbody>
+<tr><td>Use when</td><td>you need the answer <em>now</em>, inside the same transaction</td><td>the work can happen after the transaction commits</td></tr>
+<tr><td>Example</td><td><code>InventoryApi.allocateAndDeduct()</code>: money and stock must never drift apart</td><td><code>SaleCompleted</code> → customer visit stats, daily totals, notifications</td></tr>
+<tr><td>If the other side fails</td><td>the whole transaction rolls back</td><td>the sale stays recorded; the event is retried from the outbox (<a href="adr.html#adr-007">ADR-007</a>)</td></tr>
+<tr><td>Who depends on whom</td><td>caller → the called module</td><td>listener → the publisher's <code>events</code> package</td></tr>
+</tbody>
+</table>
+<pre><code>// sales/internal/service/SaleService.java   (sales → inventory: allowed, InventoryApi is public)
+@Transactional
+public SaleResult recordSale(RecordSale command) {
+    var allocation = inventoryApi.allocateAndDeduct(command.lines());   // same transaction
+    var sale = sales.save(Sale.from(command, allocation));
+    events.publishEvent(new SaleCompleted(sale.id(), sale.customerId(), sale.total()));
+    return SaleResult.of(sale);
+}
+
+// customers/internal/service/CustomerStatsListener.java   (customers → sales.events: allowed)
+@ApplicationModuleListener
+void on(SaleCompleted event) {
+    stats.recordVisit(event.customerId(), event.total());               // after commit, retried
+}</code></pre>
+
+<h2 id="running">7 · Running it</h2>
+<table>
+<thead><tr><th>Command</th><th>When</th><th>What it runs</th></tr></thead>
+<tbody>
+<tr><td><code>./gradlew test</code></td><td>every build, and in CI</td><td>All tests, including the boundary check</td></tr>
+<tr><td><code>./gradlew modulithVerify</code></td><td>while you work: quick, no database needed</td><td>Only <code>ModularityTests</code> and <code>ModularityGuardTest</code>, plus the module docs</td></tr>
+<tr><td>CI on a pull request</td><td>from <a href="build-order.html#set-10">SET-10</a></td><td><code>./gradlew build</code>: a violation blocks the merge</td></tr>
+</tbody>
+</table>
+<p>Run from <code>backend/</code>, or add <code>-p backend</code> from the repository root. <code>modulithVerify</code> is defined in <code>backend/build.gradle.kts</code>:</p>
+<pre><code>val modulithVerify by tasks.registering(Test::class) {
+    description = "Checks the module boundaries and writes the module docs to build/spring-modulith-docs."
+    group = LifecycleBasePlugin.VERIFICATION_GROUP
+    testClassesDirs = sourceSets.test.get().output.classesDirs
+    classpath = sourceSets.test.get().runtimeClasspath
+    filter { includeTestsMatching("com.devcity.retailos.Modularity*") }
+}</code></pre>
+
+<h2 id="guard">8 · How we know the check works</h2>
+<p>A check that never fails proves nothing, so <code>ModularityGuardTest</code> runs it on a small, deliberately broken example and expects it to fail. The example lives in <code>com.devcity.modulithfixture</code>, outside the real modules, so it can't affect them:</p>
+<pre><code>com.devcity.modulithfixture
+├── orders/OrderService.java              uses stock.internal.StockRepository   ✗
+└── stock/
+    ├── StockApi.java                     the public way in, which OrderService ignores
+    └── internal/StockRepository.java     private to stock</code></pre>
+<pre><code>@Test
+void failsWhenAModuleUsesAnotherModulesInternalPackage() {
+    ImportOption includeTestClasses = location -&gt; true;    // the fixture is compiled with the tests
+    var fixture = ApplicationModules.of("com.devcity.modulithfixture", includeTestClasses);
+
+    assertThatThrownBy(fixture::verify)
+            .isInstanceOf(Violations.class)
+            .hasMessageContaining("OrderService")
+            .hasMessageContaining("internal.StockRepository");
+}</code></pre>
+<p>If a library upgrade or a configuration change ever stopped the check from working, this test would fail first.</p>
+
+<h2 id="module-docs">9 · Generated module documentation</h2>
+<p>Each run of the check also writes Spring Modulith's own documentation to <code>backend/build/spring-modulith-docs/</code>:</p>
+<ul>
+<li><code>components.puml</code>: all modules and the dependencies between them (C4 component diagram, PlantUML)</li>
+<li><code>module-&lt;name&gt;.puml</code>: one module and its direct neighbours</li>
+<li><code>module-&lt;name&gt;.adoc</code> and <code>all-docs.adoc</code>: a canvas per module listing its public types, events and Spring beans</li>
+</ul>
+<p>They show the dependencies as they are in the code, so compare them with the planned <a href="modules.html#map">module map</a>. They are build output and are not committed.</p>
+
+<h2 id="limits">10 · What it doesn't cover</h2>
+<table>
+<thead><tr><th>Not checked</th><th>Covered instead by</th></tr></thead>
+<tbody>
+<tr><td>SQL that reads another module's tables</td><td>Ownership is in the <a href="data-dictionary.html">data dictionary</a> and checked in review. Tenant isolation is enforced by the database itself (row-level security, <a href="build-order.html#db-08">DB-08</a>).</td></tr>
+<tr><td>Reflection or lookups by class name</td><td>Not used in normal Spring code; the review checklist flags it.</td></tr>
+<tr><td>"Api only when the answer is needed now, otherwise events"</td><td>A design choice for review (<a href="modules.html#dependencies">dependency rules</a>).</td></tr>
+<tr><td>Which modules may call which</td><td>Today any module may use any other module's public parts. See <a href="#stricter">making it stricter</a>.</td></tr>
+<tr><td>Field types, naming, <code>double</code> for money</td><td>The ArchUnit rules in <a href="build-order.html#set-06">SET-06</a>.</td></tr>
+</tbody>
+</table>
+
+<h2 id="stricter">11 · Making it stricter later</h2>
+<p>A module can list the only modules it may use. The same <code>verify()</code> then also fails on any other dependency:</p>
+<pre><code>@ApplicationModule(
+        displayName = "Catalog",
+        allowedDependencies = { "platform", "tax", "audit" })     // catalog may never call sales
+package com.devcity.retailos.catalog;</code></pre>
+<p>Named interfaces can be named precisely too, e.g. <code>"sales :: events"</code> lets a module use the events of <code>sales</code> but not <code>SalesApi</code>. We add these once the real calls between modules have settled. Each one is a short change with a review.</p>
+
+<h2 id="checklist">12 · Checklist</h2>
+<h3 id="new-code">Adding code to a module</h3>
+<ul>
+<li>Controllers, services, repositories and entities go in <code>internal/web</code>, <code>internal/service</code>, <code>internal/repository</code>, <code>internal/model</code>.</li>
+<li>Something other modules must call goes on the module's <code>*Api</code> interface, with records in the root package.</li>
+<li>An event goes in <code>events/</code>, as an immutable record (<code>SaleCompletedV1</code> when its shape must change).</li>
+<li>Run <code>./gradlew modulithVerify</code> before pushing.</li>
+</ul>
+<h3 id="new-module">Adding a module</h3>
+<ul>
+<li>Create <code>com.devcity.retailos.&lt;name&gt;</code> with a <code>package-info.java</code> carrying <code>@ApplicationModule</code> and what the module owns.</li>
+<li>Add <code>internal/{web,service,repository,model}</code>, and <code>events/</code> or <code>spi/</code> with <code>@NamedInterface</code> if needed.</li>
+<li>Add it to <code>ModuleLayoutTest</code>, the <a href="modules.html#map">module map</a> (<code>tools/build_module_map.py</code>) and, for new tables, the <a href="data-dictionary.html">data dictionary</a>. A new module is an architecture change: record it in an <a href="adr.html">ADR</a>.</li>
+</ul>
+
+</article></main>
+<aside id="toc"></aside>
+</div>
+<script src="assets/search-index.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js"></script>
+<script src="assets/site.js"></script>
+</body>
+</html>

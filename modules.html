@@ -91,7 +91,7 @@
 <ul>
 <li>Allowed direction: <code>extensions → core → platform</code>. Platform never depends on core, and core never depends on an extension.</li>
 <li>Core modules may call another core module's <code>*Api</code> interface only when they need an answer <em>now</em> (inside the same transaction). Everything else uses events.</li>
-<li>Circular dependencies fail the build (<code>ApplicationModules.of(App.class).verify()</code>).</li>
+<li>Using another module's <code>internal</code> package, or circular dependencies, fail the build (<code>ApplicationModules.of(RetailOsApplication.class).verify()</code>). How the boundaries are set and checked: <a href="module-boundaries.html">Module boundaries</a>.</li>
 <li>The Sales module owns the sale transaction. Stock deduction happens in the <em>same</em> database transaction through <code>InventoryApi.allocateAndDeduct()</code>, because money and stock must never drift apart. Events are only for work that can safely happen afterwards (customer stats, notifications, reporting).</li>
 </ul>
 

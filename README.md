@@ -25,6 +25,7 @@ System design for RetailOS, DevCity's offline-first POS for retail, pharmacy and
 | `endpoints.html` | Generated: every API endpoint by module with details and build status. Edit `tools/build_endpoints.py` when an endpoint is added, changed or built, then run it (it also refreshes `build-order.html`) |
 | `plans.html` | Commercial plans proposal (hand-written). Keep the feature table's release column in step with the roadmap |
 | `repository.html` | How the code repository and GitHub are run; its two diagrams come from `tools/build_repo_diagrams.py` |
+| `module-boundaries.html` | How module boundaries are set (packages, `@ApplicationModule`, `@NamedInterface`) and checked (`ApplicationModules.verify()`); its three diagrams come from `tools/build_boundary_diagrams.py` |
 | `branches.html` | Branch model and branch naming; its diagram also comes from `tools/build_repo_diagrams.py` |
 | `tools/` | Doc maintenance scripts |
 

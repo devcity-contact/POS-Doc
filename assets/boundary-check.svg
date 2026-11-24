@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg class="rpo" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1180 232" width="1180" height="232" role="img" aria-labelledby="bchks-title"><title id="bchks-title">How the module boundary check runs: on every test run, on modulithVerify and in CI; it reads the compiled code and fails with the module, class and line.</title><style>
+.rpo{--be:#2F68D8;--be-bg:#EAF1FD;--pk:#D2612B;--pk-bg:#FDEEE5;--ap:#7A4FD0;--ap-bg:#F2ECFC;--sh:#16855A;--sh-bg:#E4F5EC;
+ --in:#4A5568;--in-bg:#EEF0F4;--out:#0E7C86;--out-bg:#E2F4F5;--me:#4A5568;--me-bg:#EEF0F4;--gh:#2F68D8;--gh-bg:#EAF1FD;--ci:#7A4FD0;--ci-bg:#F2ECFC;
+ --st:#16855A;--st-bg:#E4F5EC;--rl:#C2410C;--rl-bg:#FDEDE3;--ln:#5E6779;--gen:#B5418C;--frame:#2E3A5A;--bgc:#fff;
+ --tx:var(--text,#272932);--tx2:var(--text-3,#6F7889);font-family:Inter,"Segoe UI",system-ui,sans-serif}
+.rpo .b rect{stroke-width:1.6}
+.rpo .b.be rect{fill:var(--be-bg);stroke:var(--be)} .rpo .b.pk rect{fill:var(--pk-bg);stroke:var(--pk)} .rpo .b.ap rect{fill:var(--ap-bg);stroke:var(--ap)}
+.rpo .b.sh rect{fill:var(--sh-bg);stroke:var(--sh)} .rpo .b.in rect{fill:var(--in-bg);stroke:var(--in)} .rpo .b.out rect{fill:var(--out-bg);stroke:var(--out);stroke-dasharray:5 3}
+.rpo .b.me rect{fill:var(--me-bg);stroke:var(--me)} .rpo .b.gh rect{fill:var(--gh-bg);stroke:var(--gh)} .rpo .b.ci rect{fill:var(--ci-bg);stroke:var(--ci)}
+.rpo .b.st rect{fill:var(--st-bg);stroke:var(--st)} .rpo .b.rl rect{fill:var(--rl-bg);stroke:var(--rl)}
+.rpo .b.be{color:var(--be)} .rpo .b.pk{color:var(--pk)} .rpo .b.ap{color:var(--ap)} .rpo .b.sh{color:var(--sh)} .rpo .b.in{color:var(--in)} .rpo .b.out{color:var(--out)}
+.rpo .b.me{color:var(--me)} .rpo .b.gh{color:var(--gh)} .rpo .b.ci{color:var(--ci)} .rpo .b.st{color:var(--st)} .rpo .b.rl{color:var(--rl)}
+.rpo .t{font-size:13px;font-weight:800;fill:currentColor;font-family:Consolas,"Cascadia Code",monospace}
+.rpo .t.plain{font-family:Inter,"Segoe UI",system-ui,sans-serif;letter-spacing:.04em}
+.rpo .x{font-size:12px;fill:var(--tx)} .rpo .x.code{font-family:Consolas,"Cascadia Code",monospace;font-size:11.5px}
+.rpo .sep{stroke:currentColor;opacity:.3}
+.rpo .frame{fill:none;stroke:var(--frame);stroke-width:2;stroke-dasharray:8 5} .rpo .ft{font-size:13px;font-weight:800;letter-spacing:.06em;fill:var(--frame)}
+.rpo .lane{font-size:12px;font-weight:800;letter-spacing:.08em;fill:var(--tx2)}
+.rpo .e{fill:none;stroke-width:1.6} .rpo .e.use{stroke:var(--ln)} .rpo .e.gen{stroke:var(--gen);stroke-dasharray:6 4} .rpo .e.back{stroke:var(--rl);stroke-dasharray:6 4}
+.rpo .ah.use{fill:var(--ln)} .rpo .ah.gen{fill:var(--gen)} .rpo .ah.back{fill:var(--rl)}
+.rpo .el{font-size:11.5px;font-weight:600;paint-order:stroke;stroke:var(--bgc);stroke-width:5px;stroke-linejoin:round;fill:var(--tx)} .rpo .el.gen{fill:var(--gen)} .rpo .el.back{fill:var(--rl)}
+.rpo .lg{font-size:12.5px;fill:var(--tx);font-weight:600} .rpo .lg2{font-size:12.5px;fill:var(--tx2)}
+.rpo{--fx:#C2412D} :root[data-theme="dark"] .rpo{--fx:#FF8A7A}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .rpo{--fx:#FF8A7A}}
+.rpo .br{fill:none;stroke-width:3;stroke-linecap:round} .rpo .br.main{stroke:var(--frame)} .rpo .br.feat{stroke:var(--ap)} .rpo .br.fix{stroke:var(--fx)} .rpo .br.rel{stroke:var(--rl)}
+.rpo .cm{fill:var(--bgc);stroke-width:3} .rpo .cm.main{stroke:var(--frame)} .rpo .cm.feat{stroke:var(--ap)} .rpo .cm.fix{stroke:var(--fx)} .rpo .cm.rel{stroke:var(--rl)}
+.rpo .bl{font-size:12.5px;font-weight:800;letter-spacing:.06em} .rpo .bl.main{fill:var(--frame)} .rpo .bl.feat{fill:var(--ap)} .rpo .bl.fix{fill:var(--fx)} .rpo .bl.rel{fill:var(--rl)}
+.rpo .bn{font-size:12px;font-family:Consolas,"Cascadia Code",monospace;font-weight:700} .rpo .bn.feat{fill:var(--ap)} .rpo .bn.fix{fill:var(--fx)} .rpo .bn.rel{fill:var(--rl)}
+.rpo .tag rect{fill:var(--rl-bg);stroke:var(--rl);stroke-width:1.4} .rpo .tag text{font-size:11.5px;font-weight:700;fill:var(--rl);font-family:Consolas,"Cascadia Code",monospace}
+.rpo .stg rect{fill:var(--st-bg);stroke:var(--st);stroke-width:1.2} .rpo .stg text{font-size:11px;font-weight:700;fill:var(--st)}
+.rpo .b.fx rect{fill:var(--bgc);stroke:var(--fx)} .rpo .b.mn rect{fill:var(--bgc);stroke:var(--frame)}
+.rpo .e.cp{stroke:var(--fx);stroke-dasharray:6 4} .rpo .ah.cp{fill:var(--fx)} .rpo .el.cp{fill:var(--fx)}
+:root[data-theme="dark"] .rpo{--be:#7FA8FF;--be-bg:#1B2840;--pk:#FF9D6B;--pk-bg:#382218;--ap:#B99BFF;--ap-bg:#251C3A;--sh:#5BD49A;--sh-bg:#142D24;
+ --in:#A3ABBB;--in-bg:#2A2D37;--out:#4FC9D2;--out-bg:#12292C;--me:#A3ABBB;--me-bg:#2A2D37;--gh:#7FA8FF;--gh-bg:#1B2840;--ci:#B99BFF;--ci-bg:#251C3A;
+ --st:#5BD49A;--st-bg:#142D24;--rl:#FF9D6B;--rl-bg:#382218;--ln:#A3ABBB;--gen:#F28AC8;--frame:#B4C0DE;--bgc:#272932}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .rpo{--be:#7FA8FF;--be-bg:#1B2840;--pk:#FF9D6B;--pk-bg:#382218;--ap:#B99BFF;--ap-bg:#251C3A;--sh:#5BD49A;--sh-bg:#142D24;
+ --in:#A3ABBB;--in-bg:#2A2D37;--out:#4FC9D2;--out-bg:#12292C;--me:#A3ABBB;--me-bg:#2A2D37;--gh:#7FA8FF;--gh-bg:#1B2840;--ci:#B99BFF;--ci-bg:#251C3A;
+ --st:#5BD49A;--st-bg:#142D24;--rl:#FF9D6B;--rl-bg:#382218;--ln:#A3ABBB;--gen:#F28AC8;--frame:#B4C0DE;--bgc:#272932}}
+
+.rpo .e.ok{stroke:var(--st);stroke-width:2} .rpo .ah.ok{fill:var(--st)} .rpo .el.ok{fill:var(--st)}
+.rpo .e.no{stroke:var(--fx);stroke-width:2;stroke-dasharray:7 5} .rpo .ah.no{fill:var(--fx)} .rpo .el.no{fill:var(--fx)}
+.rpo .e.ev{stroke:var(--ap);stroke-width:2;stroke-dasharray:6 4} .rpo .ah.ev{fill:var(--ap)} .rpo .el.ev{fill:var(--ap)}
+.rpo .pv{fill:none;stroke:var(--in);stroke-width:1.4;stroke-dasharray:5 4} .rpo .pvt{font-size:12px;font-weight:800;letter-spacing:.05em;fill:var(--in)}
+.rpo .pkg{font-size:12px;fill:var(--tx2);font-family:Consolas,"Cascadia Code",monospace}
+.rpo .b.fail rect{fill:var(--bgc);stroke:var(--fx);stroke-width:2} .rpo .b.fail{color:var(--fx)}
+.rpo .b.pass rect{fill:var(--st-bg);stroke:var(--st);stroke-width:2} .rpo .b.pass{color:var(--st)}
+
+.rpo .bg{fill:#FDFFFC}
+@media (prefers-color-scheme:dark){.rpo{--be:#7FA8FF;--be-bg:#1B2840;--pk:#FF9D6B;--pk-bg:#382218;--ap:#B99BFF;--ap-bg:#251C3A;--sh:#5BD49A;--sh-bg:#142D24;
+ --in:#A3ABBB;--in-bg:#2A2D37;--out:#4FC9D2;--out-bg:#12292C;--me:#A3ABBB;--me-bg:#2A2D37;--gh:#7FA8FF;--gh-bg:#1B2840;--ci:#B99BFF;--ci-bg:#251C3A;
+ --st:#5BD49A;--st-bg:#142D24;--rl:#FF9D6B;--rl-bg:#382218;--ln:#A3ABBB;--gen:#F28AC8;--frame:#B4C0DE;--bgc:#1E2028;--tx:#E6E9EF;--tx2:#9AA3B5}.rpo .bg{fill:#1E2028}}
+</style><defs><marker id="bchks-use" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah use" d="M0,0 L10,5 L0,10 z"/></marker><marker id="bchks-ok" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah ok" d="M0,0 L10,5 L0,10 z"/></marker><marker id="bchks-no" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah no" d="M0,0 L10,5 L0,10 z"/></marker><marker id="bchks-ev" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah ev" d="M0,0 L10,5 L0,10 z"/></marker></defs><rect class="bg" width="1180" height="232"/><g class="b me"><rect x="30" y="19" width="14" height="14" rx="3"/></g><text class="lg" x="51" y="30" text-anchor="start">Your change</text><g class="b ci"><rect x="154.2" y="19" width="14" height="14" rx="3"/></g><text class="lg" x="175.2" y="30" text-anchor="start">Where it runs</text><g class="b be"><rect x="292.8" y="19" width="14" height="14" rx="3"/></g><text class="lg" x="313.8" y="30" text-anchor="start">What the check does</text><g class="b st"><rect x="474.6" y="19" width="14" height="14" rx="3"/></g><text class="lg" x="495.6" y="30" text-anchor="start">Result</text><g class="b me"><rect x="30" y="80" width="220" height="112" rx="10"/><text class="t plain" x="42" y="101">1 · A CHANGE</text><line class="sep" x1="30" y1="111" x2="250" y2="111"/><text class="x" x="42" y="128">a class in sales/internal</text><text class="x" x="42" y="144">imports something from</text><text class="x" x="42" y="160">inventory/internal</text></g><g class="b ci"><rect x="272" y="80" width="220" height="112" rx="10"/><text class="t plain" x="284" y="101">2 · RUNS IN</text><line class="sep" x1="272" y1="111" x2="492" y2="111"/><text class="x code" x="284" y="128">./gradlew test</text><text class="x code" x="284" y="144">./gradlew modulithVerify</text><text class="x" x="284" y="160">CI on every PR (SET-10)</text></g><g class="b be"><rect x="514" y="80" width="220" height="112" rx="10"/><text class="t plain" x="526" y="101">3 · READS THE CODE</text><line class="sep" x1="514" y1="111" x2="734" y2="111"/><text class="x code" x="526" y="128">ApplicationModules.of(</text><text class="x code" x="526" y="144">  RetailOsApplication.class)</text><text class="x" x="526" y="160">16 modules, every dependency</text></g><g class="b be"><rect x="756" y="80" width="220" height="112" rx="10"/><text class="t plain" x="768" y="101">4 · verify()</text><line class="sep" x1="756" y1="111" x2="976" y2="111"/><text class="x" x="768" y="128">another module&#x27;s internal?</text><text class="x" x="768" y="144">a cycle between modules?</text><text class="x" x="768" y="160">platform → business module?</text></g><path class="e use" d="M250,136 L266,136" marker-end="url(#bchks-use)"/><path class="e use" d="M492,136 L508,136" marker-end="url(#bchks-use)"/><path class="e use" d="M734,136 L750,136" marker-end="url(#bchks-use)"/><g class="b pass"><rect x="1000" y="72" width="160" height="54" rx="10"/><text class="t plain" x="1012" y="93">PASSES</text><line class="sep" x1="1000" y1="103" x2="1160" y2="103"/><text class="x" x="1012" y="120">the build goes on</text></g><g class="b fail"><rect x="1000" y="142" width="160" height="70" rx="10"/><text class="t plain" x="1012" y="163">FAILS</text><line class="sep" x1="1000" y1="173" x2="1160" y2="173"/><text class="x" x="1012" y="190">names module, class</text><text class="x" x="1012" y="206">and line</text></g><path class="e ok" d="M976,110 L994,100" marker-end="url(#bchks-ok)"/><path class="e no" d="M976,162 L994,172" marker-end="url(#bchks-no)"/></svg>

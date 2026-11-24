@@ -22,7 +22,7 @@ listed there without adding it (with a reason) in the same change; new datastore
 - INV-05 Register-created facts carry a client UUIDv7 = idempotency key.
 - INV-06 Receipt numbers are gap-free per register: `{branch}-{register}-{seq}`.
 - INV-07 Tax is computed only by the Tax module / `register-core/tax`. Extensions never compute tax.
-- INV-08 Modules talk only via public `*Api`, `events`, `spi`. Never import another module's `internal`.
+- INV-08 Modules talk only via public `*Api`, `events`, `spi`. Never import another module's `internal` (checked by `modulithVerify`; see `Doc/module-boundaries.html`).
 - INV-09 Audit log is append-only and hash-chained.
 - INV-10 Sale lines snapshot price, discount, tax rate and batch cost.
 - INV-11 No card numbers, CVV or track data anywhere.
