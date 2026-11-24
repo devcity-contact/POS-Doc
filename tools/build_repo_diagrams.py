@@ -1,7 +1,8 @@
-"""Build the two diagrams on repository.html:
+"""Build the repository diagrams:
 
   1. Repository map         -> assets/repo-map.svg and repository.html (marker repo-map)
   2. From branch to release -> assets/git-flow.svg and repository.html (marker git-flow)
+  3. Branch model           -> assets/branch-model.svg and branches.html (marker branch-model)
 
 Usage:  python Doc/tools/build_repo_diagrams.py
 Edit the box lists below when a folder, CI job or release step changes, then run it again.
@@ -36,6 +37,16 @@ STYLE = """
 .rpo .ah.use{fill:var(--ln)} .rpo .ah.gen{fill:var(--gen)} .rpo .ah.back{fill:var(--rl)}
 .rpo .el{font-size:11.5px;font-weight:600;paint-order:stroke;stroke:var(--bgc);stroke-width:5px;stroke-linejoin:round;fill:var(--tx)} .rpo .el.gen{fill:var(--gen)} .rpo .el.back{fill:var(--rl)}
 .rpo .lg{font-size:12.5px;fill:var(--tx);font-weight:600} .rpo .lg2{font-size:12.5px;fill:var(--tx2)}
+.rpo{--fx:#C2412D} :root[data-theme="dark"] .rpo{--fx:#FF8A7A}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .rpo{--fx:#FF8A7A}}
+.rpo .br{fill:none;stroke-width:3;stroke-linecap:round} .rpo .br.main{stroke:var(--frame)} .rpo .br.feat{stroke:var(--ap)} .rpo .br.fix{stroke:var(--fx)} .rpo .br.rel{stroke:var(--rl)}
+.rpo .cm{fill:var(--bgc);stroke-width:3} .rpo .cm.main{stroke:var(--frame)} .rpo .cm.feat{stroke:var(--ap)} .rpo .cm.fix{stroke:var(--fx)} .rpo .cm.rel{stroke:var(--rl)}
+.rpo .bl{font-size:12.5px;font-weight:800;letter-spacing:.06em} .rpo .bl.main{fill:var(--frame)} .rpo .bl.feat{fill:var(--ap)} .rpo .bl.fix{fill:var(--fx)} .rpo .bl.rel{fill:var(--rl)}
+.rpo .bn{font-size:12px;font-family:Consolas,"Cascadia Code",monospace;font-weight:700} .rpo .bn.feat{fill:var(--ap)} .rpo .bn.fix{fill:var(--fx)} .rpo .bn.rel{fill:var(--rl)}
+.rpo .tag rect{fill:var(--rl-bg);stroke:var(--rl);stroke-width:1.4} .rpo .tag text{font-size:11.5px;font-weight:700;fill:var(--rl);font-family:Consolas,"Cascadia Code",monospace}
+.rpo .stg rect{fill:var(--st-bg);stroke:var(--st);stroke-width:1.2} .rpo .stg text{font-size:11px;font-weight:700;fill:var(--st)}
+.rpo .b.fx rect{fill:var(--bgc);stroke:var(--fx)} .rpo .b.mn rect{fill:var(--bgc);stroke:var(--frame)}
+.rpo .e.cp{stroke:var(--fx);stroke-dasharray:6 4} .rpo .ah.cp{fill:var(--fx)} .rpo .el.cp{fill:var(--fx)}
 :root[data-theme="dark"] .rpo{--be:#7FA8FF;--be-bg:#1B2840;--pk:#FF9D6B;--pk-bg:#382218;--ap:#B99BFF;--ap-bg:#251C3A;--sh:#5BD49A;--sh-bg:#142D24;
  --in:#A3ABBB;--in-bg:#2A2D37;--out:#4FC9D2;--out-bg:#12292C;--me:#A3ABBB;--me-bg:#2A2D37;--gh:#7FA8FF;--gh-bg:#1B2840;--ci:#B99BFF;--ci-bg:#251C3A;
  --st:#5BD49A;--st-bg:#142D24;--rl:#FF9D6B;--rl-bg:#382218;--ln:#A3ABBB;--gen:#F28AC8;--frame:#B4C0DE;--bgc:#272932}
@@ -88,7 +99,7 @@ class Svg:
     def render(self, width, height, title, standalone):
         defs = "<defs>" + "".join(
             f'<marker id="{self.mid}-{k}" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah {k}" d="M0,0 L10,5 L0,10 z"/></marker>'
-            for k in ("use", "gen", "back")) + "</defs>"
+            for k in ("use", "gen", "back", "cp")) + "</defs>"
         css = STYLE + (STANDALONE if standalone else "")
         bg = f'<rect class="bg" width="{width}" height="{height}"/>' if standalone else ""
         head = '<?xml version="1.0" encoding="UTF-8"?>\n' if standalone else ""
@@ -149,7 +160,7 @@ def git_flow(standalone):
     s.legend([("me", "On your computer"), ("gh", "GitHub"), ("ci", "GitHub Actions"), ("st", "Staging"), ("rl", "Release")])
     W, G, X0, Y1, Y2 = 196, 34, 30, 92, 392
     xs = [X0 + i * (W + G) for i in range(5)]
-    s.box("me", xs[0], Y1, W, 126, "1 · BRANCH", ["git switch -c", "feat/AUTN-09-refresh", "small: merged in days", "feat(iam): rotate …"], plain=True, code_lines=(0, 1, 3))
+    s.box("me", xs[0], Y1, W, 126, "1 · BRANCH", ["git switch -c", "feat/iam/AUTN-09-refresh-…", "small: merged in days", "feat(iam): rotate …"], plain=True, code_lines=(0, 1, 3))
     s.box("gh", xs[1], Y1, W, 126, "2 · PULL REQUEST", ["gh pr create --fill", "template + checklist", "links the task ID", "self-review, AI review"], plain=True, code_lines=(0,))
     s.box("ci", xs[2], Y1, W, 206, "3 · CI CHECKS", ["only what changed:", "backend: tests, boundary,", "  ArchUnit, OpenAPI diff", "admin: build and tests", "register: core tests,", "  Windows + Android build", "docs: rebuild, link check", "always: scans and lint"], plain=True)
     s.box("gh", xs[3], Y1, W, 126, "4 · SQUASH MERGE", ["all checks green", "one commit on main", "branch deleted", "main stays deployable"], plain=True)
@@ -171,6 +182,60 @@ def git_flow(standalone):
     return s.render(1180, 520, "From branch to release: how a change travels from a branch to production", standalone)
 
 
+def branch_model(standalone):
+    s = Svg("bm" + ("s" if standalone else ""))
+    P = s.p
+    s.legend([("ap", "Feature branch"), ("fx", "Fix branch"), ("mn", "main"), ("rl", "Release branch and tags"), ("st", "Deployed to staging")])
+    s.text("lg2", 30, 56, "Branches live a few days and come back to main as one squash commit. There is no develop branch: main is what staging runs.")
+    MAIN, FEAT, FIX, REL, X0, X1 = 178, 104, 262, 356, 210, 1150
+    lane = lambda cls, y, label: P.append(f'<text class="bl {cls}" x="30" y="{y + 4}">{label}</text>')
+    lane("feat", FEAT, "FEATURE")
+    lane("main", MAIN, "MAIN")
+    lane("fix", FIX, "FIX")
+    lane("rel", REL, "RELEASE")
+    dot = lambda cls, x, y: P.append(f'<circle class="cm {cls}" cx="{x}" cy="{y}" r="7"/>')
+    path = lambda cls, d: P.append(f'<path class="br {cls}" d="{d}"/>')
+
+    def tag(x, y, text, below=False):
+        w = len(text) * 7.2 + 16
+        ty = y + 14 if below else y - 36
+        P.append(f'<g class="tag"><rect x="{x - w / 2}" y="{ty}" width="{w}" height="22" rx="5"/><text x="{x}" y="{ty + 15}" text-anchor="middle">{esc(text)}</text></g>'
+                 f'<line x1="{x}" y1="{ty + (0 if below else 22)}" x2="{x}" y2="{y + (7 if below else -7)}" stroke="var(--rl)" stroke-width="1.4"/>')
+
+    def staging(x):
+        P.append(f'<g class="stg"><rect x="{x - 30}" y="{MAIN + 16}" width="60" height="18" rx="9"/><text x="{x}" y="{MAIN + 29}" text-anchor="middle">staging</text></g>')
+
+    # main line
+    path("main", f"M{X0},{MAIN} L{X1},{MAIN}")
+    main_commits = [240, 420, 540, 720, 880, 1040]
+    # feature branch: from c1, two commits, squash-merged into c2
+    path("feat", f"M240,{MAIN} C260,{MAIN} 262,{FEAT} 290,{FEAT} L350,{FEAT} C390,{FEAT} 396,{MAIN} 420,{MAIN}")
+    for x in (290, 350):
+        dot("feat", x, FEAT)
+    P.append(f'<text class="bn feat" x="268" y="{FEAT - 16}">feat/iam/AUTN-09-refresh-rotation</text>')
+    s.text("el", 400, FEAT + 34, "squash merge", "start")
+    # fix branch: from c3, merged into c4
+    path("fix", f"M540,{MAIN} C560,{MAIN} 562,{FIX} 590,{FIX} L650,{FIX} C690,{FIX} 696,{MAIN} 720,{MAIN}")
+    for x in (590, 650):
+        dot("fix", x, FIX)
+    P.append(f'<text class="bn fix" x="560" y="{FIX + 30}">fix/sales/GH-142-receipt-gap</text>')
+    # release branch for a register version in the shops: cut from the tag at c3
+    path("rel", f"M540,{MAIN} L540,{REL} L{X1},{REL}")
+    dot("rel", 800, REL)
+    P.append(f'<text class="bn rel" x="556" y="{REL - 12}">release/register-1.6</text>')
+    s.arrow(f"M727,{MAIN + 8} C760,{MAIN + 60} 780,{REL - 70} 796,{REL - 10}", "cp", "cherry-pick the fix", 772, 282, "start")
+    tag(800, REL, "register-v1.6.1", below=True)
+    s.text("lg2", 830, REL + 52, "a patch for registers still on 1.6, built from the release branch")
+    for x in main_commits:
+        dot("main", x, MAIN)
+    tag(540, MAIN, "register-v1.6.0")
+    tag(880, MAIN, "backend-v1.4.0")
+    tag(1040, MAIN, "register-v1.7.0")
+    for x in (420, 720, 880):
+        staging(x)
+    return s.render(1180, 440, "Branch model: trunk-based with short feature and fix branches, release tags, and release branches only for hotfixes", standalone)
+
+
 def inject(page, marker, svg):
     p = DOC / page
     s = p.read_text(encoding="utf-8")
@@ -186,4 +251,6 @@ if __name__ == "__main__":
     (DOC / "assets" / "git-flow.svg").write_text(git_flow(True), encoding="utf-8")
     inject("repository.html", "repo-map", repo_map(False))
     inject("repository.html", "git-flow", git_flow(False))
-    print("repo-map.svg, git-flow.svg -> assets/ and repository.html")
+    (DOC / "assets" / "branch-model.svg").write_text(branch_model(True), encoding="utf-8")
+    inject("branches.html", "branch-model", branch_model(False))
+    print("repo-map.svg, git-flow.svg -> repository.html; branch-model.svg -> branches.html")

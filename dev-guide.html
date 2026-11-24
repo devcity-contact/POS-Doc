@@ -91,7 +91,7 @@ flowchart TB
 
 <h2 id="git">Git workflow</h2>
 <ul>
-<li>Trunk-based: short-lived branches <code>feat/…</code>, <code>fix/…</code>, merged to <code>main</code> by PR within a few days. Unfinished work goes behind a feature flag.</li>
+<li>Trunk-based, no <code>develop</code> branch: short-lived branches named <code>&lt;type&gt;/&lt;module&gt;/&lt;ticket&gt;-&lt;short-name&gt;</code> (e.g. <code>feat/iam/AUTN-09-refresh-rotation</code>), merged to <code>main</code> by PR within a few days. Unfinished work goes behind a feature flag. See <a href="branches.html">Branches &amp; naming</a>.</li>
 <li>Conventional Commits: <code>feat(sales): record batch hint from GS1 scan</code>. These generate the changelog.</li>
 <li>Every PR: CI green, self-review against the checklist below, and a link to the requirement ID (<code>F-103</code>, <code>BR-04</code>…).</li>
 <li>Each app has its own release tag: <code>backend-v1.4.0</code>, <code>admin-v1.3.0</code>, <code>register-v1.6.0</code> (both register shells share one version). The tag builds the release.</li>

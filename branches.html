@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Branches & naming · RetailOS</title>
+<meta name="description" content="RetailOS branch strategy: trunk-based with main always deployable, short feature and fix branches, release branches only for hotfixes; branch names as type/module/ticket-short-name, with allowed values, examples, the CI check, and how commits and pull requests match.">
+<link rel="stylesheet" href="assets/site.css">
+<script>try{var t=localStorage.getItem("retailos-theme");if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
+</head>
+<body>
+<header id="topbar"></header>
+<div class="layout">
+<nav id="sidebar"></nav>
+<main class="content"><article>
+
+<h1>Branches & naming</h1>
+<p class="lead">RetailOS is <strong>trunk-based</strong>: <code>main</code> is the one long-lived branch and is always deployable. Every change is made on a short branch, reviewed in a pull request, and squash-merged back into <code>main</code> within a few days. There is no <code>develop</code> branch.</p>
+
+<h2 id="model">The branch model</h2>
+<figure class="db-map-fig">
+<div class="db-tools"><button type="button" class="icon-btn" data-fit-toggle="bm-scroll">Fit to width</button><a class="icon-btn" href="assets/branch-model.svg" target="_blank" rel="noopener">Open full size ↗</a></div>
+<div class="db-scroll" id="bm-scroll"><!-- branch-model:start -->
+<svg class="rpo" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1180 440" width="1180" height="440" role="img" aria-labelledby="bm-title"><title id="bm-title">Branch model: trunk-based with short feature and fix branches, release tags, and release branches only for hotfixes</title><style>
+.rpo{--be:#2F68D8;--be-bg:#EAF1FD;--pk:#D2612B;--pk-bg:#FDEEE5;--ap:#7A4FD0;--ap-bg:#F2ECFC;--sh:#16855A;--sh-bg:#E4F5EC;
+ --in:#4A5568;--in-bg:#EEF0F4;--out:#0E7C86;--out-bg:#E2F4F5;--me:#4A5568;--me-bg:#EEF0F4;--gh:#2F68D8;--gh-bg:#EAF1FD;--ci:#7A4FD0;--ci-bg:#F2ECFC;
+ --st:#16855A;--st-bg:#E4F5EC;--rl:#C2410C;--rl-bg:#FDEDE3;--ln:#5E6779;--gen:#B5418C;--frame:#2E3A5A;--bgc:#fff;
+ --tx:var(--text,#272932);--tx2:var(--text-3,#6F7889);font-family:Inter,"Segoe UI",system-ui,sans-serif}
+.rpo .b rect{stroke-width:1.6}
+.rpo .b.be rect{fill:var(--be-bg);stroke:var(--be)} .rpo .b.pk rect{fill:var(--pk-bg);stroke:var(--pk)} .rpo .b.ap rect{fill:var(--ap-bg);stroke:var(--ap)}
+.rpo .b.sh rect{fill:var(--sh-bg);stroke:var(--sh)} .rpo .b.in rect{fill:var(--in-bg);stroke:var(--in)} .rpo .b.out rect{fill:var(--out-bg);stroke:var(--out);stroke-dasharray:5 3}
+.rpo .b.me rect{fill:var(--me-bg);stroke:var(--me)} .rpo .b.gh rect{fill:var(--gh-bg);stroke:var(--gh)} .rpo .b.ci rect{fill:var(--ci-bg);stroke:var(--ci)}
+.rpo .b.st rect{fill:var(--st-bg);stroke:var(--st)} .rpo .b.rl rect{fill:var(--rl-bg);stroke:var(--rl)}
+.rpo .b.be{color:var(--be)} .rpo .b.pk{color:var(--pk)} .rpo .b.ap{color:var(--ap)} .rpo .b.sh{color:var(--sh)} .rpo .b.in{color:var(--in)} .rpo .b.out{color:var(--out)}
+.rpo .b.me{color:var(--me)} .rpo .b.gh{color:var(--gh)} .rpo .b.ci{color:var(--ci)} .rpo .b.st{color:var(--st)} .rpo .b.rl{color:var(--rl)}
+.rpo .t{font-size:13px;font-weight:800;fill:currentColor;font-family:Consolas,"Cascadia Code",monospace}
+.rpo .t.plain{font-family:Inter,"Segoe UI",system-ui,sans-serif;letter-spacing:.04em}
+.rpo .x{font-size:12px;fill:var(--tx)} .rpo .x.code{font-family:Consolas,"Cascadia Code",monospace;font-size:11.5px}
+.rpo .sep{stroke:currentColor;opacity:.3}
+.rpo .frame{fill:none;stroke:var(--frame);stroke-width:2;stroke-dasharray:8 5} .rpo .ft{font-size:13px;font-weight:800;letter-spacing:.06em;fill:var(--frame)}
+.rpo .lane{font-size:12px;font-weight:800;letter-spacing:.08em;fill:var(--tx2)}
+.rpo .e{fill:none;stroke-width:1.6} .rpo .e.use{stroke:var(--ln)} .rpo .e.gen{stroke:var(--gen);stroke-dasharray:6 4} .rpo .e.back{stroke:var(--rl);stroke-dasharray:6 4}
+.rpo .ah.use{fill:var(--ln)} .rpo .ah.gen{fill:var(--gen)} .rpo .ah.back{fill:var(--rl)}
+.rpo .el{font-size:11.5px;font-weight:600;paint-order:stroke;stroke:var(--bgc);stroke-width:5px;stroke-linejoin:round;fill:var(--tx)} .rpo .el.gen{fill:var(--gen)} .rpo .el.back{fill:var(--rl)}
+.rpo .lg{font-size:12.5px;fill:var(--tx);font-weight:600} .rpo .lg2{font-size:12.5px;fill:var(--tx2)}
+.rpo{--fx:#C2412D} :root[data-theme="dark"] .rpo{--fx:#FF8A7A}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .rpo{--fx:#FF8A7A}}
+.rpo .br{fill:none;stroke-width:3;stroke-linecap:round} .rpo .br.main{stroke:var(--frame)} .rpo .br.feat{stroke:var(--ap)} .rpo .br.fix{stroke:var(--fx)} .rpo .br.rel{stroke:var(--rl)}
+.rpo .cm{fill:var(--bgc);stroke-width:3} .rpo .cm.main{stroke:var(--frame)} .rpo .cm.feat{stroke:var(--ap)} .rpo .cm.fix{stroke:var(--fx)} .rpo .cm.rel{stroke:var(--rl)}
+.rpo .bl{font-size:12.5px;font-weight:800;letter-spacing:.06em} .rpo .bl.main{fill:var(--frame)} .rpo .bl.feat{fill:var(--ap)} .rpo .bl.fix{fill:var(--fx)} .rpo .bl.rel{fill:var(--rl)}
+.rpo .bn{font-size:12px;font-family:Consolas,"Cascadia Code",monospace;font-weight:700} .rpo .bn.feat{fill:var(--ap)} .rpo .bn.fix{fill:var(--fx)} .rpo .bn.rel{fill:var(--rl)}
+.rpo .tag rect{fill:var(--rl-bg);stroke:var(--rl);stroke-width:1.4} .rpo .tag text{font-size:11.5px;font-weight:700;fill:var(--rl);font-family:Consolas,"Cascadia Code",monospace}
+.rpo .stg rect{fill:var(--st-bg);stroke:var(--st);stroke-width:1.2} .rpo .stg text{font-size:11px;font-weight:700;fill:var(--st)}
+.rpo .b.fx rect{fill:var(--bgc);stroke:var(--fx)} .rpo .b.mn rect{fill:var(--bgc);stroke:var(--frame)}
+.rpo .e.cp{stroke:var(--fx);stroke-dasharray:6 4} .rpo .ah.cp{fill:var(--fx)} .rpo .el.cp{fill:var(--fx)}
+:root[data-theme="dark"] .rpo{--be:#7FA8FF;--be-bg:#1B2840;--pk:#FF9D6B;--pk-bg:#382218;--ap:#B99BFF;--ap-bg:#251C3A;--sh:#5BD49A;--sh-bg:#142D24;
+ --in:#A3ABBB;--in-bg:#2A2D37;--out:#4FC9D2;--out-bg:#12292C;--me:#A3ABBB;--me-bg:#2A2D37;--gh:#7FA8FF;--gh-bg:#1B2840;--ci:#B99BFF;--ci-bg:#251C3A;
+ --st:#5BD49A;--st-bg:#142D24;--rl:#FF9D6B;--rl-bg:#382218;--ln:#A3ABBB;--gen:#F28AC8;--frame:#B4C0DE;--bgc:#272932}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .rpo{--be:#7FA8FF;--be-bg:#1B2840;--pk:#FF9D6B;--pk-bg:#382218;--ap:#B99BFF;--ap-bg:#251C3A;--sh:#5BD49A;--sh-bg:#142D24;
+ --in:#A3ABBB;--in-bg:#2A2D37;--out:#4FC9D2;--out-bg:#12292C;--me:#A3ABBB;--me-bg:#2A2D37;--gh:#7FA8FF;--gh-bg:#1B2840;--ci:#B99BFF;--ci-bg:#251C3A;
+ --st:#5BD49A;--st-bg:#142D24;--rl:#FF9D6B;--rl-bg:#382218;--ln:#A3ABBB;--gen:#F28AC8;--frame:#B4C0DE;--bgc:#272932}}
+</style><defs><marker id="bm-use" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah use" d="M0,0 L10,5 L0,10 z"/></marker><marker id="bm-gen" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah gen" d="M0,0 L10,5 L0,10 z"/></marker><marker id="bm-back" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah back" d="M0,0 L10,5 L0,10 z"/></marker><marker id="bm-cp" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah cp" d="M0,0 L10,5 L0,10 z"/></marker></defs><g class="b ap"><rect x="30" y="19" width="14" height="14" rx="3"/></g><text class="lg" x="51" y="30" text-anchor="start">Feature branch</text><g class="b fx"><rect x="175.8" y="19" width="14" height="14" rx="3"/></g><text class="lg" x="196.8" y="30" text-anchor="start">Fix branch</text><g class="b mn"><rect x="292.8" y="19" width="14" height="14" rx="3"/></g><text class="lg" x="313.8" y="30" text-anchor="start">main</text><g class="b rl"><rect x="366.6" y="19" width="14" height="14" rx="3"/></g><text class="lg" x="387.6" y="30" text-anchor="start">Release branch and tags</text><g class="b st"><rect x="577.2" y="19" width="14" height="14" rx="3"/></g><text class="lg" x="598.2" y="30" text-anchor="start">Deployed to staging</text><text class="lg2" x="30" y="56" text-anchor="start">Branches live a few days and come back to main as one squash commit. There is no develop branch: main is what staging runs.</text><text class="bl feat" x="30" y="108">FEATURE</text><text class="bl main" x="30" y="182">MAIN</text><text class="bl fix" x="30" y="266">FIX</text><text class="bl rel" x="30" y="360">RELEASE</text><path class="br main" d="M210,178 L1150,178"/><path class="br feat" d="M240,178 C260,178 262,104 290,104 L350,104 C390,104 396,178 420,178"/><circle class="cm feat" cx="290" cy="104" r="7"/><circle class="cm feat" cx="350" cy="104" r="7"/><text class="bn feat" x="268" y="88">feat/iam/AUTN-09-refresh-rotation</text><text class="el" x="400" y="138" text-anchor="start">squash merge</text><path class="br fix" d="M540,178 C560,178 562,262 590,262 L650,262 C690,262 696,178 720,178"/><circle class="cm fix" cx="590" cy="262" r="7"/><circle class="cm fix" cx="650" cy="262" r="7"/><text class="bn fix" x="560" y="292">fix/sales/GH-142-receipt-gap</text><path class="br rel" d="M540,178 L540,356 L1150,356"/><circle class="cm rel" cx="800" cy="356" r="7"/><text class="bn rel" x="556" y="344">release/register-1.6</text><path class="e cp" d="M727,186 C760,238 780,286 796,346" marker-end="url(#bm-cp)"/><text class="el cp" x="772" y="282" text-anchor="start">cherry-pick the fix</text><g class="tag"><rect x="738.0" y="370" width="124.0" height="22" rx="5"/><text x="800" y="385" text-anchor="middle">register-v1.6.1</text></g><line x1="800" y1="370" x2="800" y2="363" stroke="var(--rl)" stroke-width="1.4"/><text class="lg2" x="830" y="408" text-anchor="start">a patch for registers still on 1.6, built from the release branch</text><circle class="cm main" cx="240" cy="178" r="7"/><circle class="cm main" cx="420" cy="178" r="7"/><circle class="cm main" cx="540" cy="178" r="7"/><circle class="cm main" cx="720" cy="178" r="7"/><circle class="cm main" cx="880" cy="178" r="7"/><circle class="cm main" cx="1040" cy="178" r="7"/><g class="tag"><rect x="478.0" y="142" width="124.0" height="22" rx="5"/><text x="540" y="157" text-anchor="middle">register-v1.6.0</text></g><line x1="540" y1="164" x2="540" y2="171" stroke="var(--rl)" stroke-width="1.4"/><g class="tag"><rect x="821.6" y="142" width="116.8" height="22" rx="5"/><text x="880" y="157" text-anchor="middle">backend-v1.4.0</text></g><line x1="880" y1="164" x2="880" y2="171" stroke="var(--rl)" stroke-width="1.4"/><g class="tag"><rect x="978.0" y="142" width="124.0" height="22" rx="5"/><text x="1040" y="157" text-anchor="middle">register-v1.7.0</text></g><line x1="1040" y1="164" x2="1040" y2="171" stroke="var(--rl)" stroke-width="1.4"/><g class="stg"><rect x="390" y="194" width="60" height="18" rx="9"/><text x="420" y="207" text-anchor="middle">staging</text></g><g class="stg"><rect x="690" y="194" width="60" height="18" rx="9"/><text x="720" y="207" text-anchor="middle">staging</text></g><g class="stg"><rect x="850" y="194" width="60" height="18" rx="9"/><text x="880" y="207" text-anchor="middle">staging</text></g></svg>
+<!-- branch-model:end --></div>
+<figcaption>Feature and fix branches start from <code>main</code> and come back as one commit, which goes to staging. Tags on <code>main</code> release a version. A release branch is cut from a tag only when a version already in the shops needs a fix. Generated by <code>tools/build_repo_diagrams.py</code>.</figcaption>
+</figure>
+
+<div class="callout"><span class="ct">Why there is no develop branch</span>
+Staging already runs <code>main</code>, so <code>develop</code> would only be a second copy of it. Two long-lived branches drift apart, double the merges and hide integration problems until release day. With one engineer and CI checking every pull request, merging small changes into <code>main</code> often is safer. Unfinished features stay hidden behind a feature flag instead of on a branch.</div>
+
+<h2 id="types">Branch types</h2>
+<table>
+<thead><tr><th>Branch</th><th>Starts from</th><th>Merges into</th><th>Lives</th><th>Rules</th></tr></thead>
+<tbody>
+<tr><td><code>main</code></td><td>—</td><td>—</td><td>Forever</td><td>Protected: no direct commits, no force pushes. Every merge deploys to staging. Releases are tags on <code>main</code>.</td></tr>
+<tr><td>Work branches<br><code>feat/</code> <code>fix/</code> <code>refactor/</code> …</td><td><code>main</code></td><td><code>main</code> (squash)</td><td>Hours to 3 days</td><td>One task per branch. Open a draft pull request early. Bigger work is split into several pull requests behind a feature flag.</td></tr>
+<tr><td><code>hotfix/…</code></td><td><code>main</code>, or a release branch</td><td><code>main</code>, then the release branch</td><td>Hours</td><td>An urgent fix for something already in the shops. See <a href="#hotfix">hotfixes</a>.</td></tr>
+<tr><td><code>release/register-1.6</code><br><code>release/backend-1.4</code></td><td>A release tag</td><td>Nothing (only tagged)</td><td>While that version is supported</td><td>Created only when a released version needs a patch. Receives cherry-picked fixes, never new features. Deleted when no shop runs that version.</td></tr>
+</tbody>
+</table>
+
+<h2 id="naming">Branch name format</h2>
+<pre><code>&lt;type&gt;/&lt;module&gt;/&lt;ticket&gt;-&lt;short-name&gt;
+
+feat/iam/AUTN-09-refresh-rotation
+fix/sales/GH-142-receipt-gap</code></pre>
+<table>
+<thead><tr><th>Part</th><th>What it is</th><th>Rules</th></tr></thead>
+<tbody>
+<tr><td><code>type</code></td><td>What kind of change</td><td>One of the <a href="#type-values">types</a> below. Lowercase.</td></tr>
+<tr><td><code>module</code></td><td>Where most of the change is</td><td>One of the <a href="#module-values">module names</a> below. If a change touches several modules, use the one with most of the work.</td></tr>
+<tr><td><code>ticket</code></td><td>Why the change exists</td><td>A <a href="build-order.html">build order</a> task ID (<code>AUTN-09</code>) for planned work, or <code>GH-</code> and the GitHub issue number (<code>GH-142</code>) for bugs and pilot feedback. Uppercase. Required for <code>feat</code>, <code>fix</code>, <code>hotfix</code>, <code>refactor</code> and <code>perf</code>; optional for <code>docs</code>, <code>test</code>, <code>chore</code> and <code>ci</code>.</td></tr>
+<tr><td><code>short-name</code></td><td>A reminder of the change</td><td>Lowercase words joined with hyphens, 2–6 words. Letters, digits and hyphens only. The whole branch name stays under 60 characters.</td></tr>
+</tbody>
+</table>
+
+<h3 id="type-values">Types</h3>
+<table>
+<thead><tr><th>Type</th><th>Use for</th><th>Ticket</th><th>Release note</th></tr></thead>
+<tbody>
+<tr><td><code>feat</code></td><td>A new feature or a visible change in behaviour</td><td>Required</td><td>New</td></tr>
+<tr><td><code>fix</code></td><td>A bug fix, merged in the normal way</td><td>Required</td><td>Fixed</td></tr>
+<tr><td><code>hotfix</code></td><td>An urgent fix for a version already in the shops</td><td>Required</td><td>Fixed</td></tr>
+<tr><td><code>refactor</code></td><td>Code changes with no change in behaviour</td><td>Required</td><td>—</td></tr>
+<tr><td><code>perf</code></td><td>Making something faster without changing behaviour</td><td>Required</td><td>Improved</td></tr>
+<tr><td><code>test</code></td><td>Adding or fixing tests only</td><td>Optional</td><td>—</td></tr>
+<tr><td><code>docs</code></td><td>Documentation only</td><td>Optional</td><td>—</td></tr>
+<tr><td><code>chore</code></td><td>Dependencies, tooling, configuration</td><td>Optional</td><td>—</td></tr>
+<tr><td><code>ci</code></td><td>CI workflows and build scripts</td><td>Optional</td><td>—</td></tr>
+</tbody>
+</table>
+
+<h3 id="module-values">Module names</h3>
+<p>The same names are used as the scope of commit messages, so <code>feat/iam/…</code> becomes <code>feat(iam): …</code>.</p>
+<table>
+<thead><tr><th>Group</th><th>Names</th></tr></thead>
+<tbody>
+<tr><td>Backend modules</td><td><code>tenancy</code> <code>iam</code> <code>devices</code> <code>audit</code> <code>catalog</code> <code>pricing</code> <code>tax</code> <code>sync</code> <code>inventory</code> <code>purchasing</code> <code>sales</code> <code>payments</code> <code>cash</code> <code>customers</code> <code>reporting</code> <code>platform</code> (<a href="modules.html#map">modules</a>)</td></tr>
+<tr><td>Apps</td><td><code>admin</code> <code>register</code> <code>windows</code> (Electron shell only) <code>android</code> (Android shell only) <code>console</code> (support console)</td></tr>
+<tr><td>Shared packages</td><td><code>core</code> (register-core) <code>ui</code> <code>i18n</code> <code>api-client</code></td></tr>
+<tr><td>Everything else</td><td><code>db</code> (migrations) <code>infra</code> <code>ci</code> <code>docs</code> <code>repo</code> (root files, settings) <code>deps</code></td></tr>
+</tbody>
+</table>
+<p>Most build order categories map to one module:</p>
+<table>
+<thead><tr><th>Task prefix</th><th>Module</th><th>Task prefix</th><th>Module</th></tr></thead>
+<tbody>
+<tr><td><code>TNT</code> <code>BIZ</code></td><td><code>tenancy</code></td><td><code>STCK</code></td><td><code>inventory</code></td></tr>
+<tr><td><code>AUTN</code> <code>AUTZ</code></td><td><code>iam</code></td><td><code>RECV</code></td><td><code>purchasing</code></td></tr>
+<tr><td><code>AUDT</code></td><td><code>audit</code></td><td><code>SELL</code> <code>RTRN</code></td><td><code>sales</code></td></tr>
+<tr><td><code>DEVC</code></td><td><code>devices</code></td><td><code>PAYM</code></td><td><code>payments</code></td></tr>
+<tr><td><code>CATL</code> <code>IMPT</code></td><td><code>catalog</code></td><td><code>CASH</code></td><td><code>cash</code></td></tr>
+<tr><td><code>PRCE</code></td><td><code>pricing</code></td><td><code>CUST</code></td><td><code>customers</code></td></tr>
+<tr><td><code>TAXR</code> <code>TAXD</code></td><td><code>tax</code></td><td><code>REPT</code></td><td><code>reporting</code></td></tr>
+<tr><td><code>PULL</code> <code>PUSH</code></td><td><code>sync</code></td><td><code>SUPP</code> <code>CORE</code></td><td><code>platform</code></td></tr>
+<tr><td><code>ADM*</code> <code>WEB</code></td><td><code>admin</code></td><td><code>CONS</code></td><td><code>console</code></td></tr>
+<tr><td><code>REG*</code></td><td><code>register</code> (<code>windows</code> or <code>android</code> for shell-only work)</td><td><code>DB</code> <code>TEST</code></td><td><code>db</code></td></tr>
+<tr><td><code>SET</code></td><td><code>repo</code></td><td><code>DEPL</code> <code>OPS</code> <code>OBS</code> <code>MON</code></td><td><code>infra</code></td></tr>
+</tbody>
+</table>
+
+<h3 id="examples">Examples</h3>
+<table>
+<thead><tr><th>Branch name</th><th></th><th>Why</th></tr></thead>
+<tbody>
+<tr><td><code>feat/iam/AUTN-09-refresh-rotation</code></td><td>✓</td><td>Planned feature from the build order</td></tr>
+<tr><td><code>fix/sales/GH-142-receipt-gap</code></td><td>✓</td><td>Bug reported as GitHub issue 142</td></tr>
+<tr><td><code>feat/android/REGX-12-bluetooth-printer</code></td><td>✓</td><td>Work only in the Android shell</td></tr>
+<tr><td><code>hotfix/sync/GH-201-duplicate-push</code></td><td>✓</td><td>Urgent fix for registers in the shops</td></tr>
+<tr><td><code>chore/deps/bump-spring-boot</code></td><td>✓</td><td>Chores may skip the ticket</td></tr>
+<tr><td><code>docs/docs/branch-naming</code></td><td>✓</td><td>Docs-only change (looks odd, but stays consistent)</td></tr>
+<tr><td><code>feature/login</code></td><td>✗</td><td>Wrong type word, no module, no ticket</td></tr>
+<tr><td><code>fix/GH-142</code></td><td>✗</td><td>No module, no short name</td></tr>
+<tr><td><code>feat/iam/autn-09-Refresh_Rotation</code></td><td>✗</td><td>Ticket must be uppercase; short name lowercase with hyphens</td></tr>
+<tr><td><code>dilan/test-stuff</code></td><td>✗</td><td>No personal branch names; nobody else can tell what it is</td></tr>
+</tbody>
+</table>
+
+<h3 id="check">The check in CI</h3>
+<p>A pull request fails if its branch name doesn't match this pattern (build order task <a href="build-order.html#set-15">SET-15</a>):</p>
+<pre><code>^(feat|fix|hotfix|refactor|perf)/[a-z0-9-]+/([A-Z][A-Z0-9]{0,4}-\d{2}|GH-\d+)-[a-z0-9]+(-[a-z0-9]+){1,5}$
+^(docs|test|chore|ci)/[a-z0-9-]+/(([A-Z][A-Z0-9]{0,4}-\d{2}|GH-\d+)-)?[a-z0-9]+(-[a-z0-9]+){1,5}$
+^release/(backend|admin|register)-\d+\.\d+$</code></pre>
+<p>The same script also rejects names longer than 60 characters. It can run locally as a Git <code>pre-push</code> hook too, so a wrong name is caught before pushing.</p>
+
+<h2 id="commits">Commits and pull requests follow the branch</h2>
+<table>
+<thead><tr><th>Branch</th><th>Pull request title (the squash commit on main)</th></tr></thead>
+<tbody>
+<tr><td><code>feat/iam/AUTN-09-refresh-rotation</code></td><td><code>feat(iam): rotate refresh tokens on every use (AUTN-09)</code></td></tr>
+<tr><td><code>fix/sales/GH-142-receipt-gap</code></td><td><code>fix(sales): no gap in receipt numbers after a crash (GH-142)</code></td></tr>
+</tbody>
+</table>
+<ul>
+<li>The pull request title uses the same type and module, says what changed in plain words, and ends with the ticket. It becomes the one commit on <code>main</code> and the line in the release notes.</li>
+<li>For a GitHub issue, the description says <code>Closes #142</code> so the issue closes when the pull request merges.</li>
+<li>Commits on the branch can be small and informal; only the squash commit lands on <code>main</code>.</li>
+</ul>
+
+<h2 id="lifecycle">A branch from start to finish</h2>
+<ol class="steps">
+<li><strong>Start from an up-to-date main:</strong> <code>git switch main &amp;&amp; git pull</code>, then <code>git switch -c feat/iam/AUTN-09-refresh-rotation</code>.</li>
+<li><strong>Push early</strong> and open a <strong>draft pull request</strong>, so CI runs from the first push.</li>
+<li><strong>Keep up with main:</strong> if <code>main</code> moved on, rebase (<code>git pull --rebase origin main</code>) or press "Update branch" on the pull request.</li>
+<li><strong>Mark it ready</strong> when the task is done, the checks are green and the <a href="build-order.html">definition of done</a> is met.</li>
+<li><strong>Squash merge.</strong> GitHub deletes the branch; delete it locally too.</li>
+<li><strong>Tick the task</strong> in the build order, and set the endpoint status in <code>tools/build_endpoints.py</code> if it added an endpoint.</li>
+</ol>
+<p>A branch older than three days is a warning sign. Split the work, merge what's ready behind a feature flag, and continue on a new branch.</p>
+
+<h2 id="hotfix">Hotfixes</h2>
+<table>
+<thead><tr><th>Situation</th><th>What to do</th></tr></thead>
+<tbody>
+<tr><td>The bug is in the latest release, and <code>main</code> has nothing unreleased that can't ship</td><td><code>hotfix/…</code> branch from <code>main</code>, pull request, squash merge, then tag a patch version (<code>register-v1.7.1</code>).</td></tr>
+<tr><td>The bug is in an older version still used by shops (registers lag one version, <span class="inv">INV-13</span>)</td><td>Fix it on <code>main</code> first. Then create <code>release/register-1.6</code> from the tag <code>register-v1.6.0</code> if it doesn't exist, cherry-pick the fix onto it in a pull request, and tag <code>register-v1.6.1</code> from the release branch.</td></tr>
+<tr><td>The code no longer exists on <code>main</code></td><td>Fix it on the release branch only, and say so in the pull request.</td></tr>
+</tbody>
+</table>
+
+<p>Tags, release builds and the GitHub settings are on <a href="repository.html">Repository &amp; GitHub</a>.</p>
+
+</article></main>
+<aside id="toc"></aside>
+</div>
+<script src="assets/search-index.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js"></script>
+<script src="assets/site.js"></script>
+</body>
+</html>

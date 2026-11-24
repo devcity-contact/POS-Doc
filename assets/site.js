@@ -46,6 +46,7 @@
     { group: "Engineering", items: [
       ["dev-guide.html", "Developer guide"],
       ["repository.html", "Repository & GitHub"],
+      ["branches.html", "Branches & naming"],
       ["adr.html", "Decision records"],
       ["ai-guide.html", "Guide for AI agents"]
     ]}

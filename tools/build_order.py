@@ -53,6 +53,7 @@ STAGES = [
    ("SET-12", "Container image", "Layered jar on a JRE 25 base, runs as non-root, scanned by Trivy, pushed to the container registry.", "deployment", None),
    ("SET-13", "Pull request template and branch protection", "PR template with the security checklist, protected `main`, squash merge only, staging and production environments, release tags per app, AGENTS.md for AI assistants.", "repository#settings security#security-checklist ai-guide", None),
    ("SET-14", "Message bundles en / si / ta", "Server messages (errors, e-mails) in English, Sinhala and Tamil, chosen by `Accept-Language`.", "api#conventions", None),
+   ("SET-15", "Branch name check", "CI fails a pull request whose branch name doesn't match `<type>/<module>/<ticket>-<short-name>` or is longer than 60 characters; the same script as an optional `pre-push` hook.", "branches#check", None),
   ]),
   ("WEB", "Front-end setup", "P0", "web", "The shared front-end base for the admin web app and the register app.", [
    ("WEB-01", "pnpm workspaces", "`apps/admin`, `apps/register`, `packages/ui`, `packages/api-client`, `packages/register-core`; strict TypeScript.", "tech-stack", None),
@@ -545,7 +546,7 @@ PAGES = {"dev-guide": "Developer guide", "tech-stack": "Tech stack", "modules": 
          "data-dictionary": "Data dictionary", "offline-sync": "Offline & sync", "roadmap": "Roadmap",
          "flows": "Key flows", "ui-screens": "Screens", "ui-design": "UI design", "extensions": "Extensions",
          "adr": "Decisions", "requirements": "Requirements", "operations": "Operations", "cost": "Cost & scaling",
-         "mvp": "MVP list", "endpoints": "API endpoints", "plans": "Plans", "repository": "Repository & GitHub"}
+         "mvp": "MVP list", "endpoints": "API endpoints", "plans": "Plans", "repository": "Repository & GitHub", "branches": "Branches & naming"}
 AREAS = {"st": "1 · Store & staff", "ca": "2 · Catalog", "in": "3 · Inventory", "sa": "4 · Sales"}
 
 esc = html.escape
@@ -828,7 +829,7 @@ def build():
 <li><strong>Done means:</strong> merged to <code>main</code> with tests, CI green, the screen works against the real API on staging, and the <a href="dev-guide.html#dod">definition of done</a> is met.</li>
 <li><strong>Your ticks are saved in this browser only.</strong> To share progress, use <em>Copy built IDs</em> and paste the result over <code>DONE</code> in <code>tools/build_order.py</code>, then regenerate and commit. Those tasks then show as built for everyone (locked tick). <em>Export</em> and <em>Import</em> move your own ticks between browsers.</li>
 <li><strong>Use <em>Part</em> to split the work:</strong> a backend developer filters to Backend, a front-end developer to Admin web or Register app. Inside a stage, the front-end can start a screen against the prototype while its API is being built.</li>
-<li><strong>IDs never change.</strong> Quote them in branch names, commits and pull requests, e.g. <code>feat/AUTN-09-refresh-rotation</code>. Screen codes (A-21, R-04) match the <a href="mvp.html#frontend">MVP screen list</a>.</li>
+<li><strong>IDs never change.</strong> Quote them in branch names, commits and pull requests, e.g. <code>feat/iam/AUTN-09-refresh-rotation</code> (<a href="branches.html">branch naming</a>). Screen codes (A-21, R-04) match the <a href="mvp.html#frontend">MVP screen list</a>.</li>
 </ul></div>
 
 {toolbar}

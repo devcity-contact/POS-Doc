@@ -45,5 +45,6 @@ Start with ai/AGENTS.md (rules and invariants) and ai/system-context.md (condens
 ## Engineering
 - [Developer guide](dev-guide.html): setup, Java/TS conventions, testing strategy, Git workflow, definition of done, feature walkthrough, debugging, review checklist
 - [Repository & GitHub](repository.html): one private monorepo (backend, admin, register with Windows and Android shells, packages, shared test vectors, infra, docs) with a repository map diagram; branch-to-release flow diagram; trunk-based branches named by build task ID, Conventional Commits, squash merge; CI path filters; release tags backend-v*, admin-v*, register-v*; GitHub settings; root files; open decision Q-08 on where the docs live
+- [Branches & naming](branches.html): trunk-based branch model with a diagram (main always deployable, no develop branch, release branches only for hotfixes to versions in the shops); branch names <type>/<module>/<ticket>-<short-name> (types feat, fix, hotfix, refactor, perf, test, docs, chore, ci; module names = backend modules, apps, packages; ticket = build order task ID or GH-<issue>), the CI regex, PR titles as Conventional Commits, branch lifecycle, hotfix procedure
 - [Decision records](adr.html): ADR-001..ADR-015
 - [Guide for AI agents](ai-guide.html): canonical invariants INV-01..INV-15, file map, rules, prompt recipes, verification commands
