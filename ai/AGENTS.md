@@ -63,6 +63,6 @@ listed there without adding it (with a reason) in the same change; new datastore
 | Stock / FEFO | `backend/.../inventory` | `Doc/flows.html#fefo` |
 | Sync | `backend/.../sync`, `register-core/src/sync` | `Doc/offline-sync.html` |
 | Hardware | `register-core/src/ports/DeviceBridge.ts` | `Doc/architecture.html#register` |
-| Permissions | `backend/.../platform/iam` | `Doc/security.html#rbac` |
+| Permissions | `backend/.../iam` | `Doc/security.html#rbac` |
 | Industry module | `backend/.../ext/<key>`, `packages/ext-<key>` | `Doc/extensions.html` |
 | Debug a sale | support console, logs by `saleId` | `Doc/operations.html#debug-sale` |

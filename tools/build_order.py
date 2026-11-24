@@ -27,7 +27,7 @@ EP_BY_TASK = build_endpoints.by_task()
 DOC = pathlib.Path(__file__).resolve().parent.parent
 
 # Finished tasks recorded in the repository (shared with everyone). Example: DONE = {"SET-01", "SET-02"}
-DONE: set[str] = {"SET-01", "SET-02", "SET-03"}
+DONE: set[str] = {"SET-01", "SET-02", "SET-03", "SET-04"}
 
 KINDS = {"be": "Backend", "web": "Admin web", "reg": "Register app", "try": "Try it"}
 
@@ -42,7 +42,7 @@ STAGES = [
    ("SET-01", "Create the monorepo layout", "One private repository: `backend/`, `apps/admin`, `apps/register`, `packages/`, `infra/`. Add `.editorconfig`, `.gitattributes` (`* text=auto eol=lf`), `.gitignore` and a root README.", "repository#folders dev-guide#setup", None),
    ("SET-02", "Gradle build (Kotlin DSL)", "Java 25 toolchain, version catalog `libs.versions.toml`, dependency locking, build cache.", "tech-stack", None),
    ("SET-03", "Spring Boot 4 application skeleton", "One application, virtual threads on, starts against an empty database.", "tech-stack", None),
-   ("SET-04", "Create the 15 empty modules", "tenancy, iam, devices, audit, catalog, pricing, inventory, purchasing, sales, payments, cash, customers, tax, sync, reporting, plus `platform` (shared kernel). Each has a public `api` package and an `internal` package with `web/`, `service/`, `repository/` and `model/` (ADR-015).", "modules#map", None),
+   ("SET-04", "Create the 15 empty modules", "tenancy, iam, devices, audit, catalog, pricing, inventory, purchasing, sales, payments, cash, customers, tax, sync, reporting, plus `platform` (shared kernel). Each has its public `*Api` in the module root package, `events/` and `spi/` named interfaces where needed, and an `internal` package with `web/`, `service/`, `repository/` and `model/` (ADR-015).", "modules#map", None),
    ("SET-05", "Module boundary test", "`ApplicationModules.verify()` runs in CI and fails on a forbidden dependency (INV-08). Generate the Modulith module docs.", "modules#dependencies", None),
    ("SET-06", "ArchUnit rules", "No `double`/`float` for money or quantities (INV-03), no imports of another module's `internal` package, naming rules, constructor injection only.", "dev-guide#java", None),
    ("SET-07", "Configuration and profiles", "`local`, `test`, `staging`, `prod` profiles. Typed `@ConfigurationProperties`. Secrets come only from environment variables.", "security#data-protection", None),
