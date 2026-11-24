@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Repository & GitHub · RetailOS</title>
+<meta name="description" content="How RetailOS code is kept and shipped on GitHub: one monorepo for backend, admin web and the register app, branches and pull requests, CI that builds only what changed, release tags per app, GitHub settings, secrets, and the open decision on where the docs live.">
+<link rel="stylesheet" href="assets/site.css">
+<script>try{var t=localStorage.getItem("retailos-theme");if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
+</head>
+<body>
+<header id="topbar"></header>
+<div class="layout">
+<nav id="sidebar"></nav>
+<main class="content"><article>
+
+<h1>Repository & GitHub</h1>
+<p class="lead">All RetailOS code lives in <strong>one private GitHub repository</strong>: the backend, the admin web app, the register app with its Windows and Android shells, the shared packages and the infrastructure scripts. This page explains why, how the folders fit together, and how a change travels from a branch to the shops.</p>
+
+<h2 id="repo-map">The repository at a glance</h2>
+<figure class="db-map-fig">
+<div class="db-tools"><button type="button" class="icon-btn" data-fit-toggle="rm-scroll">Fit to width</button><a class="icon-btn" href="assets/repo-map.svg" target="_blank" rel="noopener">Open full size ↗</a></div>
+<div class="db-scroll" id="rm-scroll"><!-- repo-map:start -->
+<svg class="rpo" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1180 724" width="1180" height="724" role="img" aria-labelledby="rm-title"><title id="rm-title">RetailOS repository map: folders, how they depend on each other, and what each produces</title><style>
+.rpo{--be:#2F68D8;--be-bg:#EAF1FD;--pk:#D2612B;--pk-bg:#FDEEE5;--ap:#7A4FD0;--ap-bg:#F2ECFC;--sh:#16855A;--sh-bg:#E4F5EC;
+ --in:#4A5568;--in-bg:#EEF0F4;--out:#0E7C86;--out-bg:#E2F4F5;--me:#4A5568;--me-bg:#EEF0F4;--gh:#2F68D8;--gh-bg:#EAF1FD;--ci:#7A4FD0;--ci-bg:#F2ECFC;
+ --st:#16855A;--st-bg:#E4F5EC;--rl:#C2410C;--rl-bg:#FDEDE3;--ln:#5E6779;--gen:#B5418C;--frame:#2E3A5A;--bgc:#fff;
+ --tx:var(--text,#272932);--tx2:var(--text-3,#6F7889);font-family:Inter,"Segoe UI",system-ui,sans-serif}
+.rpo .b rect{stroke-width:1.6}
+.rpo .b.be rect{fill:var(--be-bg);stroke:var(--be)} .rpo .b.pk rect{fill:var(--pk-bg);stroke:var(--pk)} .rpo .b.ap rect{fill:var(--ap-bg);stroke:var(--ap)}
+.rpo .b.sh rect{fill:var(--sh-bg);stroke:var(--sh)} .rpo .b.in rect{fill:var(--in-bg);stroke:var(--in)} .rpo .b.out rect{fill:var(--out-bg);stroke:var(--out);stroke-dasharray:5 3}
+.rpo .b.me rect{fill:var(--me-bg);stroke:var(--me)} .rpo .b.gh rect{fill:var(--gh-bg);stroke:var(--gh)} .rpo .b.ci rect{fill:var(--ci-bg);stroke:var(--ci)}
+.rpo .b.st rect{fill:var(--st-bg);stroke:var(--st)} .rpo .b.rl rect{fill:var(--rl-bg);stroke:var(--rl)}
+.rpo .b.be{color:var(--be)} .rpo .b.pk{color:var(--pk)} .rpo .b.ap{color:var(--ap)} .rpo .b.sh{color:var(--sh)} .rpo .b.in{color:var(--in)} .rpo .b.out{color:var(--out)}
+.rpo .b.me{color:var(--me)} .rpo .b.gh{color:var(--gh)} .rpo .b.ci{color:var(--ci)} .rpo .b.st{color:var(--st)} .rpo .b.rl{color:var(--rl)}
+.rpo .t{font-size:13px;font-weight:800;fill:currentColor;font-family:Consolas,"Cascadia Code",monospace}
+.rpo .t.plain{font-family:Inter,"Segoe UI",system-ui,sans-serif;letter-spacing:.04em}
+.rpo .x{font-size:12px;fill:var(--tx)} .rpo .x.code{font-family:Consolas,"Cascadia Code",monospace;font-size:11.5px}
+.rpo .sep{stroke:currentColor;opacity:.3}
+.rpo .frame{fill:none;stroke:var(--frame);stroke-width:2;stroke-dasharray:8 5} .rpo .ft{font-size:13px;font-weight:800;letter-spacing:.06em;fill:var(--frame)}
+.rpo .lane{font-size:12px;font-weight:800;letter-spacing:.08em;fill:var(--tx2)}
+.rpo .e{fill:none;stroke-width:1.6} .rpo .e.use{stroke:var(--ln)} .rpo .e.gen{stroke:var(--gen);stroke-dasharray:6 4} .rpo .e.back{stroke:var(--rl);stroke-dasharray:6 4}
+.rpo .ah.use{fill:var(--ln)} .rpo .ah.gen{fill:var(--gen)} .rpo .ah.back{fill:var(--rl)}
+.rpo .el{font-size:11.5px;font-weight:600;paint-order:stroke;stroke:var(--bgc);stroke-width:5px;stroke-linejoin:round;fill:var(--tx)} .rpo .el.gen{fill:var(--gen)} .rpo .el.back{fill:var(--rl)}
+.rpo .lg{font-size:12.5px;fill:var(--tx);font-weight:600} .rpo .lg2{font-size:12.5px;fill:var(--tx2)}
+:root[data-theme="dark"] .rpo{--be:#7FA8FF;--be-bg:#1B2840;--pk:#FF9D6B;--pk-bg:#382218;--ap:#B99BFF;--ap-bg:#251C3A;--sh:#5BD49A;--sh-bg:#142D24;
+ --in:#A3ABBB;--in-bg:#2A2D37;--out:#4FC9D2;--out-bg:#12292C;--me:#A3ABBB;--me-bg:#2A2D37;--gh:#7FA8FF;--gh-bg:#1B2840;--ci:#B99BFF;--ci-bg:#251C3A;
+ --st:#5BD49A;--st-bg:#142D24;--rl:#FF9D6B;--rl-bg:#382218;--ln:#A3ABBB;--gen:#F28AC8;--frame:#B4C0DE;--bgc:#272932}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .rpo{--be:#7FA8FF;--be-bg:#1B2840;--pk:#FF9D6B;--pk-bg:#382218;--ap:#B99BFF;--ap-bg:#251C3A;--sh:#5BD49A;--sh-bg:#142D24;
+ --in:#A3ABBB;--in-bg:#2A2D37;--out:#4FC9D2;--out-bg:#12292C;--me:#A3ABBB;--me-bg:#2A2D37;--gh:#7FA8FF;--gh-bg:#1B2840;--ci:#B99BFF;--ci-bg:#251C3A;
+ --st:#5BD49A;--st-bg:#142D24;--rl:#FF9D6B;--rl-bg:#382218;--ln:#A3ABBB;--gen:#F28AC8;--frame:#B4C0DE;--bgc:#272932}}
+</style><defs><marker id="rm-use" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah use" d="M0,0 L10,5 L0,10 z"/></marker><marker id="rm-gen" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah gen" d="M0,0 L10,5 L0,10 z"/></marker><marker id="rm-back" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah back" d="M0,0 L10,5 L0,10 z"/></marker></defs><g class="b be"><rect x="30" y="19" width="14" height="14" rx="3"/></g><text class="lg" x="51" y="30" text-anchor="start">Backend</text><g class="b pk"><rect x="125.4" y="19" width="14" height="14" rx="3"/></g><text class="lg" x="146.4" y="30" text-anchor="start">Shared packages</text><g class="b ap"><rect x="278.4" y="19" width="14" height="14" rx="3"/></g><text class="lg" x="299.4" y="30" text-anchor="start">Apps</text><g class="b sh"><rect x="352.2" y="19" width="14" height="14" rx="3"/></g><text class="lg" x="373.2" y="30" text-anchor="start">Shared test data</text><g class="b in"><rect x="512.4" y="19" width="14" height="14" rx="3"/></g><text class="lg" x="533.4" y="30" text-anchor="start">Infra and docs</text><g class="b out"><rect x="658.2" y="19" width="14" height="14" rx="3"/></g><text class="lg" x="679.2" y="30" text-anchor="start">What it produces</text><text class="lg2" x="30" y="56" text-anchor="start">Solid arrow: uses or is checked against. Dashed pink arrow: generated from.</text><rect class="frame" x="16" y="72" width="860" height="636" rx="16"/><text class="ft" x="32" y="94" text-anchor="start">RETAILOS · ONE PRIVATE GITHUB REPOSITORY</text><text class="lane" x="902" y="94" text-anchor="start">WHAT IT PRODUCES</text><g class="b sh"><rect x="30" y="110" width="236" height="96" rx="10"/><text class="t" x="42" y="131">shared/test-vectors/</text><line class="sep" x1="30" y1="141" x2="266" y2="141"/><text class="x" x="42" y="158">JSON cases: tax, pricing,</text><text class="x" x="42" y="174">rounding, GS1 parsing;</text><text class="x" x="42" y="190">checked by Java and TS</text></g><g class="b be"><rect x="300" y="110" width="556" height="102" rx="10"/><text class="t" x="312" y="131">backend/</text><line class="sep" x1="300" y1="141" x2="856" y2="141"/><text class="x" x="312" y="158">Spring Boot 4 · Java 25 · Gradle</text><text class="x" x="312" y="174">15 modules, each web → service → repository (ADR-015)</text><text class="x" x="312" y="190">Flyway migrations · unit, Modulith and Testcontainers tests</text></g><g class="b out"><rect x="902" y="140" width="250" height="40" rx="20.0"/><text class="t plain" x="1027.0" y="164.5" text-anchor="middle">Docker image → GHCR</text></g><path class="e use" d="M266,150 L294,150" marker-end="url(#rm-use)"/><path class="e use" d="M856,160 L896,160" marker-end="url(#rm-use)"/><g class="b pk"><rect x="300" y="262" width="250" height="70" rx="10"/><text class="t" x="312" y="283">packages/api-client</text><line class="sep" x1="300" y1="293" x2="550" y2="293"/><text class="x" x="312" y="310">generated from the OpenAPI</text><text class="x" x="312" y="326">used by admin and register</text></g><g class="b pk"><rect x="300" y="346" width="250" height="70" rx="10"/><text class="t" x="312" y="367">packages/register-core</text><line class="sep" x1="300" y1="377" x2="550" y2="377"/><text class="x" x="312" y="394">cart, pricing, tax, sale, shift</text><text class="x" x="312" y="410">pure TypeScript, no UI</text></g><g class="b pk"><rect x="300" y="430" width="250" height="70" rx="10"/><text class="t" x="312" y="451">packages/ui</text><line class="sep" x1="300" y1="461" x2="550" y2="461"/><text class="x" x="312" y="478">shared React components</text><text class="x" x="312" y="494">design tokens, light and dark</text></g><g class="b pk"><rect x="300" y="514" width="250" height="54" rx="10"/><text class="t" x="312" y="535">packages/i18n</text><line class="sep" x1="300" y1="545" x2="550" y2="545"/><text class="x" x="312" y="562">English · Sinhala · Tamil</text></g><path class="e gen" d="M425,212 L425,256" marker-end="url(#rm-gen)"/><text class="el gen" x="436" y="240" text-anchor="start">OpenAPI → client</text><path class="e use" d="M148,206 L148,381 L294,381" marker-end="url(#rm-use)"/><text class="el use" x="156" y="300" text-anchor="start">same cases</text><g class="b ap"><rect x="590" y="262" width="250" height="72" rx="10"/><text class="t" x="602" y="283">apps/admin</text><line class="sep" x1="590" y1="293" x2="840" y2="293"/><text class="x" x="602" y="310">React back-office web app</text><text class="x" x="602" y="326">Vite · TanStack · Tailwind</text></g><g class="b ap"><rect x="590" y="362" width="250" height="72" rx="10"/><text class="t" x="602" y="383">apps/register</text><line class="sep" x1="590" y1="393" x2="840" y2="393"/><text class="x" x="602" y="410">React register UI</text><text class="x" x="602" y="426">one UI for both shells</text></g><g class="b ap"><rect x="590" y="466" width="250" height="62" rx="10"/><text class="t" x="602" y="487">apps/register-electron</text><line class="sep" x1="590" y1="497" x2="840" y2="497"/><text class="x" x="602" y="514">Windows shell · SQLCipher</text></g><g class="b ap"><rect x="590" y="552" width="250" height="62" rx="10"/><text class="t" x="602" y="573">apps/register-android</text><line class="sep" x1="590" y1="583" x2="840" y2="583"/><text class="x" x="602" y="600">Android shell · Kotlin plugin</text></g><path class="e use" d="M550,297 L584,297" marker-end="url(#rm-use)"/><path class="e use" d="M550,381 L584,397" marker-end="url(#rm-use)"/><text class="lg2" x="300" y="596" text-anchor="start">ui and i18n are used by both apps</text><path class="e use" d="M840,398 L858,398 L858,486 L846,486" marker-end="url(#rm-use)"/><path class="e use" d="M858,486 L858,572 L846,572" marker-end="url(#rm-use)"/><text class="el" x="866" y="440" text-anchor="start">wrapped by</text><g class="b out"><rect x="902" y="278" width="250" height="40" rx="20.0"/><text class="t plain" x="1027.0" y="302.5" text-anchor="middle">Static site → CDN</text></g><g class="b out"><rect x="902" y="488" width="250" height="40" rx="20.0"/><text class="t plain" x="1027.0" y="512.5" text-anchor="middle">Signed Windows installer</text></g><g class="b out"><rect x="902" y="574" width="250" height="40" rx="20.0"/><text class="t plain" x="1027.0" y="598.5" text-anchor="middle">AAB / APK → Play or MDM</text></g><path class="e use" d="M840,298 L896,298" marker-end="url(#rm-use)"/><path class="e use" d="M840,508 L896,508" marker-end="url(#rm-use)"/><path class="e use" d="M840,594 L896,594" marker-end="url(#rm-use)"/><g class="b in"><rect x="30" y="430" width="236" height="84" rx="10"/><text class="t" x="42" y="451">infra/</text><line class="sep" x1="30" y1="461" x2="266" y2="461"/><text class="x" x="42" y="478">docker compose, Caddy,</text><text class="x" x="42" y="494">CI scripts, deploy scripts</text></g><g class="b in"><rect x="30" y="540" width="236" height="70" rx="10"/><text class="t" x="42" y="561">docs/</text><line class="sep" x1="30" y1="571" x2="266" y2="571"/><text class="x" x="42" y="588">this documentation site</text><text class="x" x="42" y="604">(see the open decision)</text></g><g class="b out"><rect x="30" y="640" width="236" height="40" rx="20.0"/><text class="t plain" x="148.0" y="664.5" text-anchor="middle">Docs site</text></g><path class="e use" d="M148,610 L148,634" marker-end="url(#rm-use)"/></svg>
+<!-- repo-map:end --></div>
+<figcaption>The register UI is written once and wrapped by two shells. The admin and register apps share the packages in the middle; the API client is generated from the backend's OpenAPI document. Generated by <code>tools/build_repo_diagrams.py</code>.</figcaption>
+</figure>
+
+<h2 id="why-one-repo">Why one repository</h2>
+<ul>
+<li><strong>Most changes cross boundaries.</strong> A new field on a sale touches a migration, the backend API, the generated client, the register and an admin screen. In one repository that is one pull request, tested together. Across repositories it is several pull requests that must be merged in the right order.</li>
+<li><strong>Shared code stays simple.</strong> <code>register-core</code>, <code>ui</code>, <code>i18n</code> and <code>api-client</code> are used by more than one app. In one repository they are workspace folders; across repositories each would need publishing and version bumps.</li>
+<li><strong>Java and TypeScript check the same cases.</strong> <code>shared/test-vectors</code> drives both test suites (<a href="adr.html#adr-012">ADR-012</a>), which only works when both live together.</li>
+<li><strong>Windows and Android are not two apps.</strong> They are one React register app in two thin shells (<a href="adr.html#adr-003">ADR-003</a>). Splitting them would copy the UI.</li>
+<li><strong>One engineer, one pipeline.</strong> One set of settings, secrets and CI to look after.</li>
+</ul>
+<div class="callout"><span class="ct">When to split a repository</span>
+Only when a separate team owns a part and releases it on its own schedule, and the shared code between them has settled. That is not expected before Release 3. Until then, ownership is handled with a <code>CODEOWNERS</code> file inside the one repository.</div>
+
+<h2 id="folders">Folders</h2>
+<table>
+<thead><tr><th>Folder</th><th>What it holds</th><th>Built with</th><th>Produces</th></tr></thead>
+<tbody>
+<tr><td><code>backend/</code></td><td>Spring Boot application: all modules, Flyway migrations, tests</td><td>Gradle (Kotlin DSL)</td><td>Docker image in GitHub Container Registry</td></tr>
+<tr><td><code>apps/admin/</code></td><td>Back-office web app</td><td>pnpm + Vite</td><td>Static site on a CDN</td></tr>
+<tr><td><code>apps/register/</code></td><td>Register UI, shared by both shells</td><td>pnpm + Vite</td><td>Bundled into the two shells</td></tr>
+<tr><td><code>apps/register-electron/</code></td><td>Windows shell: main process, preload, device adapters</td><td>electron-builder</td><td>Signed Windows installer with auto-update</td></tr>
+<tr><td><code>apps/register-android/</code></td><td>Android shell and the Kotlin device plugin</td><td>Capacitor + Gradle</td><td>Signed AAB (Play) or APK (MDM)</td></tr>
+<tr><td><code>packages/</code></td><td><code>register-core</code>, <code>api-client</code>, <code>ui</code>, <code>i18n</code></td><td>pnpm workspaces</td><td>Used by the apps; not published</td></tr>
+<tr><td><code>shared/test-vectors/</code></td><td>JSON test cases for tax, pricing, rounding, GS1 parsing</td><td>—</td><td>Read by the Java and TypeScript tests</td></tr>
+<tr><td><code>infra/</code></td><td>docker compose, Caddy, CI and deploy scripts</td><td>—</td><td>Used by CI and deployments</td></tr>
+<tr><td><code>docs/</code></td><td>This documentation site (see <a href="#docs-decision">open decision</a>)</td><td>Python tools</td><td>Docs site</td></tr>
+</tbody>
+</table>
+<p>The full tree is in <a href="architecture.html#repo">Architecture › Repository layout</a>.</p>
+
+<h2 id="flow">From branch to release</h2>
+<figure class="db-map-fig">
+<div class="db-tools"><button type="button" class="icon-btn" data-fit-toggle="gf-scroll">Fit to width</button><a class="icon-btn" href="assets/git-flow.svg" target="_blank" rel="noopener">Open full size ↗</a></div>
+<div class="db-scroll" id="gf-scroll"><!-- git-flow:start -->
+<svg class="rpo" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1180 520" width="1180" height="520" role="img" aria-labelledby="gf-title"><title id="gf-title">From branch to release: how a change travels from a branch to production</title><style>
+.rpo{--be:#2F68D8;--be-bg:#EAF1FD;--pk:#D2612B;--pk-bg:#FDEEE5;--ap:#7A4FD0;--ap-bg:#F2ECFC;--sh:#16855A;--sh-bg:#E4F5EC;
+ --in:#4A5568;--in-bg:#EEF0F4;--out:#0E7C86;--out-bg:#E2F4F5;--me:#4A5568;--me-bg:#EEF0F4;--gh:#2F68D8;--gh-bg:#EAF1FD;--ci:#7A4FD0;--ci-bg:#F2ECFC;
+ --st:#16855A;--st-bg:#E4F5EC;--rl:#C2410C;--rl-bg:#FDEDE3;--ln:#5E6779;--gen:#B5418C;--frame:#2E3A5A;--bgc:#fff;
+ --tx:var(--text,#272932);--tx2:var(--text-3,#6F7889);font-family:Inter,"Segoe UI",system-ui,sans-serif}
+.rpo .b rect{stroke-width:1.6}
+.rpo .b.be rect{fill:var(--be-bg);stroke:var(--be)} .rpo .b.pk rect{fill:var(--pk-bg);stroke:var(--pk)} .rpo .b.ap rect{fill:var(--ap-bg);stroke:var(--ap)}
+.rpo .b.sh rect{fill:var(--sh-bg);stroke:var(--sh)} .rpo .b.in rect{fill:var(--in-bg);stroke:var(--in)} .rpo .b.out rect{fill:var(--out-bg);stroke:var(--out);stroke-dasharray:5 3}
+.rpo .b.me rect{fill:var(--me-bg);stroke:var(--me)} .rpo .b.gh rect{fill:var(--gh-bg);stroke:var(--gh)} .rpo .b.ci rect{fill:var(--ci-bg);stroke:var(--ci)}
+.rpo .b.st rect{fill:var(--st-bg);stroke:var(--st)} .rpo .b.rl rect{fill:var(--rl-bg);stroke:var(--rl)}
+.rpo .b.be{color:var(--be)} .rpo .b.pk{color:var(--pk)} .rpo .b.ap{color:var(--ap)} .rpo .b.sh{color:var(--sh)} .rpo .b.in{color:var(--in)} .rpo .b.out{color:var(--out)}
+.rpo .b.me{color:var(--me)} .rpo .b.gh{color:var(--gh)} .rpo .b.ci{color:var(--ci)} .rpo .b.st{color:var(--st)} .rpo .b.rl{color:var(--rl)}
+.rpo .t{font-size:13px;font-weight:800;fill:currentColor;font-family:Consolas,"Cascadia Code",monospace}
+.rpo .t.plain{font-family:Inter,"Segoe UI",system-ui,sans-serif;letter-spacing:.04em}
+.rpo .x{font-size:12px;fill:var(--tx)} .rpo .x.code{font-family:Consolas,"Cascadia Code",monospace;font-size:11.5px}
+.rpo .sep{stroke:currentColor;opacity:.3}
+.rpo .frame{fill:none;stroke:var(--frame);stroke-width:2;stroke-dasharray:8 5} .rpo .ft{font-size:13px;font-weight:800;letter-spacing:.06em;fill:var(--frame)}
+.rpo .lane{font-size:12px;font-weight:800;letter-spacing:.08em;fill:var(--tx2)}
+.rpo .e{fill:none;stroke-width:1.6} .rpo .e.use{stroke:var(--ln)} .rpo .e.gen{stroke:var(--gen);stroke-dasharray:6 4} .rpo .e.back{stroke:var(--rl);stroke-dasharray:6 4}
+.rpo .ah.use{fill:var(--ln)} .rpo .ah.gen{fill:var(--gen)} .rpo .ah.back{fill:var(--rl)}
+.rpo .el{font-size:11.5px;font-weight:600;paint-order:stroke;stroke:var(--bgc);stroke-width:5px;stroke-linejoin:round;fill:var(--tx)} .rpo .el.gen{fill:var(--gen)} .rpo .el.back{fill:var(--rl)}
+.rpo .lg{font-size:12.5px;fill:var(--tx);font-weight:600} .rpo .lg2{font-size:12.5px;fill:var(--tx2)}
+:root[data-theme="dark"] .rpo{--be:#7FA8FF;--be-bg:#1B2840;--pk:#FF9D6B;--pk-bg:#382218;--ap:#B99BFF;--ap-bg:#251C3A;--sh:#5BD49A;--sh-bg:#142D24;
+ --in:#A3ABBB;--in-bg:#2A2D37;--out:#4FC9D2;--out-bg:#12292C;--me:#A3ABBB;--me-bg:#2A2D37;--gh:#7FA8FF;--gh-bg:#1B2840;--ci:#B99BFF;--ci-bg:#251C3A;
+ --st:#5BD49A;--st-bg:#142D24;--rl:#FF9D6B;--rl-bg:#382218;--ln:#A3ABBB;--gen:#F28AC8;--frame:#B4C0DE;--bgc:#272932}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .rpo{--be:#7FA8FF;--be-bg:#1B2840;--pk:#FF9D6B;--pk-bg:#382218;--ap:#B99BFF;--ap-bg:#251C3A;--sh:#5BD49A;--sh-bg:#142D24;
+ --in:#A3ABBB;--in-bg:#2A2D37;--out:#4FC9D2;--out-bg:#12292C;--me:#A3ABBB;--me-bg:#2A2D37;--gh:#7FA8FF;--gh-bg:#1B2840;--ci:#B99BFF;--ci-bg:#251C3A;
+ --st:#5BD49A;--st-bg:#142D24;--rl:#FF9D6B;--rl-bg:#382218;--ln:#A3ABBB;--gen:#F28AC8;--frame:#B4C0DE;--bgc:#272932}}
+</style><defs><marker id="gf-use" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah use" d="M0,0 L10,5 L0,10 z"/></marker><marker id="gf-gen" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah gen" d="M0,0 L10,5 L0,10 z"/></marker><marker id="gf-back" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah back" d="M0,0 L10,5 L0,10 z"/></marker></defs><g class="b me"><rect x="30" y="19" width="14" height="14" rx="3"/></g><text class="lg" x="51" y="30" text-anchor="start">On your computer</text><g class="b gh"><rect x="190.2" y="19" width="14" height="14" rx="3"/></g><text class="lg" x="211.2" y="30" text-anchor="start">GitHub</text><g class="b ci"><rect x="278.4" y="19" width="14" height="14" rx="3"/></g><text class="lg" x="299.4" y="30" text-anchor="start">GitHub Actions</text><g class="b st"><rect x="424.2" y="19" width="14" height="14" rx="3"/></g><text class="lg" x="445.2" y="30" text-anchor="start">Staging</text><g class="b rl"><rect x="519.6" y="19" width="14" height="14" rx="3"/></g><text class="lg" x="540.6" y="30" text-anchor="start">Release</text><g class="b me"><rect x="30" y="92" width="196" height="126" rx="10"/><text class="t plain" x="42" y="113">1 · BRANCH</text><line class="sep" x1="30" y1="123" x2="226" y2="123"/><text class="x code" x="42" y="140">git switch -c</text><text class="x code" x="42" y="156">feat/AUTN-09-refresh</text><text class="x" x="42" y="172">small: merged in days</text><text class="x code" x="42" y="188">feat(iam): rotate …</text></g><g class="b gh"><rect x="260" y="92" width="196" height="126" rx="10"/><text class="t plain" x="272" y="113">2 · PULL REQUEST</text><line class="sep" x1="260" y1="123" x2="456" y2="123"/><text class="x code" x="272" y="140">gh pr create --fill</text><text class="x" x="272" y="156">template + checklist</text><text class="x" x="272" y="172">links the task ID</text><text class="x" x="272" y="188">self-review, AI review</text></g><g class="b ci"><rect x="490" y="92" width="196" height="206" rx="10"/><text class="t plain" x="502" y="113">3 · CI CHECKS</text><line class="sep" x1="490" y1="123" x2="686" y2="123"/><text class="x" x="502" y="140">only what changed:</text><text class="x" x="502" y="156">backend: tests, boundary,</text><text class="x" x="502" y="172">  ArchUnit, OpenAPI diff</text><text class="x" x="502" y="188">admin: build and tests</text><text class="x" x="502" y="204">register: core tests,</text><text class="x" x="502" y="220">  Windows + Android build</text><text class="x" x="502" y="236">docs: rebuild, link check</text><text class="x" x="502" y="252">always: scans and lint</text></g><g class="b gh"><rect x="720" y="92" width="196" height="126" rx="10"/><text class="t plain" x="732" y="113">4 · SQUASH MERGE</text><line class="sep" x1="720" y1="123" x2="916" y2="123"/><text class="x" x="732" y="140">all checks green</text><text class="x" x="732" y="156">one commit on main</text><text class="x" x="732" y="172">branch deleted</text><text class="x" x="732" y="188">main stays deployable</text></g><g class="b st"><rect x="950" y="92" width="196" height="126" rx="10"/><text class="t plain" x="962" y="113">5 · STAGING</text><line class="sep" x1="950" y1="123" x2="1146" y2="123"/><text class="x" x="962" y="140">main deploys itself</text><text class="x" x="962" y="156">migrations run first</text><text class="x" x="962" y="172">Try it steps checked</text><text class="x" x="962" y="188">demo data can be reset</text></g><path class="e use" d="M226,132 L254,132" marker-end="url(#gf-use)"/><path class="e use" d="M456,132 L484,132" marker-end="url(#gf-use)"/><path class="e use" d="M686,132 L714,132" marker-end="url(#gf-use)"/><path class="e use" d="M916,132 L944,132" marker-end="url(#gf-use)"/><path class="e back" d="M530,298 L530,328 L358.0,328 L358.0,224" marker-end="url(#gf-back)"/><text class="el back" x="370.0" y="322" text-anchor="start">a check fails: fix it, push again</text><path class="e use" d="M1048.0,218 L1048.0,362 L128.0,362 L128.0,386" marker-end="url(#gf-use)"/><text class="el use" x="730" y="356" text-anchor="start">when a version is ready to ship</text><g class="b rl"><rect x="30" y="392" width="196" height="110" rx="10"/><text class="t plain" x="42" y="413">6 · TAG A RELEASE</text><line class="sep" x1="30" y1="423" x2="226" y2="423"/><text class="x code" x="42" y="440">backend-v1.4.0</text><text class="x code" x="42" y="456">register-v1.6.0</text><text class="x code" x="42" y="472">admin-v1.3.0</text></g><g class="b rl"><rect x="260" y="392" width="426" height="110" rx="10"/><text class="t plain" x="272" y="413">7 · RELEASE BUILD (from the tag)</text><line class="sep" x1="260" y1="423" x2="686" y2="423"/><text class="x" x="272" y="440">backend: Docker image · admin: static site</text><text class="x" x="272" y="456">register: signed Windows installer, signed AAB/APK</text><text class="x" x="272" y="472">release notes from the commit messages</text></g><g class="b rl"><rect x="720" y="392" width="426" height="110" rx="10"/><text class="t plain" x="732" y="413">8 · PRODUCTION AND SHOPS</text><line class="sep" x1="720" y1="423" x2="1146" y2="423"/><text class="x" x="732" y="440">backend: manual approval, health-gated deploy</text><text class="x" x="732" y="456">Windows: auto-update, staged roll-out</text><text class="x" x="732" y="472">Android: Play staged roll-out, or MDM</text></g><path class="e use" d="M226,432 L254,432" marker-end="url(#gf-use)"/><path class="e use" d="M686,432 L714,432" marker-end="url(#gf-use)"/></svg>
+<!-- git-flow:end --></div>
+<figcaption>Every change goes through a pull request and CI. Merging to <code>main</code> updates staging; a tag turns a tested version into a release. Generated by <code>tools/build_repo_diagrams.py</code>.</figcaption>
+</figure>
+
+<h2 id="branches">Branches and pull requests</h2>
+<table>
+<thead><tr><th>Rule</th><th>Detail</th></tr></thead>
+<tbody>
+<tr><td>Trunk-based</td><td><code>main</code> is always deployable. Work happens on short branches merged within a few days; unfinished features hide behind a feature flag (<a href="dev-guide.html#git">developer guide</a>).</td></tr>
+<tr><td>Branch names</td><td><code>feat/AUTN-09-refresh-rotation</code>, <code>fix/SELL-03-receipt-gap</code>, <code>docs/…</code>, <code>chore/…</code>. Start with the <a href="build-order.html">build order</a> task ID.</td></tr>
+<tr><td>Commit messages</td><td>Conventional Commits: <code>feat(iam): rotate refresh tokens on every use</code>. The release notes are built from them.</td></tr>
+<tr><td>Pull requests</td><td>Small and focused. The template asks for the task ID, how it was tested, screenshots for screens, and the <a href="security.html#security-checklist">security checklist</a>. Update <code>docs/tools/build_endpoints.py</code> in the same pull request when an endpoint changes.</td></tr>
+<tr><td>Review</td><td>While working alone: a self-review against the checklist plus an AI review. With a second developer: one approval required, set through <code>CODEOWNERS</code>.</td></tr>
+<tr><td>Merging</td><td>Squash merge only: one commit per pull request on <code>main</code>, titled like a Conventional Commit. The branch is deleted after merging.</td></tr>
+</tbody>
+</table>
+
+<h2 id="ci">CI builds only what changed</h2>
+<p>GitHub Actions uses path filters, so a backend change doesn't rebuild the Android app and a docs fix doesn't run the database tests. The scripts live in <code>infra/ci/</code> so they can move to another CI if needed.</p>
+<table>
+<thead><tr><th>A change in</th><th>Runs</th></tr></thead>
+<tbody>
+<tr><td><code>backend/**</code></td><td>Compile, unit tests, Testcontainers integration tests, module boundary test, ArchUnit, <code>TenantIsolationIT</code>, OpenAPI breaking-change check, endpoint list check (<a href="build-order.html#core-15">CORE-15</a>)</td></tr>
+<tr><td><code>packages/**</code></td><td>Everything below that uses the package: admin and register builds and tests</td></tr>
+<tr><td><code>apps/admin/**</code></td><td>Lint, type check, Vitest, Playwright end-to-end tests, build</td></tr>
+<tr><td><code>apps/register*/**</code></td><td>Lint, type check, <code>register-core</code> tests, Windows build, Android debug APK (<a href="build-order.html#web-08">WEB-08</a>)</td></tr>
+<tr><td><code>shared/test-vectors/**</code></td><td>Both the Java and the TypeScript test suites</td></tr>
+<tr><td><code>docs/**</code></td><td>Regenerate the pages, check every link</td></tr>
+<tr><td>Every pull request</td><td>Formatting, secret scan, dependency scan (OSV-Scanner), static analysis (Semgrep)</td></tr>
+</tbody>
+</table>
+
+<h2 id="releases">Versions and release tags</h2>
+<p>The backend, the admin app and the register ship on different schedules, so each has its own version and tag. Both register shells always share one version.</p>
+<table>
+<thead><tr><th>Tag</th><th>Builds</th><th>Goes to</th></tr></thead>
+<tbody>
+<tr><td><code>backend-v1.4.0</code></td><td>Docker image</td><td>Production after a manual approval; health-gated, with a rollback plan</td></tr>
+<tr><td><code>admin-v1.3.0</code></td><td>Static site</td><td>CDN</td></tr>
+<tr><td><code>register-v1.6.0</code></td><td>Signed Windows installer and signed AAB/APK</td><td>Windows auto-update and Google Play (or MDM), both with a staged roll-out</td></tr>
+</tbody>
+</table>
+<ul>
+<li>Versions follow semantic versioning. A register version must keep working with the backend for one version back (<span class="inv">INV-13</span>), so the backend never removes something an older register still uses.</li>
+<li>Installers, APKs and AABs are attached to the GitHub Release for the tag, never committed to the repository.</li>
+<li>Database migrations ship with the backend version and run before it starts (<a href="deployment.html">deployment</a>).</li>
+</ul>
+
+<h2 id="settings">GitHub settings to switch on</h2>
+<table>
+<thead><tr><th>Setting</th><th>Value</th></tr></thead>
+<tbody>
+<tr><td>Repository</td><td>Private, in the <code>devcity-contact</code> organisation</td></tr>
+<tr><td>Branch protection on <code>main</code></td><td>Pull request required; required status checks; conversations resolved; no force pushes; no deletions; linear history</td></tr>
+<tr><td>Merge buttons</td><td>Squash merge only; delete branches after merge</td></tr>
+<tr><td>Environments</td><td><code>staging</code> deploys from <code>main</code> automatically; <code>production</code> needs a manual approval. Each has its own secrets.</td></tr>
+<tr><td>Actions secrets</td><td>Windows code-signing certificate, Android upload keystore, deploy keys. Prefer short-lived OIDC credentials to cloud providers over stored keys.</td></tr>
+<tr><td>Dependency updates</td><td>Renovate, grouped weekly, with automatic merge for patch updates that pass CI</td></tr>
+<tr><td>Security scanning</td><td>On a private repository, GitHub's own secret scanning and CodeQL need the paid Advanced Security add-on. Use the free tools in CI instead: gitleaks for secrets, Semgrep and OSV-Scanner (<a href="security.html#sdlc">secure development</a>).</td></tr>
+<tr><td>Issues and tracking</td><td>The <a href="build-order.html">build order</a> is the plan. Use GitHub Issues for bugs and pilot feedback, labelled with the module name.</td></tr>
+</tbody>
+</table>
+
+<h2 id="root-files">Files at the root of the repository</h2>
+<table>
+<thead><tr><th>File</th><th>Why</th></tr></thead>
+<tbody>
+<tr><td><code>.gitattributes</code></td><td><code>* text=auto eol=lf</code> plus <code>*.bat text eol=crlf</code>, so every file has the same line endings on Windows and in CI, and Git stops warning about CRLF</td></tr>
+<tr><td><code>.gitignore</code></td><td>Build output, <code>node_modules</code>, <code>.gradle</code>, <code>.env</code>, signing keys, local databases</td></tr>
+<tr><td><code>.editorconfig</code></td><td>Same indentation and charset in every editor</td></tr>
+<tr><td><code>AGENTS.md</code></td><td>Rules for AI coding assistants (from <a href="ai-guide.html">the AI guide</a>)</td></tr>
+<tr><td><code>.github/pull_request_template.md</code></td><td>Task ID, how it was tested, the security checklist</td></tr>
+<tr><td><code>.github/workflows/</code></td><td>Thin workflow files that call the scripts in <code>infra/ci/</code></td></tr>
+<tr><td><code>renovate.json</code></td><td>Dependency update rules</td></tr>
+<tr><td><code>CODEOWNERS</code></td><td>Added when a second developer joins</td></tr>
+</tbody>
+</table>
+<div class="callout danger"><span class="ct">Never in the repository</span>
+Passwords, API keys, signing certificates, keystores, <code>.env</code> files, customer data or database dumps. If one is committed by mistake, treat it as leaked: rotate it first, then remove it from the history.</div>
+
+<h2 id="commands">Day-to-day commands</h2>
+<pre><code># start a task from the build order
+git switch main &amp;&amp; git pull
+git switch -c feat/AUTN-09-refresh-rotation
+
+# commit in small steps
+git commit -m "feat(iam): rotate refresh tokens on every use"
+
+# open the pull request
+git push -u origin HEAD
+gh pr create --fill
+
+# after the squash merge
+git switch main &amp;&amp; git pull &amp;&amp; git branch -d feat/AUTN-09-refresh-rotation
+
+# release the register when staging is good
+git tag register-v1.6.0 &amp;&amp; git push origin register-v1.6.0</code></pre>
+
+<h2 id="docs-decision">Open decision: where the docs live</h2>
+<p>The repository layout puts the documentation in <code>docs/</code>. Today it lives in its own <strong>public</strong> repository, <code>devcity-contact/POS-Doc</code>, published with GitHub Pages. This is open question <a href="index.html#open-questions">Q-08</a>.</p>
+<table>
+<thead><tr><th>Option</th><th>For</th><th>Against</th></tr></thead>
+<tbody>
+<tr><td><strong>Move into the private monorepo</strong> (recommended)</td><td>Code and docs change in the same pull request, so the endpoint list and the CI check against <code>openapi.json</code> work. The threat model, security design and endpoint list stop being public. <code>git subtree add --prefix=docs</code> keeps the full history.</td><td>Needs a host that builds from a private repository: Cloudflare Pages does this for free, and Cloudflare Access can limit the site to the team. GitHub Pages from a private repository needs a paid plan and the site itself would still be public.</td></tr>
+<tr><td><strong>Keep <code>POS-Doc</code> public and separate</strong></td><td>Free and already working</td><td>Every feature needs two pull requests, one per repository, and the security details stay public</td></tr>
+</tbody>
+</table>
+
+</article></main>
+<aside id="toc"></aside>
+</div>
+<script src="assets/search-index.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js"></script>
+<script src="assets/site.js"></script>
+</body>
+</html>

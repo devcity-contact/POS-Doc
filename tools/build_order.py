@@ -39,7 +39,7 @@ STAGES = [
   "Everything that isn't a feature: the repository, both builds, CI, the app shells, staging, and the rules every module follows. It ends with a walking skeleton: one tiny path through every layer, deployed by CI, before any real feature.",
  [
   ("SET", "Backend project setup", "P0", "be", "One build, one command to start everything locally, and CI that blocks bad merges.", [
-   ("SET-01", "Create the monorepo layout", "`backend/`, `apps/admin`, `apps/register`, `packages/`, `infra/`. Add `.editorconfig`, `.gitattributes` and a root README.", "dev-guide#setup", None),
+   ("SET-01", "Create the monorepo layout", "One private repository: `backend/`, `apps/admin`, `apps/register`, `packages/`, `infra/`. Add `.editorconfig`, `.gitattributes` (`* text=auto eol=lf`), `.gitignore` and a root README.", "repository#folders dev-guide#setup", None),
    ("SET-02", "Gradle build (Kotlin DSL)", "Java 25 toolchain, version catalog `libs.versions.toml`, dependency locking, build cache.", "tech-stack", None),
    ("SET-03", "Spring Boot 4 application skeleton", "One application, virtual threads on, starts against an empty database.", "tech-stack", None),
    ("SET-04", "Create the 15 empty modules", "tenancy, iam, devices, audit, catalog, pricing, inventory, purchasing, sales, payments, cash, customers, tax, sync, reporting, plus `platform` (shared kernel). Each has a public `api` package and an `internal` package with `web/`, `service/`, `repository/` and `model/` (ADR-015).", "modules#map", None),
@@ -48,10 +48,10 @@ STAGES = [
    ("SET-07", "Configuration and profiles", "`local`, `test`, `staging`, `prod` profiles. Typed `@ConfigurationProperties`. Secrets come only from environment variables.", "security#data-protection", None),
    ("SET-08", "Local stack with docker compose", "PostgreSQL 18, S3-compatible storage and Mailpit. `docker compose up` gives a running stack.", "deployment", None),
    ("SET-09", "Formatting and static checks", "Formatter and static checks run in the build for Java and TypeScript, so style is never discussed in review.", "dev-guide#review", None),
-   ("SET-10", "CI pipeline (GitHub Actions)", "Backend and front-end jobs: build, tests, boundary test, ArchUnit, lint. Required to merge. Scripts live in `infra/ci/`.", "deployment", None),
+   ("SET-10", "CI pipeline (GitHub Actions)", "Backend and front-end jobs: build, tests, boundary test, ArchUnit, lint, with path filters so only what changed is built. Required to merge. Scripts live in `infra/ci/`.", "repository#ci deployment", None),
    ("SET-11", "Security scans in CI", "Semgrep or CodeQL, OSV-Scanner for dependencies, Renovate for weekly update pull requests.", "security#sdlc", None),
    ("SET-12", "Container image", "Layered jar on a JRE 25 base, runs as non-root, scanned by Trivy, pushed to the container registry.", "deployment", None),
-   ("SET-13", "Pull request template and branch protection", "PR template with the security checklist, protected `main`, AGENTS.md for AI assistants.", "security#security-checklist ai-guide", None),
+   ("SET-13", "Pull request template and branch protection", "PR template with the security checklist, protected `main`, squash merge only, staging and production environments, release tags per app, AGENTS.md for AI assistants.", "repository#settings security#security-checklist ai-guide", None),
    ("SET-14", "Message bundles en / si / ta", "Server messages (errors, e-mails) in English, Sinhala and Tamil, chosen by `Accept-Language`.", "api#conventions", None),
   ]),
   ("WEB", "Front-end setup", "P0", "web", "The shared front-end base for the admin web app and the register app.", [
@@ -545,7 +545,7 @@ PAGES = {"dev-guide": "Developer guide", "tech-stack": "Tech stack", "modules": 
          "data-dictionary": "Data dictionary", "offline-sync": "Offline & sync", "roadmap": "Roadmap",
          "flows": "Key flows", "ui-screens": "Screens", "ui-design": "UI design", "extensions": "Extensions",
          "adr": "Decisions", "requirements": "Requirements", "operations": "Operations", "cost": "Cost & scaling",
-         "mvp": "MVP list", "endpoints": "API endpoints", "plans": "Plans"}
+         "mvp": "MVP list", "endpoints": "API endpoints", "plans": "Plans", "repository": "Repository & GitHub"}
 AREAS = {"st": "1 · Store & staff", "ca": "2 · Catalog", "in": "3 · Inventory", "sa": "4 · Sales"}
 
 esc = html.escape

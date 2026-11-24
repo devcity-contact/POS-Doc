@@ -24,6 +24,7 @@ System design for RetailOS, DevCity's offline-first POS for retail, pharmacy and
 | `assets/request-flow.svg` | Request pipeline (filter chain) diagram, also inline in `security.html#request-pipeline`. Regenerate after a filter change: `python tools/build_request_flow.py` |
 | `endpoints.html` | Generated: every API endpoint by module with details and build status. Edit `tools/build_endpoints.py` when an endpoint is added, changed or built, then run it (it also refreshes `build-order.html`) |
 | `plans.html` | Commercial plans proposal (hand-written). Keep the feature table's release column in step with the roadmap |
+| `repository.html` | How the code repository and GitHub are run; its two diagrams come from `tools/build_repo_diagrams.py` |
 | `tools/` | Doc maintenance scripts |
 
 ## Editing rules

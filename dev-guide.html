@@ -94,7 +94,8 @@ flowchart TB
 <li>Trunk-based: short-lived branches <code>feat/…</code>, <code>fix/…</code>, merged to <code>main</code> by PR within a few days. Unfinished work goes behind a feature flag.</li>
 <li>Conventional Commits: <code>feat(sales): record batch hint from GS1 scan</code>. These generate the changelog.</li>
 <li>Every PR: CI green, self-review against the checklist below, and a link to the requirement ID (<code>F-103</code>, <code>BR-04</code>…).</li>
-<li>Releases are tagged <code>v1.6.0</code>. The tag builds the installers.</li>
+<li>Each app has its own release tag: <code>backend-v1.4.0</code>, <code>admin-v1.3.0</code>, <code>register-v1.6.0</code> (both register shells share one version). The tag builds the release.</li>
+<li>Squash merge only, so <code>main</code> has one commit per pull request. Branch protection, CI path filters and the GitHub settings are in <a href="repository.html">Repository &amp; GitHub</a>.</li>
 </ul>
 
 <h2 id="dod">Definition of done</h2>

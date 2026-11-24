@@ -52,6 +52,7 @@ listed there without adding it (with a reason) in the same change; new datastore
 |---|---|---|
 | Is it in the MVP? (scope, modules, screens, out of scope) | — | `Doc/mvp.html` |
 | Which plan includes a feature, plan limits, PLAN-001 | `backend/.../tenancy` (plan catalog) | `Doc/plans.html` |
+| Branch names, commits, PRs, CI path filters, release tags | `.github/`, `infra/ci/` | `Doc/repository.html` |
 | What task comes next, and is it built? (task IDs like `AUTN-09`) | — | `Doc/build-order.html` (`DONE` in `Doc/tools/build_order.py`) |
 | Which endpoints exist, their request/response/errors, and status | `backend/.../<module>/internal/web` | `Doc/endpoints.html` (update `Doc/tools/build_endpoints.py` in the same PR) |
 | What a table or column means, and how tables relate | `backend/.../db/migration` | `Doc/data-dictionary.html`, `Doc/data-model.html#db-map` |
