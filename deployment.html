@@ -28,6 +28,35 @@
 </tbody>
 </table>
 
+<h2 id="configuration">Configuration and secrets</h2>
+<p>One image runs everywhere; the environment is chosen by a Spring profile of the same name (<a href="build-order.html#set-07">SET-07</a>). Each profile is a file next to the shared <code>application.yml</code> in <code>backend/src/main/resources/</code>. <strong>Without a profile the backend refuses to start</strong>, so it can never fall back to a setting meant for another environment.</p>
+<table>
+<thead><tr><th>Profile</th><th>Environment</th><th>Set by</th><th>Database and secrets</th></tr></thead>
+<tbody>
+<tr><td><code>local</code></td><td>local</td><td><code>./gradlew bootRun</code> picks it by default</td><td>The docker compose database (<code>localhost:5432/retailos</code>, user and password <code>retailos</code>); each value can be overridden with an environment variable</td></tr>
+<tr><td><code>test</code></td><td>ci</td><td>The Gradle test tasks</td><td>A throwaway PostgreSQL 18 from Testcontainers</td></tr>
+<tr><td><code>staging</code></td><td>staging</td><td><code>SPRING_PROFILES_ACTIVE=staging</code> on the host</td><td>Only from environment variables, no defaults</td></tr>
+<tr><td><code>prod</code></td><td>production</td><td><code>SPRING_PROFILES_ACTIVE=prod</code> (later <code>prod,api</code> or <code>prod,worker</code>)</td><td>Only from environment variables, no defaults</td></tr>
+</tbody>
+</table>
+<h3 id="env-variables">Environment variables for staging and production</h3>
+<table>
+<thead><tr><th>Variable</th><th>What it is</th><th>Secret?</th></tr></thead>
+<tbody>
+<tr><td><code>SPRING_PROFILES_ACTIVE</code></td><td><code>staging</code> or <code>prod</code></td><td>No</td></tr>
+<tr><td><code>DB_URL</code></td><td>JDBC URL of the database, e.g. <code>jdbc:postgresql://db:5432/retailos</code></td><td>No</td></tr>
+<tr><td><code>DB_USER</code>, <code>DB_PASSWORD</code></td><td>The application's database login (the app role without DDL, <a href="build-order.html#db-02">DB-02</a>)</td><td>Password: yes</td></tr>
+<tr><td><code>ADMIN_ORIGIN</code></td><td>Where the admin web app is served from, e.g. <code>https://admin.example.lk</code>; the only origin allowed to call the API</td><td>No</td></tr>
+</tbody>
+</table>
+<p>Later tasks add their own variables here (storage keys, signing keys, mail). If any is missing, the backend stops before it starts anything and names them all:</p>
+<pre><code>java.lang.IllegalStateException: Missing environment variables: DB_URL, DB_USER, DB_PASSWORD, ADMIN_ORIGIN.
+Set them on the host (secret store or .env file); they are never written into the application*.yml files.</code></pre>
+<ul>
+<li><strong>Typed settings.</strong> RetailOS's own settings (<code>retailos.*</code>) are a validated record, <code>RetailOsProperties</code> in <code>platform/config</code>: the environment, the business time zone (default <code>Asia/Colombo</code>, <span class="inv">INV-15</span>) and the admin origins. A wrong value, such as an unknown time zone, stops start-up.</li>
+<li><strong>Secrets never in git.</strong> In every profile except <code>local</code> and <code>test</code>, a setting named like a password, secret, token or key must be a bare <code>${VARIABLE}</code> with no default. <code>SecretsInConfigTest</code> fails the build otherwise. Where the variables come from on each host: <a href="security.html#data-protection">Security › Encryption and secrets</a>.</li>
+</ul>
+
 <h2 id="pipeline">CI/CD pipeline</h2>
 <figure class="diagram">
 <pre class="mermaid">

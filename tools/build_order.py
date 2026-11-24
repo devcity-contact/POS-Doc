@@ -27,7 +27,7 @@ EP_BY_TASK = build_endpoints.by_task()
 DOC = pathlib.Path(__file__).resolve().parent.parent
 
 # Finished tasks recorded in the repository (shared with everyone). Example: DONE = {"SET-01", "SET-02"}
-DONE: set[str] = {"SET-01", "SET-02", "SET-03", "SET-04", "SET-05", "SET-06"}
+DONE: set[str] = {"SET-01", "SET-02", "SET-03", "SET-04", "SET-05", "SET-06", "SET-07"}
 
 KINDS = {"be": "Backend", "web": "Admin web", "reg": "Register app", "try": "Try it"}
 
@@ -45,7 +45,7 @@ STAGES = [
    ("SET-04", "Create the 15 empty modules", "tenancy, iam, devices, audit, catalog, pricing, inventory, purchasing, sales, payments, cash, customers, tax, sync, reporting, plus `platform` (shared kernel). Each has its public `*Api` in the module root package, `events/` and `spi/` named interfaces where needed, and an `internal` package with `web/`, `service/`, `repository/` and `model/` (ADR-015).", "modules#map", None),
    ("SET-05", "Module boundary test", "`ApplicationModules.verify()` runs in CI and fails on a forbidden dependency (INV-08). Generate the Modulith module docs.", "module-boundaries modules#dependencies", None),
    ("SET-06", "ArchUnit rules", "No `double`/`float` for money or quantities (INV-03), no imports of another module's `internal` package, naming rules, constructor injection only.", "dev-guide#java", None),
-   ("SET-07", "Configuration and profiles", "`local`, `test`, `staging`, `prod` profiles. Typed `@ConfigurationProperties`. Secrets come only from environment variables.", "security#data-protection", None),
+   ("SET-07", "Configuration and profiles", "`local`, `test`, `staging`, `prod` profiles. Typed `@ConfigurationProperties`. Secrets come only from environment variables.", "deployment#configuration security#data-protection", None),
    ("SET-08", "Local stack with docker compose", "PostgreSQL 18, S3-compatible storage and Mailpit. `docker compose up` gives a running stack.", "deployment", None),
    ("SET-09", "Formatting and static checks", "Formatter and static checks run in the build for Java and TypeScript, so style is never discussed in review.", "dev-guide#review", None),
    ("SET-10", "CI pipeline (GitHub Actions)", "Backend and front-end jobs: build, tests, boundary test, ArchUnit, lint, with path filters so only what changed is built. Required to merge. Scripts live in `infra/ci/`.", "repository#ci deployment", None),

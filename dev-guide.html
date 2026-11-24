@@ -30,7 +30,7 @@
 <pre><code>git clone &lt;repo-url&gt; retailos &amp;&amp; cd retailos
 cp infra/.env.example infra/.env            # local-only secrets, never commit .env
 docker compose -f infra/docker-compose.yml up -d   # postgres:18, minio, mailpit
-./backend/gradlew -p backend bootRun --args='--spring.profiles.active=local'
+./backend/gradlew -p backend bootRun                # local profile by default (Deployment › Configuration)
 pnpm install
 pnpm --filter admin dev                      # http://localhost:5173
 pnpm --filter register-electron dev          # opens the register window
