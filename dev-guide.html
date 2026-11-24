@@ -26,7 +26,7 @@
 </ol>
 
 <h2 id="setup">Local setup</h2>
-<p><strong>Prerequisites:</strong> Git, Docker Desktop, JDK 25 (Temurin), Node 22 LTS + pnpm 9, an IDE (IntelliJ IDEA or VS Code). Optional: an 80 mm ESC/POS printer or a network printer emulator.</p>
+<p><strong>Prerequisites:</strong> Git, Docker Desktop, JDK 25 (Temurin; the Gradle wrapper downloads it if it is missing), Node 22 LTS + pnpm 9, an IDE (IntelliJ IDEA or VS Code). Optional: an 80 mm ESC/POS printer or a network printer emulator.</p>
 <pre><code>git clone &lt;repo-url&gt; retailos &amp;&amp; cd retailos
 cp infra/.env.example infra/.env            # local-only secrets, never commit .env
 docker compose -f infra/docker-compose.yml up -d   # postgres:18, minio, mailpit

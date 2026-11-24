@@ -78,7 +78,7 @@ flowchart TB
 <table>
 <thead><tr><th>Technology</th><th>Version line</th><th>Role in RetailOS</th><th>Why chosen</th><th>Licence</th></tr></thead>
 <tbody>
-<tr><td><strong>Spring Boot</strong></td><td>4.0.x</td><td>Application framework, configuration, Actuator health and metrics</td><td>Mature and well documented, and AI assistants know it well. The 3.x line is out of open-source support.</td><td>Apache-2.0</td></tr>
+<tr><td><strong>Spring Boot</strong></td><td>4.2.x</td><td>Application framework, configuration, Actuator health and metrics</td><td>Mature and well documented, and AI assistants know it well. The 3.x line is out of open-source support.</td><td>Apache-2.0</td></tr>
 <tr><td><strong>Spring Modulith</strong></td><td>2.x (matches Boot 4)</td><td>Module boundary verification, event publication registry (outbox), module docs</td><td>Enforces <span class="inv">INV-08</span>, and gives a reliable outbox without a broker (<a href="adr.html#adr-007">ADR-007</a>).</td><td>Apache-2.0</td></tr>
 <tr><td><strong>Spring Web MVC</strong> on virtual threads</td><td>Boot 4</td><td>REST and Sync APIs</td><td>Simple blocking code that still scales thanks to virtual threads. No reactive complexity.</td><td>Apache-2.0</td></tr>
 <tr><td><strong>Spring Security</strong> (OAuth2 Resource Server, Nimbus JOSE)</td><td>7.x</td><td>JWT validation, method security (<code>@PreAuthorize</code>), password encoders</td><td>Standard, audited security building blocks.</td><td>Apache-2.0</td></tr>
@@ -91,12 +91,12 @@ flowchart TB
 <tr><td><strong>Jackson</strong></td><td>3.x (Boot 4)</td><td>JSON. <code>BigDecimal</code> is written as a string (<span class="inv">INV-03</span>).</td><td>The default in Spring. A custom module handles Money.</td><td>Apache-2.0</td></tr>
 <tr><td><strong>springdoc-openapi</strong></td><td>3.x (Boot 4)</td><td>OpenAPI document and Swagger UI (dev and staging only)</td><td>The TypeScript API client is generated from it.</td><td>Apache-2.0</td></tr>
 <tr><td><strong>MapStruct</strong></td><td>1.6.x</td><td>Compile-time DTO ↔ domain mapping</td><td>No reflection, and mapping errors show up at compile time.</td><td>Apache-2.0</td></tr>
-<tr><td><strong>ShedLock</strong></td><td>6.x</td><td>Makes sure a scheduled job runs on only one instance (nightly ledger check, snapshots)</td><td>Uses the existing PostgreSQL, so no extra infrastructure.</td><td>Apache-2.0</td></tr>
+<tr><td><strong>ShedLock</strong></td><td>7.x</td><td>Makes sure a scheduled job runs on only one instance (nightly ledger check, snapshots)</td><td>Uses the existing PostgreSQL, so no extra infrastructure.</td><td>Apache-2.0</td></tr>
 <tr><td><strong>Bucket4j</strong></td><td>8.x</td><td>Rate limiting per IP, user and device</td><td>Runs in-process, and can move to PostgreSQL or Redis storage later.</td><td>Apache-2.0</td></tr>
-<tr><td><strong>Apache POI</strong> (streaming) + <strong>FastCSV</strong></td><td>5.x / 3.x</td><td>Excel and CSV product import and export</td><td>Streams large files with low memory use and ignores macros.</td><td>Apache-2.0 / MIT</td></tr>
+<tr><td><strong>Apache POI</strong> (streaming) + <strong>FastCSV</strong></td><td>5.x / 4.x</td><td>Excel and CSV product import and export</td><td>Streams large files with low memory use and ignores macros.</td><td>Apache-2.0 / MIT</td></tr>
 <tr><td><strong>OpenPDF</strong> or <strong>JasperReports</strong> (pick one)</td><td>latest</td><td>Tax invoice and statement PDFs, Z-report PDF</td><td>Printable A4 tax documents for accountants.</td><td>LGPL/MPL</td></tr>
 <tr><td><strong>AWS SDK for Java v2</strong> (S3 client only)</td><td>2.x</td><td>Object storage: works with any S3-compatible provider</td><td>One API for every provider. Swap providers through the endpoint URL.</td><td>Apache-2.0</td></tr>
-<tr><td><strong>Gradle</strong> (Kotlin DSL)</td><td>9.x</td><td>Build, test, code generation, dependency locking</td><td>Standard for Spring. Build cache speeds up CI.</td><td>Apache-2.0</td></tr>
+<tr><td><strong>Gradle</strong> (Kotlin DSL)</td><td>9.x</td><td>Build, test, code generation, dependency locking</td><td>Standard for Spring. Build cache speeds up CI. Every backend version is pinned in <code>backend/gradle/libs.versions.toml</code>, and the resolved versions in <code>backend/gradle.lockfile</code>.</td><td>Apache-2.0</td></tr>
 </tbody>
 </table>
 
