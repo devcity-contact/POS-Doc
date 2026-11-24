@@ -334,17 +334,20 @@ void on(SaleCompleted event) {
 <thead><tr><th>Command</th><th>When</th><th>What it runs</th></tr></thead>
 <tbody>
 <tr><td><code>./gradlew test</code></td><td>every build, and in CI</td><td>All tests, including the boundary check</td></tr>
-<tr><td><code>./gradlew modulithVerify</code></td><td>while you work: quick, no database needed</td><td>Only <code>ModularityTests</code> and <code>ModularityGuardTest</code>, plus the module docs</td></tr>
+<tr><td><code>./gradlew modulithVerify</code></td><td>while you work: quick, no database needed</td><td>Only the boundary check, the <a href="#archunit">architecture rules</a> and their guard tests, plus the module docs</td></tr>
 <tr><td>CI on a pull request</td><td>from <a href="build-order.html#set-10">SET-10</a></td><td><code>./gradlew build</code>: a violation blocks the merge</td></tr>
 </tbody>
 </table>
 <p>Run from <code>backend/</code>, or add <code>-p backend</code> from the repository root. <code>modulithVerify</code> is defined in <code>backend/build.gradle.kts</code>:</p>
 <pre><code>val modulithVerify by tasks.registering(Test::class) {
-    description = "Checks the module boundaries and writes the module docs to build/spring-modulith-docs."
+    description = "Checks the module boundaries and architecture rules, and writes the module docs to build/spring-modulith-docs."
     group = LifecycleBasePlugin.VERIFICATION_GROUP
     testClassesDirs = sourceSets.test.get().output.classesDirs
     classpath = sourceSets.test.get().runtimeClasspath
-    filter { includeTestsMatching("com.devcity.retailos.Modularity*") }
+    filter {
+        includeTestsMatching("com.devcity.retailos.Modularity*")
+        includeTestsMatching("com.devcity.retailos.Architecture*")
+    }
 }</code></pre>
 
 <h2 id="guard">8 · How we know the check works</h2>
@@ -366,7 +369,30 @@ void failsWhenAModuleUsesAnotherModulesInternalPackage() {
 }</code></pre>
 <p>If a library upgrade or a configuration change ever stopped the check from working, this test would fail first.</p>
 
-<h2 id="module-docs">9 · Generated module documentation</h2>
+<h2 id="archunit">9 · Architecture rules inside a module</h2>
+<p>The boundary check looks <em>between</em> modules. A second set of ArchUnit rules (<a href="build-order.html#set-06">SET-06</a>) looks <em>inside</em> them. They live in <code>backend/src/test/java/com/devcity/retailos/ArchitectureRules.java</code>, run in <code>ArchitectureTest</code> (so in <code>test</code> and <code>modulithVerify</code>), and each has a bad example in <code>com.devcity.archfixture</code> that <code>ArchitectureGuardTest</code> expects to fail.</p>
+<table>
+<thead><tr><th>Rule</th><th>Fails on</th><th>Why</th></tr></thead>
+<tbody>
+<tr><td><code>no-floating-point</code></td><td>a <code>double</code> or <code>float</code> (or <code>Double</code>, <code>Float</code>) field, parameter or return type</td><td>money and quantities are <code>BigDecimal</code> (<span class="inv">INV-03</span>)</td></tr>
+<tr><td><code>no-other-module-internals</code></td><td>using another module's <code>internal</code> package</td><td>the same rule as <code>verify()</code>, as a second net (<span class="inv">INV-08</span>)</td></tr>
+<tr><td><code>other-modules-only-from-services</code></td><td>a controller, repository or entity using another business module (<code>platform</code> is fine)</td><td>other modules are called from a service, through their Api or events</td></tr>
+<tr><td><code>web-skips-no-layer</code></td><td>a controller using a repository</td><td>a controller calls one service method</td></tr>
+<tr><td><code>service-has-no-http</code></td><td>a service using controllers, <code>ResponseEntity</code>, <code>HttpStatus</code>, servlet or web-binding types</td><td>services hold rules, not HTTP</td></tr>
+<tr><td><code>repository-calls-no-upper-layer</code></td><td>a repository using a service or controller</td><td>calls go one way: controller → service → repository</td></tr>
+<tr><td><code>model-calls-no-layer</code></td><td>an entity using a repository, service or controller</td><td>entities only hold data and simple calculations</td></tr>
+<tr><td><code>controllers-in-web</code></td><td><code>@RestController</code> outside <code>internal/web</code> or not named <code>*Controller</code></td><td>everyone finds code in the same place</td></tr>
+<tr><td><code>services-in-service</code></td><td><code>@Service</code> outside <code>internal/service</code></td><td>same</td></tr>
+<tr><td><code>repositories-in-repository</code></td><td><code>@Repository</code> or a Spring Data repository outside <code>internal/repository</code> or not named <code>*Repository</code></td><td>same</td></tr>
+<tr><td><code>entities-in-model</code></td><td><code>@Entity</code> or <code>@Embeddable</code> outside <code>internal/model</code></td><td>entities never leave their module (its bad example arrives with JPA, <a href="build-order.html#db-12">DB-12</a>)</td></tr>
+<tr><td><code>module-api-is-interface</code></td><td>a <code>*Api</code> in a module's root package that is a class</td><td>other modules see only the interface</td></tr>
+<tr><td><code>events-are-records</code></td><td>a class in <code>events/</code> that is not a record</td><td>events are immutable</td></tr>
+<tr><td><code>no-field-injection</code>, <code>no-setter-injection</code></td><td><code>@Autowired</code>, <code>@Value</code>, <code>@Inject</code> or <code>@Resource</code> on a field, or <code>@Autowired</code> on a method</td><td>dependencies come through the constructor: final and easy to test</td></tr>
+</tbody>
+</table>
+<p>A planted <code>public double amount</code> in <code>sales/internal/model</code> failed with <code>com.devcity.retailos.sales.internal.model.TempPrice.amount is double</code>, naming INV-03 as the reason.</p>
+
+<h2 id="module-docs">10 · Generated module documentation</h2>
 <p>Each run of the check also writes Spring Modulith's own documentation to <code>backend/build/spring-modulith-docs/</code>:</p>
 <ul>
 <li><code>components.puml</code>: all modules and the dependencies between them (C4 component diagram, PlantUML)</li>
@@ -375,19 +401,19 @@ void failsWhenAModuleUsesAnotherModulesInternalPackage() {
 </ul>
 <p>They show the dependencies as they are in the code, so compare them with the planned <a href="modules.html#map">module map</a>. They are build output and are not committed.</p>
 
-<h2 id="limits">10 · What it doesn't cover</h2>
+<h2 id="limits">11 · What it doesn't cover</h2>
 <table>
 <thead><tr><th>Not checked</th><th>Covered instead by</th></tr></thead>
 <tbody>
 <tr><td>SQL that reads another module's tables</td><td>Ownership is in the <a href="data-dictionary.html">data dictionary</a> and checked in review. Tenant isolation is enforced by the database itself (row-level security, <a href="build-order.html#db-08">DB-08</a>).</td></tr>
 <tr><td>Reflection or lookups by class name</td><td>Not used in normal Spring code; the review checklist flags it.</td></tr>
-<tr><td>"Api only when the answer is needed now, otherwise events"</td><td>A design choice for review (<a href="modules.html#dependencies">dependency rules</a>).</td></tr>
+<tr><td>"Api only when the answer is needed now, otherwise events"</td><td>A design choice for review (<a href="modules.html#dependencies">dependency rules</a>). The rules do check that only services call other modules.</td></tr>
 <tr><td>Which modules may call which</td><td>Today any module may use any other module's public parts. See <a href="#stricter">making it stricter</a>.</td></tr>
-<tr><td>Field types, naming, <code>double</code> for money</td><td>The ArchUnit rules in <a href="build-order.html#set-06">SET-06</a>.</td></tr>
+<tr><td>Field types, naming, <code>double</code> for money, layers</td><td>The <a href="#archunit">architecture rules</a> (<a href="build-order.html#set-06">SET-06</a>).</td></tr>
 </tbody>
 </table>
 
-<h2 id="stricter">11 · Making it stricter later</h2>
+<h2 id="stricter">12 · Making it stricter later</h2>
 <p>A module can list the only modules it may use. The same <code>verify()</code> then also fails on any other dependency:</p>
 <pre><code>@ApplicationModule(
         displayName = "Catalog",
@@ -395,7 +421,7 @@ void failsWhenAModuleUsesAnotherModulesInternalPackage() {
 package com.devcity.retailos.catalog;</code></pre>
 <p>Named interfaces can be named precisely too, e.g. <code>"sales :: events"</code> lets a module use the events of <code>sales</code> but not <code>SalesApi</code>. We add these once the real calls between modules have settled. Each one is a short change with a review.</p>
 
-<h2 id="checklist">12 · Checklist</h2>
+<h2 id="checklist">13 · Checklist</h2>
 <h3 id="new-code">Adding code to a module</h3>
 <ul>
 <li>Controllers, services, repositories and entities go in <code>internal/web</code>, <code>internal/service</code>, <code>internal/repository</code>, <code>internal/model</code>.</li>

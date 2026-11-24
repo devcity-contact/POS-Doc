@@ -41,7 +41,7 @@ pnpm seed                                    # demo tenants: "Lanka Retail" and 
 <ul>
 <li>Package by module: <code>com.devcity.retailos.&lt;module&gt;</code>. Only the module root, <code>events</code> and <code>spi</code> packages are public. Everything else lives in <code>internal</code>. The build checks this; see <a href="module-boundaries.html">Module boundaries</a>.</li>
 <li>Layers in every module: controller (<code>web/</code>) → service (<code>service/</code>) → repository (<code>repository/</code>), with entities in <code>model/</code> (<a href="adr.html#adr-015">ADR-015</a>, <a href="architecture.html#layers">Layers inside a module</a>). Business rules live in services, never in controllers.</li>
-<li>Use <code>BigDecimal</code> for money with the shared <code>Money</code> type (scale 4, <code>RoundingMode.HALF_UP</code>). <code>double</code>/<code>float</code> for money fail the ArchUnit test (<span class="inv">INV-03</span>).</li>
+<li>Use <code>BigDecimal</code> for money with the shared <code>Money</code> type (scale 4, <code>RoundingMode.HALF_UP</code>). <code>double</code>/<code>float</code> for money fail the ArchUnit test (<span class="inv">INV-03</span>). The same rules check layers, naming and constructor injection; see <a href="module-boundaries.html#archunit">Architecture rules</a>.</li>
 <li>Use records for DTOs, commands and events. Events are immutable and versioned (<code>SaleCompletedV1</code> when the shape must change).</li>
 <li>One transaction per public service method (<code>@Transactional</code>); read methods use <code>readOnly = true</code>. Never call a remote service inside a transaction.</li>
 <li>Validate at the edge (Bean Validation on DTOs), and enforce business rules in the service.</li>
