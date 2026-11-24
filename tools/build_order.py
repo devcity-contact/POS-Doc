@@ -27,7 +27,7 @@ EP_BY_TASK = build_endpoints.by_task()
 DOC = pathlib.Path(__file__).resolve().parent.parent
 
 # Finished tasks recorded in the repository (shared with everyone). Example: DONE = {"SET-01", "SET-02"}
-DONE: set[str] = {"SET-01", "SET-02"}
+DONE: set[str] = {"SET-01", "SET-02", "SET-03"}
 
 KINDS = {"be": "Backend", "web": "Admin web", "reg": "Register app", "try": "Try it"}
 
