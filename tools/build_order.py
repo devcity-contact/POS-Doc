@@ -27,7 +27,7 @@ EP_BY_TASK = build_endpoints.by_task()
 DOC = pathlib.Path(__file__).resolve().parent.parent
 
 # Finished tasks recorded in the repository (shared with everyone). Example: DONE = {"SET-01", "SET-02"}
-DONE: set[str] = {"SET-01", "SET-02", "SET-03", "SET-04", "SET-05", "SET-06", "SET-07", "SET-08"}
+DONE: set[str] = {"SET-01", "SET-02", "SET-03", "SET-04", "SET-05", "SET-06", "SET-07", "SET-08", "SET-09"}
 
 KINDS = {"be": "Backend", "web": "Admin web", "reg": "Register app", "try": "Try it"}
 
@@ -47,7 +47,7 @@ STAGES = [
    ("SET-06", "ArchUnit rules", "No `double`/`float` for money or quantities (INV-03), no imports of another module's `internal` package, naming rules, constructor injection only.", "dev-guide#java", None),
    ("SET-07", "Configuration and profiles", "`local`, `test`, `staging`, `prod` profiles. Typed `@ConfigurationProperties`. Secrets come only from environment variables.", "deployment#configuration security#data-protection", None),
    ("SET-08", "Local stack with docker compose", "PostgreSQL 18, S3-compatible storage and Mailpit. `docker compose up` gives a running stack.", "deployment", None),
-   ("SET-09", "Formatting and static checks", "Formatter and static checks run in the build for Java and TypeScript, so style is never discussed in review.", "dev-guide#review", None),
+   ("SET-09", "Formatting and static checks", "Formatter and static checks run in the build for Java and TypeScript, so style is never discussed in review.", "dev-guide#formatting dev-guide#review", None),
    ("SET-10", "CI pipeline (GitHub Actions)", "Backend and front-end jobs: build, tests, boundary test, ArchUnit, lint, with path filters so only what changed is built. Required to merge. Scripts live in `infra/ci/`.", "repository#ci deployment", None),
    ("SET-11", "Security scans in CI", "Semgrep or CodeQL, OSV-Scanner for dependencies, Renovate for weekly update pull requests.", "security#sdlc", None),
    ("SET-12", "Container image", "Layered jar on a JRE 25 base, runs as non-root, scanned by Trivy, pushed to the container registry.", "deployment", None),

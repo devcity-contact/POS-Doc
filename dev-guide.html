@@ -26,7 +26,7 @@
 </ol>
 
 <h2 id="setup">Local setup</h2>
-<p><strong>Prerequisites:</strong> Git, Docker Desktop, JDK 25 (Temurin; the Gradle wrapper downloads it if it is missing), Node 22 LTS + pnpm 9, an IDE (IntelliJ IDEA or VS Code). Optional: an 80 mm ESC/POS printer or a network printer emulator.</p>
+<p><strong>Prerequisites:</strong> Git, Docker Desktop, JDK 25 (Temurin; the Gradle wrapper downloads it if it is missing), Node 22 LTS (22.13 or newer) with Corepack (<code>corepack enable</code> gives you the pnpm version pinned in the root <code>package.json</code>), an IDE (IntelliJ IDEA or VS Code). Optional: an 80 mm ESC/POS printer or a network printer emulator.</p>
 <pre><code>git clone &lt;repo-url&gt; retailos &amp;&amp; cd retailos
 cp infra/.env.example infra/.env            # optional: only to change local ports or logins; never commit .env
 docker compose -f infra/docker-compose.yml up -d   # postgres:18, seaweedfs (S3), mailpit; see infra/README.md
@@ -46,7 +46,7 @@ pnpm seed                                    # demo tenants: "Lanka Retail" and 
 <li>One transaction per public service method (<code>@Transactional</code>); read methods use <code>readOnly = true</code>. Never call a remote service inside a transaction.</li>
 <li>Validate at the edge (Bean Validation on DTOs), and enforce business rules in the service.</li>
 <li>Errors: throw a <code>DomainException</code> with an error code from the catalog. A global handler maps it to a Problem Details response.</li>
-<li>Formatting: Spotless (google-java-format). Null-safety with JSpecify annotations.</li>
+<li>Formatting: Spotless (google-java-format), checked by the build; see <a href="#formatting">Formatting and lint</a>. Null-safety with JSpecify annotations.</li>
 </ul>
 
 <h2 id="ts">TypeScript conventions (admin and register)</h2>
@@ -59,6 +59,25 @@ pnpm seed                                    # demo tenants: "Lanka Retail" and 
 <li>Components: functional, typed props, and accessible (labels, focus order, large touch targets on the register: at least 44 px).</li>
 <li>Register UX rules: every action is reachable from the keyboard, no confirmation dialog for routine actions, errors are shown inline in plain language (si/ta/en).</li>
 </ul>
+
+<h2 id="formatting">Formatting and lint</h2>
+<p>The build checks style, so it never comes up in review. Run the fix command and commit the result.</p>
+<table>
+<thead><tr><th>Code</th><th>Tool</th><th>Check (fails the build)</th><th>Fix</th></tr></thead>
+<tbody>
+<tr><td>Java, Gradle and resource files in <code>backend/</code></td><td>Spotless with google-java-format; wildcard imports refused</td><td><code>./gradlew spotlessCheck</code> (part of <code>check</code> and <code>build</code>)</td><td><code>./gradlew spotlessApply</code></td></tr>
+<tr><td>Java compiler</td><td><code>-Xlint:all -Werror</code></td><td>any compiler warning fails <code>build</code></td><td>by hand</td></tr>
+<tr><td>TypeScript, JSON, YAML, Markdown (everything outside <code>backend/</code>)</td><td>Prettier</td><td><code>pnpm format:check</code></td><td><code>pnpm format</code></td></tr>
+<tr><td>TypeScript</td><td>ESLint 10 with typescript-eslint (strict)</td><td><code>pnpm lint</code></td><td>by hand</td></tr>
+</tbody>
+</table>
+<p>The project's own ESLint rules, in the root <code>eslint.config.js</code>:</p>
+<ul>
+<li>No <code>any</code>, and type-only imports use <code>import type</code>.</li>
+<li>No <code>+ - * / %</code> on names that end in price, amount, total, cost, qty, quantity, tax, discount or balance, and no <code>parseFloat</code> (<span class="inv">INV-03</span>). Use <code>Decimal</code> methods.</li>
+<li><code>packages/register-core</code> imports no React, UI state, Electron, Capacitor or Node modules, and nothing from <code>apps/</code> or the UI package.</li>
+</ul>
+<p><code>pnpm check</code> runs Prettier, ESLint and <code>pnpm lint:rules</code>, a small test (<code>tools/lint-rules.test.js</code>) that proves each of these rules still reports a planted mistake.</p>
 
 <h2 id="testing">Testing strategy</h2>
 <figure class="diagram">
@@ -133,6 +152,7 @@ flowchart TB
 </ul>
 
 <h2 id="review">Code review checklist</h2>
+<p>Style is not on this list: the build checks it (<a href="#formatting">Formatting and lint</a>).</p>
 <ul>
 <li>Which invariants does this touch? Are they tested?</li>
 <li>Does any module read another module's table or internal class?</li>
