@@ -187,7 +187,7 @@ flowchart TB
 <tr><td><strong>Cloudflare</strong> (free plan) or another CDN</td><td>DNS, CDN for admin web and snapshots, basic WAF and DDoS protection</td><td>Free tier</td></tr>
 <tr><td><strong>OpenTofu</strong> (Terraform-compatible)</td><td>Infrastructure as code once the provider is chosen <span class="badge b-r2">Stage 2</span></td><td>Free</td></tr>
 <tr><td><strong>sops</strong> + <strong>age</strong></td><td>Encrypted secrets in git for VPS deployments</td><td>Free</td></tr>
-<tr><td>Local S3 server (MinIO, SeaweedFS or Garage)</td><td>S3-compatible storage in <code>docker compose</code> for development</td><td>Free. Check the current image and licence terms before choosing.</td></tr>
+<tr><td><strong>SeaweedFS</strong> (local S3 server)</td><td>S3-compatible storage in <code>docker compose</code> for development</td><td>Free, Apache-2.0, with an official image (<code>chrislusf/seaweedfs</code>). Chosen in SET-08 because MinIO no longer publishes free images and Garage is AGPL and needs manual key and bucket set-up.</td></tr>
 <tr><td><strong>Mailpit</strong></td><td>Catches e-mails locally</td><td>Free</td></tr>
 <tr><td>Windows code-signing certificate (OV/EV, or a cloud signing service)</td><td>Signs the register installer and updates</td><td>About $200–400 a year</td></tr>
 <tr><td>Google Play Console (managed Google Play for business)</td><td>Distributing the Android register</td><td>One-time $25 developer fee</td></tr>

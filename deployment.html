@@ -21,7 +21,7 @@
 <table>
 <thead><tr><th>Environment</th><th>Purpose</th><th>Runs on</th><th>Data</th></tr></thead>
 <tbody>
-<tr><td><strong>local</strong></td><td>Development</td><td><code>docker compose up</code>: PostgreSQL, MinIO (S3), Mailpit, backend with hot reload</td><td>Seed script with 2 demo tenants (retail + pharmacy)</td></tr>
+<tr><td><strong>local</strong></td><td>Development</td><td><code>docker compose -f infra/docker-compose.yml up -d</code>: PostgreSQL 18, SeaweedFS (S3), Mailpit, all on <code>127.0.0.1</code> only; backend with <code>./gradlew bootRun</code></td><td>Seed script with 2 demo tenants (retail + pharmacy)</td></tr>
 <tr><td><strong>ci</strong></td><td>Automated tests</td><td>CI runners + Testcontainers</td><td>Created and destroyed per run</td></tr>
 <tr><td><strong>staging</strong></td><td>Pre-release checks, pilot-shop training, DAST</td><td>Smallest production-like setup (can share a host with prod on separate databases at pilot stage)</td><td>Synthetic data only. Never copy production personal data.</td></tr>
 <tr><td><strong>production</strong></td><td>Real shops</td><td>See <a href="#topology">topology</a></td><td>Real</td></tr>

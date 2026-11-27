@@ -95,7 +95,7 @@
 
 <h3 id="backend-infra">Infrastructure and operations</h3>
 <ul>
-<li><strong>Database and storage:</strong> PostgreSQL 18 with row-level security on every tenant table (INV-01); point-in-time backups and a daily off-site copy; object storage (MinIO or S3) for snapshots, imports and exports; transactional e-mail for invitations and password resets only.</li>
+<li><strong>Database and storage:</strong> PostgreSQL 18 with row-level security on every tenant table (INV-01); point-in-time backups and a daily off-site copy; object storage (any S3-compatible provider; SeaweedFS locally) for snapshots, imports and exports; transactional e-mail for invitations and password resets only.</li>
 <li><strong>Delivery:</strong> Docker containers, a CI/CD pipeline, a module-boundary test and a tenant-isolation test in CI.</li>
 <li><strong>Run-time:</strong> monitoring and alerts, runbooks, and a quarterly restore drill. Details: <a href="deployment.html">Deployment</a> and <a href="operations.html">Monitoring &amp; runbooks</a>.</li>
 </ul>
